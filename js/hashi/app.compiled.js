@@ -3001,14 +3001,16 @@ function HashiGame() {
     } };
   useEffect(function () {
     if (typeof window !== 'undefined' && window.__PLAT_NET && window.__PLAT_NET.inMatch && window.__PLAT_NET.inMatch !== 'hashi') return; // 底部列主人是另一款遊戲時不搶（錦標賽輪替時防翻跳）
+    if (typeof window === 'undefined' || typeof window.PlatBar === 'undefined') return;
     var el = platBarRef.current;
-    if (el && typeof window.PlatBar !== 'undefined') {
-      window.PlatBar.attach(el, platBarCfgStable.current);
-      return function () {
-        if (typeof window.PlatBar !== 'undefined') window.PlatBar.detach(el);
-      };
+    if (el) {
+      // 自我修復（v1.55.1）：掛載節點被換掉/拆掉時自動重新 attach——完賽轉觀戰會把整個底部列連掛載點一起卸載，
+      // 再來一局時 React 用新節點重建、screen 卻沒變，舊的 [screen] effect 永遠不重跑、殼抱著死節點整場沒工具列（使用者實機回報）
+      if (window.PlatBar._el() !== el || !window.PlatBar._elConnected()) window.PlatBar.attach(el, platBarCfgStable.current);
+    } else if (window.PlatBar.isAttached() && !window.PlatBar._elConnected()) {
+      window.PlatBar.detach(window.PlatBar._el());
     }
-  }, [screen]);
+  });
   useEffect(function () {
     if (typeof window.PlatBar === 'undefined' || !window.PlatBar.isAttached()) return;
     if (typeof window !== 'undefined' && window.__PLAT_NET && window.__PLAT_NET.inMatch && window.__PLAT_NET.inMatch !== 'hashi') return;
