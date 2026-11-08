@@ -538,7 +538,8 @@ function MinesGame() {
   var statusRef = useRef('ready');
   statusRef.current = status;
   var lpRef = useRef(null); // 長按計時器（長按插旗）
-  var lpPtRef = useRef(null); // 長按起點座標（移動超過 10px 取消長按：滑動/捲動不是長按）
+  var lpPtRef = useRef(null); // 長按起點座標（移動超過容錯取消長按：滑動/捲動不是長按）
+  var downPtRef = useRef(null); // v1.56.0 修：漂移判定的按下座標專用——onCellMove 取消長按時會清 lpPtRef，舊版連漂移基準一起清掉，放開時無從判漂移、滑出 40px 也照挖（test-inputfix ③ 抓到）
 
   var spec = SIZES[sizeId] || SIZES[9];
   var specRef = useRef(spec);
@@ -608,7 +609,10 @@ function MinesGame() {
     _useState70 = _slicedToArray(_useState69, 2),
     custOpen = _useState70[0],
     setCustOpen = _useState70[1];
-  var boardScrollRef = useRef(null); // 盤面捲動容器（邊緣虛化/自製卷軸指示條依它的捲動量更新）
+  var boardScrollRef = useRef(null);
+  var boardZoomRef = useRef(null); // F3：縮放 FLIP 過渡的盤面包裝層（盤面＋塗鴉一起縮放）
+  var prevZoomRef = useRef(1);
+  var prevZoomSpecRef = useRef(''); // 盤面捲動容器（邊緣虛化/自製卷軸指示條依它的捲動量更新）
   var fadeRRef = useRef(null),
     fadeBRef = useRef(null),
     fadeLRef = useRef(null),
@@ -1265,6 +1269,7 @@ function MinesGame() {
       x: e.clientX,
       y: e.clientY
     } : null;
+    downPtRef.current = lpPtRef.current;
     // 已定案的格（已開數字、容錯 ✗、禮物鎖定旗）不需要長按插旗計時器：不起計時器，按住數字想事情不會有任何副作用
     if (!cells || cells[idx] === 'o' || cells[idx] === 'x' || cells[idx] === 'L') return;
     // 500ms 與數獨的長按清除一致（舊 380ms 太短：稍用力、稍慢的一般點按就被誤判成長按插旗——誤觸主因之一）
@@ -1277,9 +1282,9 @@ function MinesGame() {
   }
   function onCellMove(e) {
     // 防誤觸：按住後移動超過 TAP_DRIFT_PX（想捲動頁面）就取消長按判定——舊版 10px 太嚴：手指自然抖動就把長按照消，
-    // 放開後只剩 click 路徑、又被漂移檢查吞掉（v1.54.2 與 pointerup 容許漂移統一為 22px）
-    if (!lpRef.current || !lpPtRef.current || !e || typeof e.clientX !== 'number') return;
-    if (Math.hypot(e.clientX - lpPtRef.current.x, e.clientY - lpPtRef.current.y) > TAP_DRIFT_PX) {
+    // 放開後只剩 click 路徑、又被漂移檢查吞掉（v1.54.2 與 pointerup 容許漂移統一為 22px）。漂移基準讀 downPtRef、且不清它（放開時還要用）。
+    if (!lpRef.current || !downPtRef.current || !e || typeof e.clientX !== 'number') return;
+    if (Math.hypot(e.clientX - downPtRef.current.x, e.clientY - downPtRef.current.y) > TAP_DRIFT_PX) {
       clearTimeout(lpRef.current);
       lpRef.current = null;
       lpPtRef.current = null;
@@ -1300,7 +1305,8 @@ function MinesGame() {
     var leftOut = lpLeftRef.current;
     lpLeftRef.current = false;
     if (leftOut && e && e.currentTarget && e.currentTarget.dataset && e.currentTarget.dataset.cell != null && Number(e.currentTarget.dataset.cell) !== (lc && lc.idx)) return; // 滑出起點格又在別格放開（滑鼠式取消）
-    var pt = lpPtRef.current;
+    var pt = downPtRef.current;
+    downPtRef.current = null;
     lpPtRef.current = null;
     if (fired || !lc) return;
     if (pt && e && typeof e.clientX === 'number' && Math.hypot(e.clientX - pt.x, e.clientY - pt.y) > TAP_DRIFT_PX) return; // 滑太遠＝捲動意圖，整下取消
@@ -1316,6 +1322,7 @@ function MinesGame() {
       lpRef.current = null;
     }
     lpPtRef.current = null;
+    downPtRef.current = null;
     lpCellRef.current = null;
   } // pointercancel：瀏覽器接管手勢（捲動）→ 整下作廢
   function onCellClick(idx) {
@@ -3011,6 +3018,45 @@ function MinesGame() {
       }
     }
   };
+  // F3（v1.56.0）：縮放過渡（FLIP 式）——版面直接跳到新尺寸，視覺先以 transform 從舊比例開始、200ms travel 曲線收回 1；
+  // 不逐格動 layout、盤面與塗鴉層一起縮放；動畫中再按會以目前視覺比例為新起點 retarget；換盤面（spec 變）不播。
+  useEffect(function () {
+    var w = boardZoomRef.current;
+    if (!w) {
+      prevZoomRef.current = zoom;
+      return;
+    }
+    var specKey = spec.w + 'x' + spec.h + '/' + spec.mines;
+    if (prevZoomSpecRef.current !== specKey) {
+      prevZoomSpecRef.current = specKey;
+      prevZoomRef.current = zoom;
+      w.style.transition = 'none';
+      w.style.transform = '';
+      return;
+    }
+    if (prevZoomRef.current === zoom) return;
+    var cur = 1;
+    var m = /matrix\(([^)]+)\)/.exec(w.style.transform || '');
+    var cs = null;
+    try {
+      cs = window.getComputedStyle(w).transform;
+    } catch (e) {}
+    var mm = /matrix\(([^)]+)\)/.exec(cs || '');
+    if (mm) cur = parseFloat(mm[1].split(',')[0]) || 1;else if (m) cur = parseFloat(m[1].split(',')[0]) || 1;
+    var from = cur * (prevZoomRef.current / zoom);
+    prevZoomRef.current = zoom;
+    if (Math.abs(from - 1) < 0.01) {
+      w.style.transform = '';
+      return;
+    }
+    w.style.transition = 'none';
+    w.style.transformOrigin = '50% 50%';
+    w.style.transform = 'scale(' + from + ')';
+    window.requestAnimationFrame(function () {
+      w.style.transition = 'transform 200ms cubic-bezier(0.22, 1, 0.36, 1)';
+      w.style.transform = 'scale(1)';
+    });
+  }, [zoom]);
   var platBarCfgStable = useRef(null);
   if (!platBarCfgStable.current) platBarCfgStable.current = {
     accent: ACCENT,
@@ -3562,7 +3608,13 @@ function MinesGame() {
       className: "w-full max-w-md mt-3 bg-white border-[3px] border-slate-800 rounded-xl p-3 shadow-[4px_4px_0px_rgba(30,41,59,1)] animate-fadeIn"
     }, /*#__PURE__*/React.createElement("div", {
       className: "font-black text-xl text-slate-800 mb-2"
-    }, title), /*#__PURE__*/React.createElement("div", {
+    }, /*#__PURE__*/React.createElement("span", {
+      key: title,
+      className: "plat-lite-in",
+      style: {
+        display: 'inline-block'
+      }
+    }, title)), /*#__PURE__*/React.createElement("div", {
       className: "flex flex-wrap gap-1.5 mb-2"
     }, opps.map(function (p) {
       var gg = godBoards[p.id] || {
@@ -4190,7 +4242,7 @@ function MinesGame() {
     },
     className: "shrink-0 flex px-1.5 py-0.5 bg-[#1e293b] text-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(0,0,0,0.3)] items-center gap-1 whitespace-nowrap"
   }, hdrOpen ? '🔼 縮小面板' : '🔽 展開規則')), /*#__PURE__*/React.createElement("div", {
-    className: "w-full overflow-hidden transition-all duration-500 ease-in-out origin-top flex flex-col gap-2 " + (hdrOpen ? 'max-h-[500px] opacity-100 scale-y-100' : 'max-h-0 opacity-0 scale-y-95')
+    className: "plat-collapse-y w-full" + (hdrOpen ? " open" : "")
   }, /*#__PURE__*/React.createElement("div", {
     className: "bg-white border-[3px] border-slate-800 rounded-xl p-2 md:p-3 text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)]"
   }, /*#__PURE__*/React.createElement("h3", {
@@ -4217,25 +4269,32 @@ function MinesGame() {
     title: "\u8ABF\u6574\u76E4\u9762\u5927\u5C0F\uFF08\u6BD4\u7167\u6578\u7368\u7684\u7E2E\u653E\uFF09"
   }, "\uD83D\uDD0D", zoom > 1 && /*#__PURE__*/React.createElement("span", {
     className: "ml-0.5 text-[10px]"
-  }, Math.round(zoom * 100), "%")), zoomOpen && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
+  }, Math.round(zoom * 100), "%")), /*#__PURE__*/React.createElement("span", {
+    className: "plat-collapse-x" + (zoomOpen ? " open" : "")
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "flex gap-1 items-center whitespace-nowrap"
+  }, /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       return setZoom(Math.max(1, Math.round((zoom - 0.25) * 100) / 100));
     },
     className: hbtn,
-    title: "\u7E2E\u5C0F"
+    title: "\u7E2E\u5C0F",
+    tabIndex: zoomOpen ? 0 : -1
   }, "\uFF0D"), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       return setZoom(Math.min(2.5, Math.round((zoom + 0.25) * 100) / 100));
     },
     className: hbtn,
-    title: "\u653E\u5927"
+    title: "\u653E\u5927",
+    tabIndex: zoomOpen ? 0 : -1
   }, "\uFF0B"), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       return setZoom(1);
     },
     className: hbtn,
-    title: "\u56DE\u5230\u9069\u61C9\u87A2\u5E55"
-  }, "\u9069\u61C9"))), /*#__PURE__*/React.createElement("div", {
+    title: "\u56DE\u5230\u9069\u61C9\u87A2\u5E55",
+    tabIndex: zoomOpen ? 0 : -1
+  }, "\u9069\u61C9")))), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-1 md:gap-2 flex-wrap items-center ml-auto"
   }, !mpOn && /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
@@ -4507,6 +4566,7 @@ function MinesGame() {
       maxHeight: zoom > 1 ? '68vh' : 'none'
     }
   }, /*#__PURE__*/React.createElement("div", {
+    ref: boardZoomRef,
     style: {
       width: 'max-content',
       margin: '0 auto',

@@ -249,6 +249,17 @@ body.plat-room-on[data-view="mines"] {
 .plat-pop-out { animation: platPopOut 150ms var(--plat-ease-travel) both; pointer-events: none; }
 .plat-pop-in-x { animation: platPopInX 190ms var(--plat-ease-settle) both; }
 .plat-pop-out-x { animation: platPopOutX 150ms var(--plat-ease-travel) both; pointer-events: none; }
+
+/* F4 展開列 Collapse（v1.56.0）：grid 軌道 0fr↔1fr 精確高度/寬度過渡——鄰居連續跟隨、不用 max-h 猜高。
+   -y 給控制卡的規則面板（數獨/地雷同款，取代舊 max-h 500px 猜高）；-x 給地雷縮放展開列（橫向推開鄰居）。
+   內容層由 > * 承接 min-size:0 + overflow:hidden，動畫中內容是被「揭開」不是被壓扁。 */
+.plat-collapse-y { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 300ms cubic-bezier(0.22, 1, 0.36, 1), opacity 220ms ease; }
+.plat-collapse-y.open { grid-template-rows: 1fr; opacity: 1; }
+.plat-collapse-y > * { min-height: 0; overflow: hidden; }
+.plat-collapse-x { display: inline-grid; grid-template-columns: 0fr; opacity: 0; visibility: hidden; vertical-align: middle; transition: grid-template-columns 260ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease, visibility 0s linear 260ms; }
+.plat-collapse-x.open { grid-template-columns: 1fr; opacity: 1; visibility: visible; transition: grid-template-columns 260ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease, visibility 0s; }
+.plat-collapse-x > * { min-width: 0; overflow: hidden; }
+@media (prefers-reduced-motion: reduce) { .plat-collapse-y, .plat-collapse-x { transition: none; } }
 @media (prefers-reduced-motion: reduce) { .plat-msg-in, .plat-toast-in, .plat-pop-in, .plat-pop-out, .plat-pop-in-x, .plat-pop-out-x { animation: none; } }
 /* 倒數 Roll 換位（PlatCountdown 升級）：每位數字由下滾入＋spring 落定 */
 @keyframes platCountRoll { 0% { transform: translateY(38%) scale(1.22); opacity: 0; } 100% { transform: translateY(0) scale(1); opacity: 1; } }

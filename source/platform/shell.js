@@ -165,7 +165,7 @@
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.55.1'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
+  var PLAT_VERSION = '1.56.0'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -339,7 +339,7 @@
   }
 
   // ---------- 大廳 UI ----------
-  function lobbyMsg(t) { var el = $('lob-msg'); if (el) el.textContent = t || ''; }
+  function lobbyMsg(t) { var el = $('lob-msg'); if (el) window.PlatLite(el, t || ''); } // F2：連線狀態字改滾換（同字不重播由 PlatLite 內部把關）
   function showStep(s) {
     $('lob-step-entry').style.display = (s === 'entry') ? 'block' : 'none';
     $('lob-step-nick').style.display = (s === 'nick') ? 'block' : 'none';
@@ -2189,6 +2189,16 @@
   // actions: refresh / ready / spectator / start / leave /
   //          player-click(key) / player-toggle(key)
   var PR = { el: null, cfg: null, state: null, lastJson: null, unsub: null, slot: null };
+  // F2 狀態字 Roll（v1.56.0）：字串渲染的按鈕標籤換字時包 .plat-lite-in 播滾換（新節點插入即播）；
+  // 同字重渲染不加 class、不重播。用 key 區分不同標籤位（ready/start）。
+  var prLiteMemo = {};
+  function prLiteSpan(key, text) {
+    var t = String(text == null ? '' : text);
+    var changed = prLiteMemo[key] !== undefined && prLiteMemo[key] !== t;
+    prLiteMemo[key] = t;
+    return '<span' + (changed ? ' class="plat-lite-in" style="display:inline-block"' : '') + '>' + pbEsc(t) + '</span>';
+  }
+
   function prRegion(name) { return PR.el ? PR.el.querySelector('[data-pr-region="' + name + '"]') : null; }
   function prAct(name, payload) { if (PR.cfg && PR.cfg.onAction) { try { PR.cfg.onAction(name, payload); } catch (e) {} } }
   function prDockHtml(ac) {
@@ -2257,7 +2267,7 @@
       if (st.myReady !== null && st.myReady !== undefined || st.mySpectator !== null && st.mySpectator !== undefined) {
         c += '<div class="flex gap-2 mb-4">';
         if (st.myReady !== null && st.myReady !== undefined) {
-          c += '<button data-pr="ready"' + (st.myReady ? '' : ' data-pr-bob="1"') + ' class="flex-1 py-3 rounded-xl border-[3px] border-slate-800 font-black text-base shadow-[3px_3px_0px_rgba(30,41,59,1)] active:translate-y-[2px] active:shadow-none transition-all" style="background:' + (st.myReady ? ac : '#ffffff') + ';color:' + (st.myReady ? '#0f172a' : '#64748b') + '">' + pbEsc(st.myReady ? (st.readyOn || '✅ 已準備') : (st.readyOff || '✋ 準備好了')) + '</button>';
+          c += '<button data-pr="ready"' + (st.myReady ? '' : ' data-pr-bob="1"') + ' class="flex-1 py-3 rounded-xl border-[3px] border-slate-800 font-black text-base shadow-[3px_3px_0px_rgba(30,41,59,1)] active:translate-y-[2px] active:shadow-none transition-all" style="background:' + (st.myReady ? ac : '#ffffff') + ';color:' + (st.myReady ? '#0f172a' : '#64748b') + '">' + prLiteSpan('ready', st.myReady ? (st.readyOn || '✅ 已準備') : (st.readyOff || '✋ 準備好了')) + '</button>';
         }
         if (st.mySpectator !== null && st.mySpectator !== undefined) {
           c += '<button data-pr="spectator" class="px-4 py-3 rounded-xl border-[3px] border-slate-800 font-black text-base shadow-[3px_3px_0px_rgba(30,41,59,1)] active:translate-y-[2px] active:shadow-none transition-all ' + (st.mySpectator ? 'bg-sky-300 text-slate-900' : 'bg-white text-slate-500') + '">👁️ 觀戰</button>';
@@ -2266,7 +2276,7 @@
       }
       if (st.start) {
         var sk = st.start.kind === 'danger' ? 'background:#f87171;color:#0f172a' : 'background:' + ac + ';color:#0f172a';
-        c += '<button data-pr="start"' + (st.start.disabled ? ' disabled' : '') + ' class="plat-btn-hard w-full py-3.5 border-4 border-slate-800 rounded-xl font-black text-lg shadow-[4px_4px_0px_rgba(30,41,59,1)] disabled:opacity-50 disabled:cursor-not-allowed" style="' + sk + '">' + pbEsc(st.start.label || '開始') + '</button>';
+        c += '<button data-pr="start"' + (st.start.disabled ? ' disabled' : '') + ' class="plat-btn-hard w-full py-3.5 border-4 border-slate-800 rounded-xl font-black text-lg shadow-[4px_4px_0px_rgba(30,41,59,1)] disabled:opacity-50 disabled:cursor-not-allowed" style="' + sk + '">' + prLiteSpan('start', st.start.label || '開始') + '</button>';
         if (st.start.note) c += '<p class="text-xs text-slate-500 font-bold text-center mt-2">' + pbEsc(st.start.note) + '</p>';
       } else if (st.waitingText) {
         c += '<p class="font-black text-slate-700 animate-pulse text-center">' + pbEsc(st.waitingText) + '</p>';

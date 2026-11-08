@@ -695,7 +695,8 @@ function SudokuGame() {
   var tapSeqRef = useRef(0); // 每次 pointerdown 的點按序號：長按標記只擋同一次點按的放開，不毒到下一次
   var longPressSeqRef = useRef(-1);
   var tapInfoRef = useRef(null); // 本次點按落在哪一格（pointerup 直接處理點按用，不單靠 click）
-  var pointerTapDedupeRef = useRef(null); // pointerup 已處理過的點按：擋掉隨後跟來的重複 click
+  var pointerTapDedupeRef = useRef(null);
+  var padTapRef = useRef(null); // F1：數字鍵 pointer 點按追蹤（按下鍵＋client 座標） // pointerup 已處理過的點按：擋掉隨後跟來的重複 click
 
   var engineRef = useRef('none');
   var peerRef = useRef(null);
@@ -2840,7 +2841,9 @@ function SudokuGame() {
           cellId: cellId,
           seq: seq,
           x: pt.x,
-          y: pt.y
+          y: pt.y,
+          cx: e.clientX,
+          cy: e.clientY
         };
         cellLongPressTimer.current = setTimeout(function () {
           clearCell(cellId);
@@ -2925,26 +2928,33 @@ function SudokuGame() {
     // 筆尖幾乎沒動（≤6 單位）才當點按補處理；捲動起手在被 claim 前早已移動超過這個量，不會被誤補成填數字。
     var tapInfo = tapInfoRef.current;
     tapInfoRef.current = null;
+    if (tapInfo && e.type === 'pointerleave') {
+      // 手勢在盤面外結束：標記已結算，擋掉放開位置（可能是數字鍵）上的尾隨 click 誤觸
+      pointerTapDedupeRef.current = {
+        t: Date.now()
+      };
+    }
     if ((e.type === 'pointerup' || e.type === 'pointercancel') && interactionMode < 2 && tapInfo) {
+      // v1.56.0（比照地雷 F1 同類修）：點按改「client 漂移 ≤22px 就對按下那格執行」——舊制要求放開還在同一格，
+      // 手指抬起滾到鄰格時 pointerup 被丟掉、尾隨 click 反而打中鄰格（誤選/誤填）。不論命中或作廢都先標記 dedupe，
+      // 尾隨 click 一律不再觸發；只有鍵盤/程式觸發（無近期 pointer 結算）才走 click 備援。
       if (longPressSeqRef.current === tapInfo.seq) {
         pointerTapDedupeRef.current = {
-          cellId: tapInfo.cellId,
           t: Date.now()
         };
-      } else {
+      } else if (e.type === 'pointercancel') {
+        // 觸控筆救援保留（有界例外）：cancel 且幾乎沒動（SVG ≤6 單位）視為點按補處理；捲動起手在被 claim 前早已移動超過此量。其餘 cancel 作廢。
         var upPt = getSvgCoords(e.clientX, e.clientY);
-        if (upPt) {
-          var ux = Math.floor((upPt.x - PADDING) / CELL_SIZE);
-          var uy = Math.floor((upPt.y - PADDING) / CELL_SIZE);
-          var distOk = e.type === 'pointerup' || Math.hypot(upPt.x - tapInfo.x, upPt.y - tapInfo.y) <= 6;
-          if (distOk && ux + '-' + uy === tapInfo.cellId) {
-            pointerTapDedupeRef.current = {
-              cellId: tapInfo.cellId,
-              t: Date.now()
-            };
-            handleCellClick(tapInfo.cellId);
-          }
-        }
+        pointerTapDedupeRef.current = {
+          t: Date.now()
+        };
+        if (upPt && Math.hypot(upPt.x - tapInfo.x, upPt.y - tapInfo.y) <= 6) handleCellClick(tapInfo.cellId);
+      } else {
+        var drift = Math.hypot(e.clientX - (tapInfo.cx || 0), e.clientY - (tapInfo.cy || 0));
+        pointerTapDedupeRef.current = {
+          t: Date.now()
+        };
+        if (drift <= 22) handleCellClick(tapInfo.cellId);
       }
     }
     if (interactionMode === 2) {
@@ -3929,6 +3939,19 @@ function SudokuGame() {
       tracker.count = 0;
     }
   };
+
+  // F3（v1.56.0）：按鈕觸發的縮放加 200ms travel 過渡——先在 svg 上掛 transition 再改尺寸（inline style 變更同樣吃 transition）；
+  // 260ms 後自動卸下，確保雙指捏合/捲動觸發的 recalculateZoom 維持即時跟手、不被過渡拖慢。連按時重掛即可 retarget（CSS transition 會從當前值續行）。
+  var zoomAnimTimerRef = useRef(null);
+  var armZoomTransition = function armZoomTransition() {
+    var svg = svgRef.current;
+    if (!svg) return;
+    svg.style.transition = 'width 200ms cubic-bezier(0.22, 1, 0.36, 1), height 200ms cubic-bezier(0.22, 1, 0.36, 1)';
+    if (zoomAnimTimerRef.current) clearTimeout(zoomAnimTimerRef.current);
+    zoomAnimTimerRef.current = setTimeout(function () {
+      if (svgRef.current) svgRef.current.style.transition = '';
+    }, 260);
+  };
   var recalculateZoom = function recalculateZoom(modeIdx) {
     var container = zoomContainerRef.current;
     if (!container) return;
@@ -4263,12 +4286,14 @@ function SudokuGame() {
     });
   };
   var handleCycleZoom = function handleCycleZoom() {
+    armZoomTransition();
     var next = (zoomModeIdx + 1) % 4;
     setZoomModeIdx(next);
     zoomModeIdxRef.current = next;
     recalculateZoom(next);
   };
   var handleZoomIn = function handleZoomIn() {
+    armZoomTransition();
     setZoomModeIdx(0);
     zoomModeIdxRef.current = 0;
     var next = Math.min(5, zoomLevel + 0.1);
@@ -4280,6 +4305,7 @@ function SudokuGame() {
     }
   };
   var handleZoomOut = function handleZoomOut() {
+    armZoomTransition();
     setZoomModeIdx(0);
     zoomModeIdxRef.current = 0;
     var next = Math.max(0.1, zoomLevel - 0.1);
@@ -5591,7 +5617,13 @@ function SudokuGame() {
       className: "w-full max-w-md mx-auto bg-white border-4 border-slate-800 rounded-2xl shadow-[10px_10px_0px_rgba(30,41,59,1)] p-4 md:p-5 animate-fadeIn my-4"
     }, /*#__PURE__*/React.createElement("div", {
       className: "font-black text-xl text-slate-800 text-center mb-3"
-    }, winner || iFinished ? '🏁 已完賽・觀戰中' : '👁️ 觀戰中'), /*#__PURE__*/React.createElement("div", {
+    }, /*#__PURE__*/React.createElement("span", {
+      key: winner || iFinished ? 'fin' : 'spec',
+      className: "plat-lite-in",
+      style: {
+        display: 'inline-block'
+      }
+    }, winner || iFinished ? '🏁 已完賽・觀戰中' : '👁️ 觀戰中')), /*#__PURE__*/React.createElement("div", {
       className: "flex flex-wrap justify-center gap-1.5 mb-3"
     }, watchable.map(function (p) {
       return /*#__PURE__*/React.createElement("button", {
@@ -6337,7 +6369,7 @@ function SudokuGame() {
     },
     className: "shrink-0 flex px-1.5 py-0.5 bg-[#1e293b] text-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(0,0,0,0.3)] hover:bg-slate-800 items-center gap-1 whitespace-nowrap"
   }, isHeaderCollapsed ? '🔽 展開規則' : '🔼 縮小面板')), /*#__PURE__*/React.createElement("div", {
-    className: "w-full overflow-hidden transition-all duration-500 ease-in-out origin-top flex flex-col gap-2 ".concat(isHeaderCollapsed ? 'max-h-0 opacity-0 scale-y-95' : 'max-h-[500px] opacity-100 scale-y-100')
+    className: "plat-collapse-y w-full" + (isHeaderCollapsed ? "" : " open")
   }, /*#__PURE__*/React.createElement("div", {
     className: "bg-white border-[3px] border-[#1e293b] rounded-xl p-2 md:p-3 text-[#1e293b] shadow-[4px_4px_0px_#1e293b] flex flex-col md:flex-row gap-3"
   }, /*#__PURE__*/React.createElement("div", {
@@ -6525,7 +6557,35 @@ function SudokuGame() {
     var isFlipping = flippedKeys.includes(idx);
     return /*#__PURE__*/React.createElement("button", {
       key: "keybtn-".concat(idx),
+      onPointerDown: function onPointerDown(e) {
+        padTapRef.current = {
+          c: c,
+          x: e.clientX,
+          y: e.clientY
+        };
+      },
+      onPointerUp: function onPointerUp(e) {
+        var pt2 = padTapRef.current;
+        padTapRef.current = null;
+        if (pt2 && pt2.c === c && Math.hypot(e.clientX - pt2.x, e.clientY - pt2.y) <= 22) {
+          pointerTapDedupeRef.current = {
+            t: Date.now()
+          };
+          onNumClick({
+            preventDefault: function preventDefault() {}
+          }, c);
+        } else if (pt2) {
+          pointerTapDedupeRef.current = {
+            t: Date.now()
+          };
+        }
+      },
+      onPointerCancel: function onPointerCancel() {
+        padTapRef.current = null;
+      },
       onClick: function onClick(e) {
+        var d = pointerTapDedupeRef.current;
+        if (d && Date.now() - d.t < 700) return;
         onNumClick(e, c);
       },
       title: isCompleted ? "\u5DF2\u7D93\u586B\u6EFF ".concat(c) : "\u9EDE\u64CA\u9078\u53D6 ".concat(c),
@@ -6765,7 +6825,7 @@ function SudokuGame() {
       id: "cell-".concat(cell.id),
       onClick: function onClick() {
         var d = pointerTapDedupeRef.current;
-        if (d && d.cellId === cell.id && Date.now() - d.t < 700) return;
+        if (d && Date.now() - d.t < 700) return;
         handleCellClick(cell.id);
       },
       className: interactionMode >= 2 ? 'pointer-events-none' : 'cursor-pointer group'

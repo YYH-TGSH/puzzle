@@ -211,7 +211,8 @@ function MinesGame() {
   const firstRef = useRef(true);                    // 本局是否還沒挖第一下（首點保護/計時起點）
   const statusRef = useRef('ready'); statusRef.current = status;
   const lpRef = useRef(null);                       // 長按計時器（長按插旗）
-  const lpPtRef = useRef(null);                     // 長按起點座標（移動超過 10px 取消長按：滑動/捲動不是長按）
+  const lpPtRef = useRef(null);   // 長按起點座標（移動超過容錯取消長按：滑動/捲動不是長按）
+  const downPtRef = useRef(null); // v1.56.0 修：漂移判定的按下座標專用——onCellMove 取消長按時會清 lpPtRef，舊版連漂移基準一起清掉，放開時無從判漂移、滑出 40px 也照挖（test-inputfix ③ 抓到）
 
   const spec = SIZES[sizeId] || SIZES[9];
   const specRef = useRef(spec); specRef.current = spec; // 事件處理器讀這份（不吃 setSizeId 的 state 更新時序；自訂盤面不能再用「格數 256 推規格」的舊推斷）
@@ -231,7 +232,10 @@ function MinesGame() {
   const [zoomOpen, setZoomOpen] = useState(false);
   const [custCfg, setCustCfg] = useState(() => { try { var c0 = JSON.parse(sGet('mines_custom_cfg') || 'null'); if (c0) return clampCustomSpec(c0.w, c0.h, c0.mines); } catch (e) {} return { w: 16, h: 16, mines: 40 }; }); // 單機自訂盤面（寬/高/雷），持久化
   const [custOpen, setCustOpen] = useState(false);
-  const boardScrollRef = useRef(null);          // 盤面捲動容器（邊緣虛化/自製卷軸指示條依它的捲動量更新）
+  const boardScrollRef = useRef(null);
+  const boardZoomRef = useRef(null);   // F3：縮放 FLIP 過渡的盤面包裝層（盤面＋塗鴉一起縮放）
+  const prevZoomRef = useRef(1);
+  const prevZoomSpecRef = useRef('');          // 盤面捲動容器（邊緣虛化/自製卷軸指示條依它的捲動量更新）
   const fadeRRef = useRef(null), fadeBRef = useRef(null), fadeLRef = useRef(null), fadeTRef = useRef(null);
   const indVTrackRef = useRef(null), indHTrackRef = useRef(null), indVRef = useRef(null), indHRef = useRef(null);
   const giftCreditRef = useRef(0);        // 禮物額度（正確插旗 +0.5，滿 1 送弱者）
@@ -504,6 +508,7 @@ function MinesGame() {
     lpLeftRef.current = false;
     lpCellRef.current = { idx: idx, t: Date.now() };
     lpPtRef.current = (e && typeof e.clientX === 'number') ? { x: e.clientX, y: e.clientY } : null;
+    downPtRef.current = lpPtRef.current;
     // 已定案的格（已開數字、容錯 ✗、禮物鎖定旗）不需要長按插旗計時器：不起計時器，按住數字想事情不會有任何副作用
     if (!cells || cells[idx] === 'o' || cells[idx] === 'x' || cells[idx] === 'L') return;
     // 500ms 與數獨的長按清除一致（舊 380ms 太短：稍用力、稍慢的一般點按就被誤判成長按插旗——誤觸主因之一）
@@ -511,9 +516,9 @@ function MinesGame() {
   }
   function onCellMove(e) {
     // 防誤觸：按住後移動超過 TAP_DRIFT_PX（想捲動頁面）就取消長按判定——舊版 10px 太嚴：手指自然抖動就把長按照消，
-    // 放開後只剩 click 路徑、又被漂移檢查吞掉（v1.54.2 與 pointerup 容許漂移統一為 22px）
-    if (!lpRef.current || !lpPtRef.current || !e || typeof e.clientX !== 'number') return;
-    if (Math.hypot(e.clientX - lpPtRef.current.x, e.clientY - lpPtRef.current.y) > TAP_DRIFT_PX) { clearTimeout(lpRef.current); lpRef.current = null; lpPtRef.current = null; }
+    // 放開後只剩 click 路徑、又被漂移檢查吞掉（v1.54.2 與 pointerup 容許漂移統一為 22px）。漂移基準讀 downPtRef、且不清它（放開時還要用）。
+    if (!lpRef.current || !downPtRef.current || !e || typeof e.clientX !== 'number') return;
+    if (Math.hypot(e.clientX - downPtRef.current.x, e.clientY - downPtRef.current.y) > TAP_DRIFT_PX) { clearTimeout(lpRef.current); lpRef.current = null; lpPtRef.current = null; }
   }
   function onCellUp(e, commit) {
     var fired = lpFiredRef.current; // 長按已插旗：這次放開不再挖（lpFiredRef 留給隨後的 click 做最後一道吞嚥）
@@ -522,13 +527,13 @@ function MinesGame() {
     var lc = lpCellRef.current; lpCellRef.current = null;
     var leftOut = lpLeftRef.current; lpLeftRef.current = false;
     if (leftOut && e && e.currentTarget && e.currentTarget.dataset && e.currentTarget.dataset.cell != null && Number(e.currentTarget.dataset.cell) !== (lc && lc.idx)) return; // 滑出起點格又在別格放開（滑鼠式取消）
-    var pt = lpPtRef.current; lpPtRef.current = null;
+    var pt = downPtRef.current; downPtRef.current = null; lpPtRef.current = null;
     if (fired || !lc) return;
     if (pt && e && typeof e.clientX === 'number' && Math.hypot(e.clientX - pt.x, e.clientY - pt.y) > TAP_DRIFT_PX) return; // 滑太遠＝捲動意圖，整下取消
     upGuardRef.current = { idx: lc.idx, t: Date.now() };
     onCellAction(lc.idx);
   }
-  function onCellCancel() { if (lpRef.current) { clearTimeout(lpRef.current); lpRef.current = null; } lpPtRef.current = null; lpCellRef.current = null; } // pointercancel：瀏覽器接管手勢（捲動）→ 整下作廢
+  function onCellCancel() { if (lpRef.current) { clearTimeout(lpRef.current); lpRef.current = null; } lpPtRef.current = null; downPtRef.current = null; lpCellRef.current = null; } // pointercancel：瀏覽器接管手勢（捲動）→ 整下作廢
   function onCellClick(idx) {
     var g = upGuardRef.current;
     if (g && g.idx === idx && Date.now() - g.t < 500) { upGuardRef.current = null; return; } // pointerup 已做完這一下，click 是尾巴
@@ -1164,6 +1169,30 @@ function MinesGame() {
       else if (name === 'zoom-cycle') { setZoom(z => { var steps = [1, 1.5, 2, 2.5]; for (var i = 0; i < steps.length; i++) if (steps[i] > z + 0.001) return steps[i]; return 1; }); SFX.click(); }
     }
   };
+  // F3（v1.56.0）：縮放過渡（FLIP 式）——版面直接跳到新尺寸，視覺先以 transform 從舊比例開始、200ms travel 曲線收回 1；
+  // 不逐格動 layout、盤面與塗鴉層一起縮放；動畫中再按會以目前視覺比例為新起點 retarget；換盤面（spec 變）不播。
+  useEffect(() => {
+    var w = boardZoomRef.current; if (!w) { prevZoomRef.current = zoom; return; }
+    var specKey = spec.w + 'x' + spec.h + '/' + spec.mines;
+    if (prevZoomSpecRef.current !== specKey) { prevZoomSpecRef.current = specKey; prevZoomRef.current = zoom; w.style.transition = 'none'; w.style.transform = ''; return; }
+    if (prevZoomRef.current === zoom) return;
+    var cur = 1;
+    var m = /matrix\(([^)]+)\)/.exec(w.style.transform || '');
+    var cs = null; try { cs = window.getComputedStyle(w).transform; } catch (e) {}
+    var mm = /matrix\(([^)]+)\)/.exec(cs || '');
+    if (mm) cur = parseFloat(mm[1].split(',')[0]) || 1;
+    else if (m) cur = parseFloat(m[1].split(',')[0]) || 1;
+    var from = cur * (prevZoomRef.current / zoom);
+    prevZoomRef.current = zoom;
+    if (Math.abs(from - 1) < 0.01) { w.style.transform = ''; return; }
+    w.style.transition = 'none';
+    w.style.transformOrigin = '50% 50%';
+    w.style.transform = 'scale(' + from + ')';
+    window.requestAnimationFrame(function () {
+      w.style.transition = 'transform 200ms cubic-bezier(0.22, 1, 0.36, 1)';
+      w.style.transform = 'scale(1)';
+    });
+  }, [zoom]);
   const platBarCfgStable = useRef(null);
   if (!platBarCfgStable.current) platBarCfgStable.current = { accent: ACCENT, onAction: (n, p) => { if (platBarCfgRef.current) platBarCfgRef.current.onAction(n, p); } };
   useEffect(() => {
@@ -1397,7 +1426,7 @@ function MinesGame() {
     var title = myOutcome === 'boom' ? '💥 已出局・觀戰中' : (myOutcome === 'finished' ? '🏁 已完賽・觀戰中' : '👁️ 觀戰中');
     return (
       <div className="w-full max-w-md mt-3 bg-white border-[3px] border-slate-800 rounded-xl p-3 shadow-[4px_4px_0px_rgba(30,41,59,1)] animate-fadeIn">
-        <div className="font-black text-xl text-slate-800 mb-2">{title}</div>
+        <div className="font-black text-xl text-slate-800 mb-2"><span key={title} className="plat-lite-in" style={{ display: 'inline-block' }}>{title}</span></div>
         <div className="flex flex-wrap gap-1.5 mb-2">
           {opps.map(p => { var gg = godBoards[p.id] || { progress: 0, state: 'playing' }; return (
             <button key={p.id} onClick={() => setGodUid(p.id)} className="text-xs font-black px-2 py-1 rounded-full border-2 flex items-center gap-1 active:translate-y-[1px]" style={p.id === sel ? { background: '#1e293b', color: '#fff', borderColor: '#1e293b' } : { background: '#fff', color: '#334155', borderColor: '#cbd5e1' }}>
@@ -1683,7 +1712,7 @@ function MinesGame() {
             </div>
             <button onClick={() => setHdrOpen(o => !o)} className="shrink-0 flex px-1.5 py-0.5 bg-[#1e293b] text-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(0,0,0,0.3)] items-center gap-1 whitespace-nowrap">{hdrOpen ? '🔼 縮小面板' : '🔽 展開規則'}</button>
           </div>
-          <div className={"w-full overflow-hidden transition-all duration-500 ease-in-out origin-top flex flex-col gap-2 " + (hdrOpen ? 'max-h-[500px] opacity-100 scale-y-100' : 'max-h-0 opacity-0 scale-y-95')}>
+          <div className={"plat-collapse-y w-full" + (hdrOpen ? " open" : "")}>
             <div className="bg-white border-[3px] border-slate-800 rounded-xl p-2 md:p-3 text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)]">
               <h3 className="text-sm md:text-base font-black mb-1 border-b-[3px] border-[#f97316] inline-block pb-0.5">📜 遊戲規則</h3>
               <ol className="list-decimal list-outside ml-4 space-y-1 text-xs md:text-sm leading-relaxed font-bold">
@@ -1698,11 +1727,11 @@ function MinesGame() {
             {mpOn ? (<span className="bg-white px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] whitespace-nowrap shrink-0">⚙️ {spec.name}・{spec.mines} 雷</span>) : (<button onClick={() => setShowSettingsModal(true)} title="設定盤面（換大小重開）" className="plat-btn-hard plat-btn-hard-1 bg-white px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] whitespace-nowrap shrink-0">⚙️ {spec.name}・{spec.mines} 雷 ▾</button>)}
             <div className="flex gap-1 items-center shrink-0">
               <button onClick={() => setZoomOpen(!zoomOpen)} className={hbtn} title="調整盤面大小（比照數獨的縮放）">🔍{zoom > 1 && (<span className="ml-0.5 text-[10px]">{Math.round(zoom * 100)}%</span>)}</button>
-              {zoomOpen && (<React.Fragment>
-                <button onClick={() => setZoom(Math.max(1, Math.round((zoom - 0.25) * 100) / 100))} className={hbtn} title="縮小">－</button>
-                <button onClick={() => setZoom(Math.min(2.5, Math.round((zoom + 0.25) * 100) / 100))} className={hbtn} title="放大">＋</button>
-                <button onClick={() => setZoom(1)} className={hbtn} title="回到適應螢幕">適應</button>
-              </React.Fragment>)}
+              <span className={"plat-collapse-x" + (zoomOpen ? " open" : "")}><span className="flex gap-1 items-center whitespace-nowrap">
+                <button onClick={() => setZoom(Math.max(1, Math.round((zoom - 0.25) * 100) / 100))} className={hbtn} title="縮小" tabIndex={zoomOpen ? 0 : -1}>－</button>
+                <button onClick={() => setZoom(Math.min(2.5, Math.round((zoom + 0.25) * 100) / 100))} className={hbtn} title="放大" tabIndex={zoomOpen ? 0 : -1}>＋</button>
+                <button onClick={() => setZoom(1)} className={hbtn} title="回到適應螢幕" tabIndex={zoomOpen ? 0 : -1}>適應</button>
+              </span></span>
             </div>
             <div className="flex gap-1 md:gap-2 flex-wrap items-center ml-auto">
               {!mpOn && (<button onClick={() => { if (dailyDate) startDaily(dailyDate); else newGame(sizeId); }} className={hbtn} title="重開一局">🔄<span className="hidden sm:inline ml-1">重開</span></button>)}
@@ -1785,7 +1814,7 @@ function MinesGame() {
         <div className="flex-1 overflow-y-auto min-h-0 flex flex-col items-center px-2 py-2 w-full">
           <div className="relative shrink-0" style={{ maxWidth: '100%' }}>
             <div ref={boardScrollRef} onScroll={updScrollUi} className="mines-board-scroll bg-white/70 border-[3px] border-slate-800 rounded-xl p-2.5 shadow-[4px_4px_0px_rgba(30,41,59,1)] animate-fadeIn" style={{ maxWidth: '100%', overflowX: 'auto', overflowY: zoom > 1 ? 'auto' : 'visible', maxHeight: zoom > 1 ? '68vh' : 'none' }}>
-              <div style={{ width: 'max-content', margin: '0 auto', position: 'relative' }}>{renderBoard()}
+              <div ref={boardZoomRef} style={{ width: 'max-content', margin: '0 auto', position: 'relative' }}>{renderBoard()}
                 <svg ref={doodleSvgRef} viewBox={'0 0 1000 ' + (1000 * spec.h / spec.w)} preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: inputMode === 'draw' ? 'auto' : 'none', touchAction: 'none', zIndex: 5 }} onPointerDown={onDoodleDown} onPointerMove={onDoodleMove} onPointerUp={onDoodleUp} onPointerCancel={onDoodleUp}>
                   {strokes.map(sv => (<path key={sv.id} d={'M ' + sv.pts.map(pt => pt[0] + ' ' + pt[1]).join(' L ')} fill="none" stroke={sv.color} strokeOpacity={mpOn && sv.uid !== myId ? 0.55 : 0.9} strokeWidth="18" strokeLinecap="round" strokeLinejoin="round" />))}
                   {livePts && livePts.length > 1 && (<path d={'M ' + livePts.map(pt => pt[0] + ' ' + pt[1]).join(' L ')} fill="none" stroke={myStrokeColor()} strokeOpacity="0.9" strokeWidth="18" strokeLinecap="round" strokeLinejoin="round" />)}

@@ -1678,7 +1678,7 @@ function HashiGame() {
     if (interactionMode >= 2 || !e.isPrimary || dragDrawRef.current || isWon) return;
     var pt = getSvgCoords(e.clientX, e.clientY);
     if (!pt) return;
-    var dd = { kind: kind, id: id, startX: pt.x, startY: pt.y, startT: Date.now(), dragging: false, targetId: null, holdTimer: null };
+    var dd = { kind: kind, id: id, startX: pt.x, startY: pt.y, startCX: e.clientX, startCY: e.clientY, startT: Date.now(), dragging: false, targetId: null, holdTimer: null };
     dragDrawRef.current = dd;
     var pc = myCurrentColor === 'rainbow' ? '#fbbf24' : myCurrentColor;
     if (dragPreviewLineRef.current) dragPreviewLineRef.current.setAttribute('stroke', pc);
@@ -2045,7 +2045,9 @@ function HashiGame() {
             dy = pt ? pt.y - dd.startY : 0;
         var moved = Math.hypot(dx, dy);
         var dt = Date.now() - (dd.startT || 0);
-        if (!dd.dragging && dt < TAP_MAX_MS && moved < TAP_MOVE_TOL) {
+        var cDrift = Math.hypot(e.clientX - (dd.startCX || 0), e.clientY - (dd.startCY || 0));
+        if (!dd.dragging && dt < TAP_MAX_MS && cDrift <= 22) {
+          // v1.56.0（F1 同類修）：容錯改 client 22px——舊制 12 SVG 單位在手機上只值約 6–12 實體 px，手指微滾就把點按橋吞掉
           // 點擊：同點或相近位置、快速按下放開（有容錯率）→ 只有橋樑能點，島嶼不做事
           if (dd.kind === 'bridge') handleBridgeClick(dd.id);
         } else if (dd.dragging && dd.targetId) {
@@ -6659,7 +6661,11 @@ function HashiGame() {
               React.createElement(
                 'h2',
                 { className: 'text-xl font-black text-[#1e293b]' },
-                raceState === 'spectating' ? '👁️ 觀戰中' : '🏁 已完賽・觀戰中'
+                React.createElement(
+                  'span',
+                  { key: raceState === 'spectating' ? 'spec' : 'fin', className: 'plat-lite-in', style: { display: 'inline-block' } },
+                  raceState === 'spectating' ? '👁️ 觀戰中' : '🏁 已完賽・觀戰中'
+                )
               ),
               React.createElement(
                 'span',

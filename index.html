@@ -2245,6 +2245,17 @@ body.plat-room-on[data-view="mines"] {
 .plat-pop-out { animation: platPopOut 150ms var(--plat-ease-travel) both; pointer-events: none; }
 .plat-pop-in-x { animation: platPopInX 190ms var(--plat-ease-settle) both; }
 .plat-pop-out-x { animation: platPopOutX 150ms var(--plat-ease-travel) both; pointer-events: none; }
+
+/* F4 展開列 Collapse（v1.56.0）：grid 軌道 0fr↔1fr 精確高度/寬度過渡——鄰居連續跟隨、不用 max-h 猜高。
+   -y 給控制卡的規則面板（數獨/地雷同款，取代舊 max-h 500px 猜高）；-x 給地雷縮放展開列（橫向推開鄰居）。
+   內容層由 > * 承接 min-size:0 + overflow:hidden，動畫中內容是被「揭開」不是被壓扁。 */
+.plat-collapse-y { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 300ms cubic-bezier(0.22, 1, 0.36, 1), opacity 220ms ease; }
+.plat-collapse-y.open { grid-template-rows: 1fr; opacity: 1; }
+.plat-collapse-y > * { min-height: 0; overflow: hidden; }
+.plat-collapse-x { display: inline-grid; grid-template-columns: 0fr; opacity: 0; visibility: hidden; vertical-align: middle; transition: grid-template-columns 260ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease, visibility 0s linear 260ms; }
+.plat-collapse-x.open { grid-template-columns: 1fr; opacity: 1; visibility: visible; transition: grid-template-columns 260ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease, visibility 0s; }
+.plat-collapse-x > * { min-width: 0; overflow: hidden; }
+@media (prefers-reduced-motion: reduce) { .plat-collapse-y, .plat-collapse-x { transition: none; } }
 @media (prefers-reduced-motion: reduce) { .plat-msg-in, .plat-toast-in, .plat-pop-in, .plat-pop-out, .plat-pop-in-x, .plat-pop-out-x { animation: none; } }
 /* 倒數 Roll 換位（PlatCountdown 升級）：每位數字由下滾入＋spring 落定 */
 @keyframes platCountRoll { 0% { transform: translateY(38%) scale(1.22); opacity: 0; } 100% { transform: translateY(0) scale(1); opacity: 1; } }
@@ -4067,7 +4078,8 @@ function SudokuGame() {
   var tapSeqRef = useRef(0); // 每次 pointerdown 的點按序號：長按標記只擋同一次點按的放開，不毒到下一次
   var longPressSeqRef = useRef(-1);
   var tapInfoRef = useRef(null); // 本次點按落在哪一格（pointerup 直接處理點按用，不單靠 click）
-  var pointerTapDedupeRef = useRef(null); // pointerup 已處理過的點按：擋掉隨後跟來的重複 click
+  var pointerTapDedupeRef = useRef(null);
+  var padTapRef = useRef(null); // F1：數字鍵 pointer 點按追蹤（按下鍵＋client 座標） // pointerup 已處理過的點按：擋掉隨後跟來的重複 click
 
   var engineRef = useRef('none');
   var peerRef = useRef(null);
@@ -6212,7 +6224,9 @@ function SudokuGame() {
           cellId: cellId,
           seq: seq,
           x: pt.x,
-          y: pt.y
+          y: pt.y,
+          cx: e.clientX,
+          cy: e.clientY
         };
         cellLongPressTimer.current = setTimeout(function () {
           clearCell(cellId);
@@ -6297,26 +6311,33 @@ function SudokuGame() {
     // 筆尖幾乎沒動（≤6 單位）才當點按補處理；捲動起手在被 claim 前早已移動超過這個量，不會被誤補成填數字。
     var tapInfo = tapInfoRef.current;
     tapInfoRef.current = null;
+    if (tapInfo && e.type === 'pointerleave') {
+      // 手勢在盤面外結束：標記已結算，擋掉放開位置（可能是數字鍵）上的尾隨 click 誤觸
+      pointerTapDedupeRef.current = {
+        t: Date.now()
+      };
+    }
     if ((e.type === 'pointerup' || e.type === 'pointercancel') && interactionMode < 2 && tapInfo) {
+      // v1.56.0（比照地雷 F1 同類修）：點按改「client 漂移 ≤22px 就對按下那格執行」——舊制要求放開還在同一格，
+      // 手指抬起滾到鄰格時 pointerup 被丟掉、尾隨 click 反而打中鄰格（誤選/誤填）。不論命中或作廢都先標記 dedupe，
+      // 尾隨 click 一律不再觸發；只有鍵盤/程式觸發（無近期 pointer 結算）才走 click 備援。
       if (longPressSeqRef.current === tapInfo.seq) {
         pointerTapDedupeRef.current = {
-          cellId: tapInfo.cellId,
           t: Date.now()
         };
-      } else {
+      } else if (e.type === 'pointercancel') {
+        // 觸控筆救援保留（有界例外）：cancel 且幾乎沒動（SVG ≤6 單位）視為點按補處理；捲動起手在被 claim 前早已移動超過此量。其餘 cancel 作廢。
         var upPt = getSvgCoords(e.clientX, e.clientY);
-        if (upPt) {
-          var ux = Math.floor((upPt.x - PADDING) / CELL_SIZE);
-          var uy = Math.floor((upPt.y - PADDING) / CELL_SIZE);
-          var distOk = e.type === 'pointerup' || Math.hypot(upPt.x - tapInfo.x, upPt.y - tapInfo.y) <= 6;
-          if (distOk && ux + '-' + uy === tapInfo.cellId) {
-            pointerTapDedupeRef.current = {
-              cellId: tapInfo.cellId,
-              t: Date.now()
-            };
-            handleCellClick(tapInfo.cellId);
-          }
-        }
+        pointerTapDedupeRef.current = {
+          t: Date.now()
+        };
+        if (upPt && Math.hypot(upPt.x - tapInfo.x, upPt.y - tapInfo.y) <= 6) handleCellClick(tapInfo.cellId);
+      } else {
+        var drift = Math.hypot(e.clientX - (tapInfo.cx || 0), e.clientY - (tapInfo.cy || 0));
+        pointerTapDedupeRef.current = {
+          t: Date.now()
+        };
+        if (drift <= 22) handleCellClick(tapInfo.cellId);
       }
     }
     if (interactionMode === 2) {
@@ -7301,6 +7322,19 @@ function SudokuGame() {
       tracker.count = 0;
     }
   };
+
+  // F3（v1.56.0）：按鈕觸發的縮放加 200ms travel 過渡——先在 svg 上掛 transition 再改尺寸（inline style 變更同樣吃 transition）；
+  // 260ms 後自動卸下，確保雙指捏合/捲動觸發的 recalculateZoom 維持即時跟手、不被過渡拖慢。連按時重掛即可 retarget（CSS transition 會從當前值續行）。
+  var zoomAnimTimerRef = useRef(null);
+  var armZoomTransition = function armZoomTransition() {
+    var svg = svgRef.current;
+    if (!svg) return;
+    svg.style.transition = 'width 200ms cubic-bezier(0.22, 1, 0.36, 1), height 200ms cubic-bezier(0.22, 1, 0.36, 1)';
+    if (zoomAnimTimerRef.current) clearTimeout(zoomAnimTimerRef.current);
+    zoomAnimTimerRef.current = setTimeout(function () {
+      if (svgRef.current) svgRef.current.style.transition = '';
+    }, 260);
+  };
   var recalculateZoom = function recalculateZoom(modeIdx) {
     var container = zoomContainerRef.current;
     if (!container) return;
@@ -7635,12 +7669,14 @@ function SudokuGame() {
     });
   };
   var handleCycleZoom = function handleCycleZoom() {
+    armZoomTransition();
     var next = (zoomModeIdx + 1) % 4;
     setZoomModeIdx(next);
     zoomModeIdxRef.current = next;
     recalculateZoom(next);
   };
   var handleZoomIn = function handleZoomIn() {
+    armZoomTransition();
     setZoomModeIdx(0);
     zoomModeIdxRef.current = 0;
     var next = Math.min(5, zoomLevel + 0.1);
@@ -7652,6 +7688,7 @@ function SudokuGame() {
     }
   };
   var handleZoomOut = function handleZoomOut() {
+    armZoomTransition();
     setZoomModeIdx(0);
     zoomModeIdxRef.current = 0;
     var next = Math.max(0.1, zoomLevel - 0.1);
@@ -8963,7 +9000,13 @@ function SudokuGame() {
       className: "w-full max-w-md mx-auto bg-white border-4 border-slate-800 rounded-2xl shadow-[10px_10px_0px_rgba(30,41,59,1)] p-4 md:p-5 animate-fadeIn my-4"
     }, /*#__PURE__*/React.createElement("div", {
       className: "font-black text-xl text-slate-800 text-center mb-3"
-    }, winner || iFinished ? '🏁 已完賽・觀戰中' : '👁️ 觀戰中'), /*#__PURE__*/React.createElement("div", {
+    }, /*#__PURE__*/React.createElement("span", {
+      key: winner || iFinished ? 'fin' : 'spec',
+      className: "plat-lite-in",
+      style: {
+        display: 'inline-block'
+      }
+    }, winner || iFinished ? '🏁 已完賽・觀戰中' : '👁️ 觀戰中')), /*#__PURE__*/React.createElement("div", {
       className: "flex flex-wrap justify-center gap-1.5 mb-3"
     }, watchable.map(function (p) {
       return /*#__PURE__*/React.createElement("button", {
@@ -9709,7 +9752,7 @@ function SudokuGame() {
     },
     className: "shrink-0 flex px-1.5 py-0.5 bg-[#1e293b] text-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(0,0,0,0.3)] hover:bg-slate-800 items-center gap-1 whitespace-nowrap"
   }, isHeaderCollapsed ? '🔽 展開規則' : '🔼 縮小面板')), /*#__PURE__*/React.createElement("div", {
-    className: "w-full overflow-hidden transition-all duration-500 ease-in-out origin-top flex flex-col gap-2 ".concat(isHeaderCollapsed ? 'max-h-0 opacity-0 scale-y-95' : 'max-h-[500px] opacity-100 scale-y-100')
+    className: "plat-collapse-y w-full" + (isHeaderCollapsed ? "" : " open")
   }, /*#__PURE__*/React.createElement("div", {
     className: "bg-white border-[3px] border-[#1e293b] rounded-xl p-2 md:p-3 text-[#1e293b] shadow-[4px_4px_0px_#1e293b] flex flex-col md:flex-row gap-3"
   }, /*#__PURE__*/React.createElement("div", {
@@ -9897,7 +9940,35 @@ function SudokuGame() {
     var isFlipping = flippedKeys.includes(idx);
     return /*#__PURE__*/React.createElement("button", {
       key: "keybtn-".concat(idx),
+      onPointerDown: function onPointerDown(e) {
+        padTapRef.current = {
+          c: c,
+          x: e.clientX,
+          y: e.clientY
+        };
+      },
+      onPointerUp: function onPointerUp(e) {
+        var pt2 = padTapRef.current;
+        padTapRef.current = null;
+        if (pt2 && pt2.c === c && Math.hypot(e.clientX - pt2.x, e.clientY - pt2.y) <= 22) {
+          pointerTapDedupeRef.current = {
+            t: Date.now()
+          };
+          onNumClick({
+            preventDefault: function preventDefault() {}
+          }, c);
+        } else if (pt2) {
+          pointerTapDedupeRef.current = {
+            t: Date.now()
+          };
+        }
+      },
+      onPointerCancel: function onPointerCancel() {
+        padTapRef.current = null;
+      },
       onClick: function onClick(e) {
+        var d = pointerTapDedupeRef.current;
+        if (d && Date.now() - d.t < 700) return;
         onNumClick(e, c);
       },
       title: isCompleted ? "\u5DF2\u7D93\u586B\u6EFF ".concat(c) : "\u9EDE\u64CA\u9078\u53D6 ".concat(c),
@@ -10137,7 +10208,7 @@ function SudokuGame() {
       id: "cell-".concat(cell.id),
       onClick: function onClick() {
         var d = pointerTapDedupeRef.current;
-        if (d && d.cellId === cell.id && Date.now() - d.t < 700) return;
+        if (d && Date.now() - d.t < 700) return;
         handleCellClick(cell.id);
       },
       className: interactionMode >= 2 ? 'pointer-events-none' : 'cursor-pointer group'
@@ -12480,7 +12551,7 @@ function HashiGame() {
     if (interactionMode >= 2 || !e.isPrimary || dragDrawRef.current || isWon) return;
     var pt = getSvgCoords(e.clientX, e.clientY);
     if (!pt) return;
-    var dd = { kind: kind, id: id, startX: pt.x, startY: pt.y, startT: Date.now(), dragging: false, targetId: null, holdTimer: null };
+    var dd = { kind: kind, id: id, startX: pt.x, startY: pt.y, startCX: e.clientX, startCY: e.clientY, startT: Date.now(), dragging: false, targetId: null, holdTimer: null };
     dragDrawRef.current = dd;
     var pc = myCurrentColor === 'rainbow' ? '#fbbf24' : myCurrentColor;
     if (dragPreviewLineRef.current) dragPreviewLineRef.current.setAttribute('stroke', pc);
@@ -12847,7 +12918,9 @@ function HashiGame() {
             dy = pt ? pt.y - dd.startY : 0;
         var moved = Math.hypot(dx, dy);
         var dt = Date.now() - (dd.startT || 0);
-        if (!dd.dragging && dt < TAP_MAX_MS && moved < TAP_MOVE_TOL) {
+        var cDrift = Math.hypot(e.clientX - (dd.startCX || 0), e.clientY - (dd.startCY || 0));
+        if (!dd.dragging && dt < TAP_MAX_MS && cDrift <= 22) {
+          // v1.56.0（F1 同類修）：容錯改 client 22px——舊制 12 SVG 單位在手機上只值約 6–12 實體 px，手指微滾就把點按橋吞掉
           // 點擊：同點或相近位置、快速按下放開（有容錯率）→ 只有橋樑能點，島嶼不做事
           if (dd.kind === 'bridge') handleBridgeClick(dd.id);
         } else if (dd.dragging && dd.targetId) {
@@ -17461,7 +17534,11 @@ function HashiGame() {
               React.createElement(
                 'h2',
                 { className: 'text-xl font-black text-[#1e293b]' },
-                raceState === 'spectating' ? '👁️ 觀戰中' : '🏁 已完賽・觀戰中'
+                React.createElement(
+                  'span',
+                  { key: raceState === 'spectating' ? 'spec' : 'fin', className: 'plat-lite-in', style: { display: 'inline-block' } },
+                  raceState === 'spectating' ? '👁️ 觀戰中' : '🏁 已完賽・觀戰中'
+                )
               ),
               React.createElement(
                 'span',
@@ -18810,7 +18887,8 @@ function MinesGame() {
   var statusRef = useRef('ready');
   statusRef.current = status;
   var lpRef = useRef(null); // 長按計時器（長按插旗）
-  var lpPtRef = useRef(null); // 長按起點座標（移動超過 10px 取消長按：滑動/捲動不是長按）
+  var lpPtRef = useRef(null); // 長按起點座標（移動超過容錯取消長按：滑動/捲動不是長按）
+  var downPtRef = useRef(null); // v1.56.0 修：漂移判定的按下座標專用——onCellMove 取消長按時會清 lpPtRef，舊版連漂移基準一起清掉，放開時無從判漂移、滑出 40px 也照挖（test-inputfix ③ 抓到）
 
   var spec = SIZES[sizeId] || SIZES[9];
   var specRef = useRef(spec);
@@ -18880,7 +18958,10 @@ function MinesGame() {
     _useState70 = _slicedToArray(_useState69, 2),
     custOpen = _useState70[0],
     setCustOpen = _useState70[1];
-  var boardScrollRef = useRef(null); // 盤面捲動容器（邊緣虛化/自製卷軸指示條依它的捲動量更新）
+  var boardScrollRef = useRef(null);
+  var boardZoomRef = useRef(null); // F3：縮放 FLIP 過渡的盤面包裝層（盤面＋塗鴉一起縮放）
+  var prevZoomRef = useRef(1);
+  var prevZoomSpecRef = useRef(''); // 盤面捲動容器（邊緣虛化/自製卷軸指示條依它的捲動量更新）
   var fadeRRef = useRef(null),
     fadeBRef = useRef(null),
     fadeLRef = useRef(null),
@@ -19537,6 +19618,7 @@ function MinesGame() {
       x: e.clientX,
       y: e.clientY
     } : null;
+    downPtRef.current = lpPtRef.current;
     // 已定案的格（已開數字、容錯 ✗、禮物鎖定旗）不需要長按插旗計時器：不起計時器，按住數字想事情不會有任何副作用
     if (!cells || cells[idx] === 'o' || cells[idx] === 'x' || cells[idx] === 'L') return;
     // 500ms 與數獨的長按清除一致（舊 380ms 太短：稍用力、稍慢的一般點按就被誤判成長按插旗——誤觸主因之一）
@@ -19549,9 +19631,9 @@ function MinesGame() {
   }
   function onCellMove(e) {
     // 防誤觸：按住後移動超過 TAP_DRIFT_PX（想捲動頁面）就取消長按判定——舊版 10px 太嚴：手指自然抖動就把長按照消，
-    // 放開後只剩 click 路徑、又被漂移檢查吞掉（v1.54.2 與 pointerup 容許漂移統一為 22px）
-    if (!lpRef.current || !lpPtRef.current || !e || typeof e.clientX !== 'number') return;
-    if (Math.hypot(e.clientX - lpPtRef.current.x, e.clientY - lpPtRef.current.y) > TAP_DRIFT_PX) {
+    // 放開後只剩 click 路徑、又被漂移檢查吞掉（v1.54.2 與 pointerup 容許漂移統一為 22px）。漂移基準讀 downPtRef、且不清它（放開時還要用）。
+    if (!lpRef.current || !downPtRef.current || !e || typeof e.clientX !== 'number') return;
+    if (Math.hypot(e.clientX - downPtRef.current.x, e.clientY - downPtRef.current.y) > TAP_DRIFT_PX) {
       clearTimeout(lpRef.current);
       lpRef.current = null;
       lpPtRef.current = null;
@@ -19572,7 +19654,8 @@ function MinesGame() {
     var leftOut = lpLeftRef.current;
     lpLeftRef.current = false;
     if (leftOut && e && e.currentTarget && e.currentTarget.dataset && e.currentTarget.dataset.cell != null && Number(e.currentTarget.dataset.cell) !== (lc && lc.idx)) return; // 滑出起點格又在別格放開（滑鼠式取消）
-    var pt = lpPtRef.current;
+    var pt = downPtRef.current;
+    downPtRef.current = null;
     lpPtRef.current = null;
     if (fired || !lc) return;
     if (pt && e && typeof e.clientX === 'number' && Math.hypot(e.clientX - pt.x, e.clientY - pt.y) > TAP_DRIFT_PX) return; // 滑太遠＝捲動意圖，整下取消
@@ -19588,6 +19671,7 @@ function MinesGame() {
       lpRef.current = null;
     }
     lpPtRef.current = null;
+    downPtRef.current = null;
     lpCellRef.current = null;
   } // pointercancel：瀏覽器接管手勢（捲動）→ 整下作廢
   function onCellClick(idx) {
@@ -21283,6 +21367,45 @@ function MinesGame() {
       }
     }
   };
+  // F3（v1.56.0）：縮放過渡（FLIP 式）——版面直接跳到新尺寸，視覺先以 transform 從舊比例開始、200ms travel 曲線收回 1；
+  // 不逐格動 layout、盤面與塗鴉層一起縮放；動畫中再按會以目前視覺比例為新起點 retarget；換盤面（spec 變）不播。
+  useEffect(function () {
+    var w = boardZoomRef.current;
+    if (!w) {
+      prevZoomRef.current = zoom;
+      return;
+    }
+    var specKey = spec.w + 'x' + spec.h + '/' + spec.mines;
+    if (prevZoomSpecRef.current !== specKey) {
+      prevZoomSpecRef.current = specKey;
+      prevZoomRef.current = zoom;
+      w.style.transition = 'none';
+      w.style.transform = '';
+      return;
+    }
+    if (prevZoomRef.current === zoom) return;
+    var cur = 1;
+    var m = /matrix\(([^)]+)\)/.exec(w.style.transform || '');
+    var cs = null;
+    try {
+      cs = window.getComputedStyle(w).transform;
+    } catch (e) {}
+    var mm = /matrix\(([^)]+)\)/.exec(cs || '');
+    if (mm) cur = parseFloat(mm[1].split(',')[0]) || 1;else if (m) cur = parseFloat(m[1].split(',')[0]) || 1;
+    var from = cur * (prevZoomRef.current / zoom);
+    prevZoomRef.current = zoom;
+    if (Math.abs(from - 1) < 0.01) {
+      w.style.transform = '';
+      return;
+    }
+    w.style.transition = 'none';
+    w.style.transformOrigin = '50% 50%';
+    w.style.transform = 'scale(' + from + ')';
+    window.requestAnimationFrame(function () {
+      w.style.transition = 'transform 200ms cubic-bezier(0.22, 1, 0.36, 1)';
+      w.style.transform = 'scale(1)';
+    });
+  }, [zoom]);
   var platBarCfgStable = useRef(null);
   if (!platBarCfgStable.current) platBarCfgStable.current = {
     accent: ACCENT,
@@ -21834,7 +21957,13 @@ function MinesGame() {
       className: "w-full max-w-md mt-3 bg-white border-[3px] border-slate-800 rounded-xl p-3 shadow-[4px_4px_0px_rgba(30,41,59,1)] animate-fadeIn"
     }, /*#__PURE__*/React.createElement("div", {
       className: "font-black text-xl text-slate-800 mb-2"
-    }, title), /*#__PURE__*/React.createElement("div", {
+    }, /*#__PURE__*/React.createElement("span", {
+      key: title,
+      className: "plat-lite-in",
+      style: {
+        display: 'inline-block'
+      }
+    }, title)), /*#__PURE__*/React.createElement("div", {
       className: "flex flex-wrap gap-1.5 mb-2"
     }, opps.map(function (p) {
       var gg = godBoards[p.id] || {
@@ -22462,7 +22591,7 @@ function MinesGame() {
     },
     className: "shrink-0 flex px-1.5 py-0.5 bg-[#1e293b] text-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(0,0,0,0.3)] items-center gap-1 whitespace-nowrap"
   }, hdrOpen ? '🔼 縮小面板' : '🔽 展開規則')), /*#__PURE__*/React.createElement("div", {
-    className: "w-full overflow-hidden transition-all duration-500 ease-in-out origin-top flex flex-col gap-2 " + (hdrOpen ? 'max-h-[500px] opacity-100 scale-y-100' : 'max-h-0 opacity-0 scale-y-95')
+    className: "plat-collapse-y w-full" + (hdrOpen ? " open" : "")
   }, /*#__PURE__*/React.createElement("div", {
     className: "bg-white border-[3px] border-slate-800 rounded-xl p-2 md:p-3 text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)]"
   }, /*#__PURE__*/React.createElement("h3", {
@@ -22489,25 +22618,32 @@ function MinesGame() {
     title: "\u8ABF\u6574\u76E4\u9762\u5927\u5C0F\uFF08\u6BD4\u7167\u6578\u7368\u7684\u7E2E\u653E\uFF09"
   }, "\uD83D\uDD0D", zoom > 1 && /*#__PURE__*/React.createElement("span", {
     className: "ml-0.5 text-[10px]"
-  }, Math.round(zoom * 100), "%")), zoomOpen && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
+  }, Math.round(zoom * 100), "%")), /*#__PURE__*/React.createElement("span", {
+    className: "plat-collapse-x" + (zoomOpen ? " open" : "")
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "flex gap-1 items-center whitespace-nowrap"
+  }, /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       return setZoom(Math.max(1, Math.round((zoom - 0.25) * 100) / 100));
     },
     className: hbtn,
-    title: "\u7E2E\u5C0F"
+    title: "\u7E2E\u5C0F",
+    tabIndex: zoomOpen ? 0 : -1
   }, "\uFF0D"), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       return setZoom(Math.min(2.5, Math.round((zoom + 0.25) * 100) / 100));
     },
     className: hbtn,
-    title: "\u653E\u5927"
+    title: "\u653E\u5927",
+    tabIndex: zoomOpen ? 0 : -1
   }, "\uFF0B"), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       return setZoom(1);
     },
     className: hbtn,
-    title: "\u56DE\u5230\u9069\u61C9\u87A2\u5E55"
-  }, "\u9069\u61C9"))), /*#__PURE__*/React.createElement("div", {
+    title: "\u56DE\u5230\u9069\u61C9\u87A2\u5E55",
+    tabIndex: zoomOpen ? 0 : -1
+  }, "\u9069\u61C9")))), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-1 md:gap-2 flex-wrap items-center ml-auto"
   }, !mpOn && /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
@@ -22779,6 +22915,7 @@ function MinesGame() {
       maxHeight: zoom > 1 ? '68vh' : 'none'
     }
   }, /*#__PURE__*/React.createElement("div", {
+    ref: boardZoomRef,
     style: {
       width: 'max-content',
       margin: '0 auto',
@@ -23249,7 +23386,7 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.55.1'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
+  var PLAT_VERSION = '1.56.0'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -23423,7 +23560,7 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
   }
 
   // ---------- 大廳 UI ----------
-  function lobbyMsg(t) { var el = $('lob-msg'); if (el) el.textContent = t || ''; }
+  function lobbyMsg(t) { var el = $('lob-msg'); if (el) window.PlatLite(el, t || ''); } // F2：連線狀態字改滾換（同字不重播由 PlatLite 內部把關）
   function showStep(s) {
     $('lob-step-entry').style.display = (s === 'entry') ? 'block' : 'none';
     $('lob-step-nick').style.display = (s === 'nick') ? 'block' : 'none';
@@ -25273,6 +25410,16 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
   // actions: refresh / ready / spectator / start / leave /
   //          player-click(key) / player-toggle(key)
   var PR = { el: null, cfg: null, state: null, lastJson: null, unsub: null, slot: null };
+  // F2 狀態字 Roll（v1.56.0）：字串渲染的按鈕標籤換字時包 .plat-lite-in 播滾換（新節點插入即播）；
+  // 同字重渲染不加 class、不重播。用 key 區分不同標籤位（ready/start）。
+  var prLiteMemo = {};
+  function prLiteSpan(key, text) {
+    var t = String(text == null ? '' : text);
+    var changed = prLiteMemo[key] !== undefined && prLiteMemo[key] !== t;
+    prLiteMemo[key] = t;
+    return '<span' + (changed ? ' class="plat-lite-in" style="display:inline-block"' : '') + '>' + pbEsc(t) + '</span>';
+  }
+
   function prRegion(name) { return PR.el ? PR.el.querySelector('[data-pr-region="' + name + '"]') : null; }
   function prAct(name, payload) { if (PR.cfg && PR.cfg.onAction) { try { PR.cfg.onAction(name, payload); } catch (e) {} } }
   function prDockHtml(ac) {
@@ -25341,7 +25488,7 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
       if (st.myReady !== null && st.myReady !== undefined || st.mySpectator !== null && st.mySpectator !== undefined) {
         c += '<div class="flex gap-2 mb-4">';
         if (st.myReady !== null && st.myReady !== undefined) {
-          c += '<button data-pr="ready"' + (st.myReady ? '' : ' data-pr-bob="1"') + ' class="flex-1 py-3 rounded-xl border-[3px] border-slate-800 font-black text-base shadow-[3px_3px_0px_rgba(30,41,59,1)] active:translate-y-[2px] active:shadow-none transition-all" style="background:' + (st.myReady ? ac : '#ffffff') + ';color:' + (st.myReady ? '#0f172a' : '#64748b') + '">' + pbEsc(st.myReady ? (st.readyOn || '✅ 已準備') : (st.readyOff || '✋ 準備好了')) + '</button>';
+          c += '<button data-pr="ready"' + (st.myReady ? '' : ' data-pr-bob="1"') + ' class="flex-1 py-3 rounded-xl border-[3px] border-slate-800 font-black text-base shadow-[3px_3px_0px_rgba(30,41,59,1)] active:translate-y-[2px] active:shadow-none transition-all" style="background:' + (st.myReady ? ac : '#ffffff') + ';color:' + (st.myReady ? '#0f172a' : '#64748b') + '">' + prLiteSpan('ready', st.myReady ? (st.readyOn || '✅ 已準備') : (st.readyOff || '✋ 準備好了')) + '</button>';
         }
         if (st.mySpectator !== null && st.mySpectator !== undefined) {
           c += '<button data-pr="spectator" class="px-4 py-3 rounded-xl border-[3px] border-slate-800 font-black text-base shadow-[3px_3px_0px_rgba(30,41,59,1)] active:translate-y-[2px] active:shadow-none transition-all ' + (st.mySpectator ? 'bg-sky-300 text-slate-900' : 'bg-white text-slate-500') + '">👁️ 觀戰</button>';
@@ -25350,7 +25497,7 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
       }
       if (st.start) {
         var sk = st.start.kind === 'danger' ? 'background:#f87171;color:#0f172a' : 'background:' + ac + ';color:#0f172a';
-        c += '<button data-pr="start"' + (st.start.disabled ? ' disabled' : '') + ' class="plat-btn-hard w-full py-3.5 border-4 border-slate-800 rounded-xl font-black text-lg shadow-[4px_4px_0px_rgba(30,41,59,1)] disabled:opacity-50 disabled:cursor-not-allowed" style="' + sk + '">' + pbEsc(st.start.label || '開始') + '</button>';
+        c += '<button data-pr="start"' + (st.start.disabled ? ' disabled' : '') + ' class="plat-btn-hard w-full py-3.5 border-4 border-slate-800 rounded-xl font-black text-lg shadow-[4px_4px_0px_rgba(30,41,59,1)] disabled:opacity-50 disabled:cursor-not-allowed" style="' + sk + '">' + prLiteSpan('start', st.start.label || '開始') + '</button>';
         if (st.start.note) c += '<p class="text-xs text-slate-500 font-bold text-center mt-2">' + pbEsc(st.start.note) + '</p>';
       } else if (st.waitingText) {
         c += '<p class="font-black text-slate-700 animate-pulse text-center">' + pbEsc(st.waitingText) + '</p>';
