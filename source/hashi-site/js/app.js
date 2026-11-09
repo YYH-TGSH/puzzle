@@ -234,6 +234,7 @@ function PlatNum(props) {
 
       const [showSaveModal, setShowSaveModal] = useState(false);
       const [showSettingsModal, setShowSettingsModal] = useState(false); // 設定難度 modal（v1.43 Q2：設定入口三款統一 modal 式，廢標頭 select）
+      const [soloPick, setSoloPick] = useState(false); // 單機入口先選難度（v1.58.0 使用者要求，比照數獨設定畫面／地雷 setup）：由主畫面「單機挑戰」開 modal 時為 true，取消＝回主畫面、選定才開局
       const [saveCode, setSaveCode] = useState("");
 
       const [showCustomModal, setShowCustomModal] = useState(false);
@@ -2040,6 +2041,7 @@ function PlatNum(props) {
       const handleCustomGenerate = () => {
           let w = Math.max(5, Math.min(100, tempWidth));
           let h = Math.max(5, Math.min(100, tempHeight));
+          if (soloPick) { try { localStorage.setItem('hashi_solo_level', 'custom'); localStorage.setItem('hashi_solo_custom', JSON.stringify({ w: w, h: h })); } catch (e) {} setSoloPick(false); }
           setTempWidth(w);
           setTempHeight(h);
           setShowCustomModal(false);
@@ -2096,7 +2098,26 @@ function PlatNum(props) {
       const startSinglePlayer = () => {
         setIsDailyMode(false); isDailyModeRef.current = false;
         resetWinMeta();
-        switchToOffline(); setScreen('game'); handleReset(); setIsHeaderCollapsed(true);
+        switchToOffline();
+        // v1.58.0：單機入口先選難度（不要直接開局）——還原上次單機選的難度供 modal 反綠，再開設定 modal；
+        // 選定才生成題目（handleLevelChange/handleCustomGenerate），取消則回主畫面（closeSettingsModal 處理）
+        try {
+          var lastSolo = localStorage.getItem('hashi_solo_level');
+          if (lastSolo === 'custom') {
+            var cd = JSON.parse(localStorage.getItem('hashi_solo_custom') || 'null');
+            if (cd && cd.w && cd.h) { setTempWidth(cd.w); setTempHeight(cd.h); }
+            setCurrentLevelId('custom');
+          } else if (lastSolo && LEVELS.some(l => String(l.id) === String(lastSolo))) setCurrentLevelId(Number(lastSolo));
+          else if (!LEVELS.some(l => String(l.id) === String(currentLevelId))) setCurrentLevelId(2); // 'daily' 等偽難度不可沿用
+        } catch (e) {}
+        setSoloPick(true);
+        setScreen('game'); setIsHeaderCollapsed(true);
+        setShowSettingsModal(true);
+      };
+      // 設定 modal 的關閉：單機選難度途中取消＝回主畫面（局還沒開）；局內開啟則只關 modal
+      const closeSettingsModal = () => {
+        setShowSettingsModal(false);
+        if (soloPick) { setSoloPick(false); setScreen('home'); }
       };
 
       // 每日一題：紀錄過關（只在每日模式呼叫）
@@ -3721,7 +3742,7 @@ function PlatNum(props) {
                </div>
 
                <div className="flex flex-wrap gap-1.5 items-center justify-between w-full">
-                  <button disabled={isDailyMode || inRace || (isMultiplayer && !isHostRef.current)} onClick={() => setShowSettingsModal(true)} title="設定難度" className="px-1 py-1 md:px-2 md:py-1.5 rounded-md border-2 border-[#1e293b] font-bold bg-white text-[#1e293b] text-xs md:text-sm outline-none shadow-[2px_2px_0px_#1e293b] w-auto cursor-pointer max-w-[150px] sm:max-w-none truncate disabled:opacity-60 disabled:cursor-not-allowed">{(currentLevelId === 'custom' && randomLevelData) ? `⚙️ 自訂 (${randomLevelData.width}x${randomLevelData.height})` : ((LEVELS.find(l => String(l.id) === String(currentLevelId)) || {}).name || '')} ▾</button>
+                  <button disabled={isDailyMode || inRace || (isMultiplayer && !isHostRef.current)} onClick={() => setShowSettingsModal(true)} title="設定難度" className="px-1 py-1 md:px-2 md:py-1.5 rounded-md border-2 border-[#1e293b] font-bold bg-white text-[#1e293b] text-xs md:text-sm outline-none shadow-[2px_2px_0px_#1e293b] w-auto cursor-pointer max-w-[150px] sm:max-w-none truncate disabled:opacity-60 disabled:cursor-not-allowed">{(currentLevelId === 'daily' || isDailyMode) ? ('📅 每日一題' + (cLevel && cLevel.width ? ' ' + cLevel.width + 'x' + cLevel.height : '')) : (currentLevelId === 'custom' && randomLevelData) ? `⚙️ 自訂 (${randomLevelData.width}x${randomLevelData.height})` : (((LEVELS.find(l => String(l.id) === String(currentLevelId)) || {}).name) || (cLevel && cLevel.width ? cLevel.width + 'x' + cLevel.height : '10x10 標準'))} ▾</button>
 
                   <div className="flex gap-1 md:gap-2 flex-wrap items-center ml-auto">
                      {!isWon && hasSolution && !showSolution && !inRace && ( <button onClick={handleShowSolution} className="plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-green-400 text-[#1e293b] border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1" title="解答">💡<span className="hidden sm:inline">解答</span></button> )}
@@ -4556,19 +4577,19 @@ function PlatNum(props) {
 
           {/* 設定難度彈窗（v1.43 Q2：比照數獨設定 modal 的入口形式） */}
           {showSettingsModal && (
-            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4" onClick={() => setShowSettingsModal(false)}>
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4" onClick={closeSettingsModal}>
               <div className="bg-[#f6fdf6] border-[4px] border-[#1e293b] rounded-2xl p-6 shadow-[10px_10px_0px_rgba(30,41,59,1)] w-full max-w-md animate-popUp" onClick={e => e.stopPropagation()}>
                 <h2 className="text-2xl font-black text-slate-800 mb-2 border-b-4 border-[#4ade80] inline-block pb-1">⚙️ 設定難度</h2>
-                <p className="text-sm font-bold text-slate-600 mb-4">選一個難度，立刻換一題新的。</p>
+                <p className="text-sm font-bold text-slate-600 mb-4">{soloPick ? '選一個難度，開始一局新的挑戰。' : '選一個難度，立刻換一題新的。'}</p>
                 <div className="flex flex-col gap-2 mb-4">
                   {LEVELS.map(level => (
-                    <button key={level.id} onClick={() => { setShowSettingsModal(false); handleLevelChange(level.id === 'custom' ? 'custom' : level.id); }} className={"plat-btn-hard plat-btn-hard-3 w-full text-left px-4 py-3 border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_rgba(30,41,59,1)]" + (String(currentLevelId) === String(level.id) ? "bg-[#4ade80] text-slate-900" : "bg-white text-slate-800")}>
+                    <button key={level.id} onClick={() => { setShowSettingsModal(false); if (soloPick && level.id !== 'custom') { try { localStorage.setItem('hashi_solo_level', String(level.id)); } catch (e) {} setSoloPick(false); } handleLevelChange(level.id === 'custom' ? 'custom' : level.id); }} className={"plat-btn-hard plat-btn-hard-3 w-full text-left px-4 py-3 border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_rgba(30,41,59,1)]" + (String(currentLevelId) === String(level.id) ? "bg-[#4ade80] text-slate-900" : "bg-white text-slate-800")}>
                       {level.name}
                       <span className="block text-xs font-bold opacity-70 mt-0.5">{level.description}</span>
                     </button>
                   ))}
                 </div>
-                <button onClick={() => setShowSettingsModal(false)} className="plat-btn-hard w-full py-3 bg-white border-4 border-slate-800 rounded-xl font-black text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)]">取消</button>
+                <button onClick={closeSettingsModal} className="plat-btn-hard w-full py-3 bg-white border-4 border-slate-800 rounded-xl font-black text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)]">取消</button>
               </div>
             </div>
           )}
@@ -4582,6 +4603,7 @@ function PlatNum(props) {
                   <button onClick={() => {
                       setShowCustomModal(false);
                       setCurrentLevelId(stateRef.current.levelId);
+                      if (soloPick) { setSoloPick(false); setScreen('home'); }
                   }} className="text-slate-400 hover:text-slate-800 text-2xl font-black">✕</button>
                 </div>
                 <p className="text-xs font-semibold text-slate-500 mb-4">輸入專屬長寬（5 ~ 100），生成超大型合作地圖：</p>
@@ -4599,6 +4621,7 @@ function PlatNum(props) {
                   <button onClick={() => {
                       setShowCustomModal(false);
                       setCurrentLevelId(stateRef.current.levelId);
+                      if (soloPick) { setSoloPick(false); setScreen('home'); }
                   }} className="plat-btn-hard plat-btn-hard-2 flex-1 py-2 bg-slate-200 border-2 border-slate-800 rounded-xl font-black text-slate-800 shadow-[2px_2px_0px_rgba(30,41,59,1)] hover:bg-slate-300">取消</button>
                   <button onClick={handleCustomGenerate} className="plat-btn-hard plat-btn-hard-2 flex-1 py-2 bg-[#4ade80] border-2 border-slate-800 rounded-xl font-black text-slate-900 shadow-[2px_2px_0px_rgba(30,41,59,1)] hover:bg-[#e6b800]">產生</button>
                 </div>
