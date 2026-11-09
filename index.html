@@ -2292,6 +2292,17 @@ body.plat-room-on[data-view="mines"] {
 :focus-visible { outline: 3px solid #2563eb !important; outline-offset: 2px; }
 
 #hub-invite-qr { image-rendering: pixelated; }
+
+/* 每日月曆切月過渡（審查 J1）：只動 opacity/transform——六列固定高度與格子尺寸全程不跳；舊月淡出（往行進方向微移）→重建→新月反向入場。 */
+@keyframes pcalOutNext { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(-4px); } }
+@keyframes pcalOutPrev { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(4px); } }
+@keyframes pcalInNext { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes pcalInPrev { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: translateX(0); } }
+.pcal-out-next { animation: pcalOutNext 100ms ease-in both; }
+.pcal-out-prev { animation: pcalOutPrev 100ms ease-in both; }
+.pcal-in-next { animation: pcalInNext 150ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.pcal-in-prev { animation: pcalInPrev 150ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+@media (prefers-reduced-motion: reduce) { .pcal-out-next, .pcal-out-prev, .pcal-in-next, .pcal-in-prev { animation: none; } }
   </style>
 </head>
 <body data-view="home">
@@ -23497,7 +23508,7 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.59.0'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
+  var PLAT_VERSION = '1.60.0'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -25899,7 +25910,7 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
   // ---------- 每日一題月曆（PlatCalendar）：三款遊戲共用同一份實作（v1.16 統一） ----------
   // cfg: { accent:'#ffcc00', records:{ 'YYYY-MM-DD': … }, selected:'YYYY-MM-DD', onPick:function(ds) }
   // 規格（使用者定案）：固定 42 格、完成日以主題色亮起＋✓、今天外框、過去未玩可選、未來反灰停用、月份範圍 [2026-01, 本月]、點可玩日立即回呼 onPick
-  var PCAL = { el: null, cfg: null, ym: '' };
+  var PCAL = { el: null, cfg: null, ym: '', pendingYm: '', navDir: 1, navT: null, inT: null };
   function pcalPad(n) { return (n < 10 ? '0' : '') + n; }
   function pcalToday() { var d = new Date(); return d.getFullYear() + '-' + pcalPad(d.getMonth() + 1) + '-' + pcalPad(d.getDate()); }
   function pcalEl() {
@@ -25914,12 +25925,8 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
         if (!b || b.disabled) return;
         var act = b.getAttribute('data-pcal');
         if (act === 'close') window.PlatCalendar.hide();
-        else if (act === 'prev' || act === 'next') {
-          var cy = parseInt(PCAL.ym.slice(0, 4), 10), cm = parseInt(PCAL.ym.slice(5, 7), 10) - 1 + (act === 'next' ? 1 : -1);
-          var d = new Date(cy, cm, 1);
-          PCAL.ym = d.getFullYear() + '-' + pcalPad(d.getMonth() + 1);
-          pcalRender();
-        } else if (act === 'day') {
+        else if (act === 'prev' || act === 'next') { pcalNav(act); }
+        else if (act === 'day') {
           var ds = b.getAttribute('data-ds');
           var cfg = PCAL.cfg;
           window.PlatCalendar.hide();
@@ -25930,6 +25937,38 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
       PCAL.el = el;
     }
     return PCAL.el;
+  }
+  // J1 切月兩段式：舊月淡出（100ms）→以最新 pendingYm 重建→新月入場（150ms）；連點只更新 pendingYm（retarget、以最後一次為準、不排隊）。
+  // 淡出期間舊表仍在 DOM（無空白幀）；總時長 100+150=250ms 內。hide 時清計時，show 會重置 ym 不受殘留影響。
+  function pcalShift(ym, delta) { var cy = parseInt(ym.slice(0, 4), 10), cm = parseInt(ym.slice(5, 7), 10) - 1 + delta; var d = new Date(cy, cm, 1); return d.getFullYear() + '-' + pcalPad(d.getMonth() + 1); }
+  function pcalStripAnim() { var el = PCAL.el; if (!el) return; el.querySelectorAll('.pcal-out-next,.pcal-out-prev,.pcal-in-next,.pcal-in-prev').forEach(function (n) { n.classList.remove('pcal-out-next', 'pcal-out-prev', 'pcal-in-next', 'pcal-in-prev'); }); }
+  function pcalNav(act) {
+    var dir = act === 'next' ? 1 : -1;
+    var target = pcalShift(PCAL.pendingYm || PCAL.ym, dir);
+    var todayYM = pcalToday().slice(0, 7);
+    if (target < '2026-01') target = '2026-01';
+    if (target > todayYM) target = todayYM;
+    if (target === PCAL.ym && !PCAL.pendingYm && !PCAL.navT) return; // 已在邊界且無進行中的切換
+    PCAL.pendingYm = target; PCAL.navDir = dir;
+    if (PCAL.navT) return; // 淡出中：只 retarget，重建時用最新 pendingYm
+    if (PCAL.inT) { clearTimeout(PCAL.inT); PCAL.inT = null; }
+    pcalStripAnim(); // 入場中被打斷：先清舊動畫 class 再掛淡出
+    var el = PCAL.el; if (!el) return;
+    var outCls = dir > 0 ? 'pcal-out-next' : 'pcal-out-prev';
+    var cells = el.querySelector('.pcal-cells'), title = el.querySelector('.pcal-title');
+    if (cells) cells.classList.add(outCls);
+    if (title) title.classList.add(outCls);
+    PCAL.navT = setTimeout(function () {
+      PCAL.navT = null;
+      PCAL.ym = PCAL.pendingYm || PCAL.ym; PCAL.pendingYm = '';
+      pcalRender();
+      var el2 = PCAL.el; if (!el2) return;
+      var inCls = PCAL.navDir > 0 ? 'pcal-in-next' : 'pcal-in-prev';
+      var c2 = el2.querySelector('.pcal-cells'), t2 = el2.querySelector('.pcal-title');
+      if (c2) c2.classList.add(inCls);
+      if (t2) t2.classList.add(inCls);
+      PCAL.inT = setTimeout(function () { PCAL.inT = null; pcalStripAnim(); }, 170); // 播完清 class，樣式乾淨
+    }, 105);
   }
   function pcalRender() {
     var cfg = PCAL.cfg; if (!cfg) return;
@@ -25964,11 +26003,11 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
       '<div class="bg-white border-4 border-slate-800 rounded-2xl shadow-[8px_8px_0px_rgba(30,41,59,1)] w-full max-w-sm p-5">' +
         '<div class="flex items-center justify-between mb-3">' +
           '<button data-pcal="prev" ' + (ym <= '2026-01' ? 'disabled' : '') + ' class="' + navBtn + '">◀</button>' +
-          '<div class="font-black text-xl text-slate-800">📅 ' + cy + ' 年 ' + (cm + 1) + ' 月</div>' +
+          '<div class="pcal-title font-black text-xl text-slate-800">' + prLiteSpan('pcal-title', '📅 ' + cy + ' 年 ' + (cm + 1) + ' 月') + '</div>' +
           '<button data-pcal="next" ' + (ym >= todayYM ? 'disabled' : '') + ' class="' + navBtn + '">▶</button>' +
         '</div>' +
         '<div class="grid grid-cols-7 gap-1 mb-1">' + ['日', '一', '二', '三', '四', '五', '六'].map(function (w) { return '<div class="text-center font-black text-xs text-slate-400 py-1">' + w + '</div>'; }).join('') + '</div>' +
-        '<div class="grid grid-cols-7 gap-1">' + cells + '</div>' +
+        '<div class="pcal-cells grid grid-cols-7 gap-1">' + cells + '</div>' +
         '<div class="flex items-center justify-between mt-4">' +
           '<span class="text-xs font-bold text-slate-500"><span class="inline-block w-3 h-3 rounded-sm bg-[' + cfg.accent + '] border border-slate-800 align-middle mr-1"></span>亮燈＝已完成・灰色＝還沒到</span>' +
           '<button data-pcal="close" class="px-4 py-2 bg-white border-2 border-slate-800 rounded-lg font-black text-sm text-slate-800 shadow-[2px_2px_0px_rgba(30,41,59,1)] active:translate-y-0.5 active:shadow-none">關閉</button>' +
@@ -25977,7 +26016,7 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
   }
   window.PlatCalendar = {
     show: function (cfg) { PCAL.cfg = cfg || {}; PCAL.ym = pcalToday().slice(0, 7); pcalRender(); var el = pcalEl(); platFadeInReset(el); el.style.display = 'flex'; },
-    hide: function () { platFadeOut(PCAL.el, function () { PCAL.cfg = null; }); },
+    hide: function () { if (PCAL.navT) { clearTimeout(PCAL.navT); PCAL.navT = null; } if (PCAL.inT) { clearTimeout(PCAL.inT); PCAL.inT = null; } PCAL.pendingYm = ''; platFadeOut(PCAL.el, function () { PCAL.cfg = null; }); },
     _visible: function () { return !!(PCAL.el && PCAL.el.style.display === 'flex'); }
   };
 

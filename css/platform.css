@@ -296,3 +296,14 @@ body.plat-room-on[data-view="mines"] {
 :focus-visible { outline: 3px solid #2563eb !important; outline-offset: 2px; }
 
 #hub-invite-qr { image-rendering: pixelated; }
+
+/* 每日月曆切月過渡（審查 J1）：只動 opacity/transform——六列固定高度與格子尺寸全程不跳；舊月淡出（往行進方向微移）→重建→新月反向入場。 */
+@keyframes pcalOutNext { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(-4px); } }
+@keyframes pcalOutPrev { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(4px); } }
+@keyframes pcalInNext { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes pcalInPrev { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: translateX(0); } }
+.pcal-out-next { animation: pcalOutNext 100ms ease-in both; }
+.pcal-out-prev { animation: pcalOutPrev 100ms ease-in both; }
+.pcal-in-next { animation: pcalInNext 150ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.pcal-in-prev { animation: pcalInPrev 150ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+@media (prefers-reduced-motion: reduce) { .pcal-out-next, .pcal-out-prev, .pcal-in-next, .pcal-in-prev { animation: none; } }
