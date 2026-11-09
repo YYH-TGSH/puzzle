@@ -3320,7 +3320,18 @@ function PlatNum(props) {
         } catch(e) { showToast("⚠️ 讀檔失敗！"); }
       };
 
+      // G2（v1.57.0，比照數獨 F3）：按鈕觸發的縮放加 200ms travel 過渡——先在 svg 掛 transition 再改尺寸；
+      // 260ms 後自動卸下，雙指捏合（handleTouchMove）走另一條路、維持即時跟手。連按重掛即可 retarget。
+      const zoomAnimTimerRef = useRef(null);
+      const armZoomTransition = () => {
+          const svg = svgRef.current; if (!svg) return;
+          svg.style.transition = 'width 200ms cubic-bezier(0.22, 1, 0.36, 1), height 200ms cubic-bezier(0.22, 1, 0.36, 1)';
+          if (zoomAnimTimerRef.current) clearTimeout(zoomAnimTimerRef.current);
+          zoomAnimTimerRef.current = setTimeout(() => { if (svgRef.current) svgRef.current.style.transition = ''; }, 260);
+      };
+
       const handleZoomIn = () => {
+          armZoomTransition();
           let newZoom = Math.min(zoomLevelRef.current + 0.3, 3.5);
           userZoomedRef.current = true;
 
@@ -3339,6 +3350,7 @@ function PlatNum(props) {
           }
       };
       const handleZoomOut = () => {
+          armZoomTransition();
           let newZoom = Math.max(zoomLevelRef.current - 0.3, 0.4);
           userZoomedRef.current = true;
           zoomLevelRef.current = newZoom;
@@ -3351,6 +3363,7 @@ function PlatNum(props) {
           }
       };
       const handleZoomReset = () => {
+          armZoomTransition();
           zoomLevelRef.current = 1;
           userZoomedRef.current = true;
           setZoomLevel(1);
@@ -3424,6 +3437,7 @@ function PlatNum(props) {
       };
 
       const handleCycleZoom = () => {
+        armZoomTransition();
         const nextIdx = (zoomModeIdxRef.current + 1) % 4;
         setZoomModeIdx(nextIdx);
         zoomModeIdxRef.current = nextIdx;
@@ -3688,7 +3702,7 @@ function PlatNum(props) {
                   <button onClick={() => setIsHeaderCollapsed(!isHeaderCollapsed)} className="flex px-2 md:px-3 py-1 bg-[#1e293b] text-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_rgba(0,0,0,0.3)] hover:bg-slate-800 items-center gap-1 whitespace-nowrap">{isHeaderCollapsed ? '🔽 展開規則' : '🔼 縮小面板'}</button>
                </div>
 
-               <div className={`w-full overflow-hidden transition-all duration-500 ease-in-out origin-top flex flex-col gap-2 ${isHeaderCollapsed ? 'max-h-0 opacity-0 scale-y-95' : 'max-h-[500px] opacity-100 scale-y-100'}`}>
+               <div className={"plat-collapse-y w-full" + (isHeaderCollapsed ? "" : " open")}>
                   <div className="bg-white border-[3px] border-[#1e293b] rounded-xl p-3 text-[#1e293b] shadow-[4px_4px_0px_#1e293b] flex flex-col md:flex-row gap-3">
                      <div className="flex-1">
                         <h3 className="text-sm md:text-base font-black mb-1 border-b-[3px] border-[#4ade80] inline-block pb-0.5">📜 遊戲四大規則</h3>

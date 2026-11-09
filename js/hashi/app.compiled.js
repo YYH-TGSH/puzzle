@@ -4960,7 +4960,20 @@ function HashiGame() {
     }
   };
 
+  // G2（v1.57.0，比照數獨 F3）：按鈕觸發的縮放加 200ms travel 過渡——先在 svg 掛 transition 再改尺寸；
+  // 260ms 後自動卸下，雙指捏合（handleTouchMove）走另一條路、維持即時跟手。連按重掛即可 retarget。
+  var zoomAnimTimerRef = useRef(null);
+  var armZoomTransition = function armZoomTransition() {
+    var svg = svgRef.current;if (!svg) return;
+    svg.style.transition = 'width 200ms cubic-bezier(0.22, 1, 0.36, 1), height 200ms cubic-bezier(0.22, 1, 0.36, 1)';
+    if (zoomAnimTimerRef.current) clearTimeout(zoomAnimTimerRef.current);
+    zoomAnimTimerRef.current = setTimeout(function () {
+      if (svgRef.current) svgRef.current.style.transition = '';
+    }, 260);
+  };
+
   var handleZoomIn = function handleZoomIn() {
+    armZoomTransition();
     var newZoom = Math.min(zoomLevelRef.current + 0.3, 3.5);
     userZoomedRef.current = true;
 
@@ -4979,6 +4992,7 @@ function HashiGame() {
     }
   };
   var handleZoomOut = function handleZoomOut() {
+    armZoomTransition();
     var newZoom = Math.max(zoomLevelRef.current - 0.3, 0.4);
     userZoomedRef.current = true;
     zoomLevelRef.current = newZoom;
@@ -4991,6 +5005,7 @@ function HashiGame() {
     }
   };
   var handleZoomReset = function handleZoomReset() {
+    armZoomTransition();
     zoomLevelRef.current = 1;
     userZoomedRef.current = true;
     setZoomLevel(1);
@@ -5074,6 +5089,7 @@ function HashiGame() {
   };
 
   var handleCycleZoom = function handleCycleZoom() {
+    armZoomTransition();
     var nextIdx = (zoomModeIdxRef.current + 1) % 4;
     setZoomModeIdx(nextIdx);
     zoomModeIdxRef.current = nextIdx;
@@ -5721,7 +5737,7 @@ function HashiGame() {
         ),
         React.createElement(
           'div',
-          { className: 'w-full overflow-hidden transition-all duration-500 ease-in-out origin-top flex flex-col gap-2 ' + (isHeaderCollapsed ? 'max-h-0 opacity-0 scale-y-95' : 'max-h-[500px] opacity-100 scale-y-100') },
+          { className: "plat-collapse-y w-full" + (isHeaderCollapsed ? "" : " open") },
           React.createElement(
             'div',
             { className: 'bg-white border-[3px] border-[#1e293b] rounded-xl p-3 text-[#1e293b] shadow-[4px_4px_0px_#1e293b] flex flex-col md:flex-row gap-3' },

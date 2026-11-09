@@ -165,7 +165,7 @@
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.56.0'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
+  var PLAT_VERSION = '1.57.0'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -2194,9 +2194,14 @@
   var prLiteMemo = {};
   function prLiteSpan(key, text) {
     var t = String(text == null ? '' : text);
-    var changed = prLiteMemo[key] !== undefined && prLiteMemo[key] !== t;
-    prLiteMemo[key] = t;
-    return '<span' + (changed ? ' class="plat-lite-in" style="display:inline-block"' : '') + '>' + pbEsc(t) + '</span>';
+    var prev = prLiteMemo[key], now = Date.now();
+    var changed = prev !== undefined && prev.text !== t;
+    if (!prev || prev.text !== t) prLiteMemo[key] = { text: t, at: now };
+    // 換字後 400ms 內的重渲染繼續帶滾換 class（名單每秒 waitLeft 推進＋ready 廣播回音都會重渲染；
+    // 只在換字當次渲染帶 class，測試與真機都可能被緊接的回音渲染洗掉、滾換被腰斬）。首次掛載不滾。
+    var m2 = prLiteMemo[key];
+    var rolling = changed || (prev && prev.text === t && (now - m2.at) < 400);
+    return '<span' + (rolling ? ' class="plat-lite-in" style="display:inline-block"' : '') + '>' + pbEsc(t) + '</span>';
   }
 
   function prRegion(name) { return PR.el ? PR.el.querySelector('[data-pr-region="' + name + '"]') : null; }
@@ -2244,7 +2249,7 @@
         }
         if (pl.badge) {
           var bk = pl.badge.kind === 'ready' ? 'bg-emerald-100 border-emerald-500 text-emerald-700' : pl.badge.kind === 'spec' ? 'bg-sky-100 border-sky-400 text-sky-700' : 'bg-slate-100 border-slate-300 text-slate-400';
-          h += '<span class="text-[10px] border px-1.5 py-0.5 rounded-md ' + bk + '">' + pbEsc(pl.badge.text) + '</span>';
+          h += '<span class="text-[10px] border px-1.5 py-0.5 rounded-md ' + bk + '">' + prLiteSpan('badge-' + pl.key, pl.badge.text) + '</span>'; // G3：名單狀態字換字才滾（key=玩家 uid；同字重渲染不重播、不閃爍）
         }
         h += '</span></div>';
         if (pl.editing) {
