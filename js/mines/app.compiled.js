@@ -1829,7 +1829,13 @@ function MinesGame() {
     } else mpSend(m);
   } // 房主：廣播＋本地處理（自己也可能是目標）；來賓：送房主中繼
   function processItemMsg(m) {
-    if (m.type === 'MINE_GRANT' && m.toUid === myId) applyItemGrant(m.item);else if (m.type === 'MINE_GIFT' && m.toUid === myId) holdGift(m.fromName);else if (m.type === 'MINE_HIT' && m.toUid === myId) applyItemHit(m.kind, m.fromName);
+    if (m.type === 'MINE_GRANT' && m.toUid === myId) applyItemGrant(m.item);else if (m.type === 'MINE_GIFT' && m.toUid === myId) {
+      holdGift(m.fromName);
+      try {
+        if (window.PlatFly) PlatFly.fly(PlatFly.byUid('mines', m.fromUid), PlatFly.me('mines'), '🎁');
+      } catch (e) {}
+    } // H3 禮物 Fly（純顯示層）
+    else if (m.type === 'MINE_HIT' && m.toUid === myId) applyItemHit(m.kind, m.fromName);
     saveResume(); // 道具庫存變動也刷新回座存檔（盤面沒變時 raceSendState 不會觸發）
   }
   function hostHandleMilestone(fromUid) {
@@ -1958,6 +1964,9 @@ function MinesGame() {
         fromName: (myPlayer() || {}).name || '',
         toUid: tgt.id
       });
+      try {
+        if (window.PlatFly) PlatFly.fly(PlatFly.me('mines'), PlatFly.byUid('mines', tgt.id), '🎁');
+      } catch (e) {} // H3 禮物 Fly（純顯示層）
       // 不提示送出：跳「你送了禮物」等於間接告訴送禮者他剛才那支旗插對了（使用者 2026-11-02 指示）——額度消耗與送禮都靜默進行
     }
   }
@@ -4725,6 +4734,7 @@ function MinesGame() {
       maxWidth: '100%'
     }
   }, /*#__PURE__*/React.createElement("button", {
+    "data-fly-me": "gift",
     onClick: function onClick() {
       return useGift();
     },
@@ -4820,6 +4830,7 @@ function MinesGame() {
     };
     return /*#__PURE__*/React.createElement("span", {
       key: p.id,
+      "data-fly-uid": p.id,
       className: "text-xs font-black px-2 py-1 rounded-xl border-2 border-slate-300 bg-white flex flex-col gap-1 min-w-[84px]"
     }, /*#__PURE__*/React.createElement("span", {
       className: "flex items-center gap-1"

@@ -2276,6 +2276,11 @@ function HashiGame() {
     }).length >= 3) return; // 已有 3 個且自動發動排程中（理論上不會發生），多的不收
     var ni = myItemsRef.current.concat([effItem]);
     myItemsRef.current = ni;setMyItems(ni);
+    if (effItem === 'gift' && m.fromUid && m.fromUid !== myId) {
+      try {
+        if (window.PlatFly) PlatFly.fly(PlatFly.byUid('hashi', m.fromUid), PlatFly.me('hashi') || PlatFly.byUid('hashi', myId), '🎁');
+      } catch (e) {}
+    } // H3 禮物 Fly（純顯示層）
     showToast('🎁 里程碑道具：你獲得 ' + meta.icon + ' ' + meta.name + '！');
     if (ni.filter(function (x) {
       return x === effItem;
@@ -2715,6 +2720,9 @@ function HashiGame() {
         });
         var sel = platPickWeighted(weaker, ws);
         sendBrawlMsg({ type: 'BRAWL_GRANT', toUid: sel.id, item: 'gift', fromUid: myId });
+        try {
+          if (window.PlatFly) PlatFly.fly(PlatFly.byUid('hashi', myId), PlatFly.byUid('hashi', sel.id), '🎁');
+        } catch (e) {} // H3 禮物 Fly（純顯示層）
         hashiGiftCreditRef.current -= 1;
       }
     }
@@ -6118,7 +6126,7 @@ function HashiGame() {
             var pct = rinfo ? Math.round(rinfo.progress * 100) : 0;
             return React.createElement(
               'div',
-              { key: idx, className: "shrink-0 flex flex-col gap-0.5 border-2 border-slate-800 rounded px-1.5 py-0.5 relative cursor-pointer hover:bg-slate-100 transition-colors " + (p.isSpectator ? 'opacity-60 bg-slate-100' : 'bg-white'),
+              { key: idx, 'data-fly-uid': p.id, className: "shrink-0 flex flex-col gap-0.5 border-2 border-slate-800 rounded px-1.5 py-0.5 relative cursor-pointer hover:bg-slate-100 transition-colors " + (p.isSpectator ? 'opacity-60 bg-slate-100' : 'bg-white'),
                 onClick: function onClick() {
                   if (isMe || isHostRef.current) {
                     setEditName(p.name);setEditTarget(p.id);
@@ -6277,7 +6285,7 @@ function HashiGame() {
         ),
         inRace && (raceState === 'racing' || raceState === 'finished') && myItems.length > 0 && React.createElement(
           'div',
-          { className: 'absolute bottom-20 left-1/2 -translate-x-1/2 z-[45] flex items-end gap-4' },
+          { 'data-fly-me': 'items', className: 'absolute bottom-20 left-1/2 -translate-x-1/2 z-[45] flex items-end gap-4' },
           BRAWL_BAR_ORDER.filter(function (k) {
             return myItems.indexOf(k) >= 0;
           }).map(function (k) {

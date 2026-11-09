@@ -1500,6 +1500,9 @@ function SudokuGame() {
           });
         }
         giftCreditRef.current -= 1; // 送出 1 個，扣 1 額度（送出動作已完成；非連線模式不會進大亂鬥，這裡照扣避免迴圈卡死）
+        try {
+          if (window.PlatFly) PlatFly.fly(PlatFly.byUid('sudoku', myId), PlatFly.byUid('sudoku', targetUid), '🎁');
+        } catch (e) {} // H3 禮物 Fly（純顯示層）
       };
       while (giftCreditRef.current >= 1) {
         if (_loop2()) break;
@@ -5344,6 +5347,11 @@ function SudokuGame() {
                 var q = prev[m.targetUid] || [];
                 return _objectSpread(_objectSpread({}, prev), {}, _defineProperty({}, m.targetUid, [].concat(_toConsumableArray(q), [m.senderUid || 'system'])));
               });
+              if (m.targetUid === myId) {
+                try {
+                  if (window.PlatFly) PlatFly.fly(PlatFly.byUid('sudoku', m.senderUid), document.getElementById('btn-open-gift') || PlatFly.byUid('sudoku', myId), '🎁');
+                } catch (e) {}
+              } // H3 禮物 Fly（純顯示層）
               maybeAutoOpenGift(m.targetUid);
               connsRef.current.forEach(function (conn) {
                 if (conn.open && conn !== c) conn.send(m);
@@ -5534,6 +5542,11 @@ function SudokuGame() {
               var q = prev[m.targetUid] || [];
               return _objectSpread(_objectSpread({}, prev), {}, _defineProperty({}, m.targetUid, [].concat(_toConsumableArray(q), [m.senderUid || 'system'])));
             });
+            if (m.targetUid === myId) {
+              try {
+                if (window.PlatFly) PlatFly.fly(PlatFly.byUid('sudoku', m.senderUid), document.getElementById('btn-open-gift') || PlatFly.byUid('sudoku', myId), '🎁');
+              } catch (e) {}
+            } // H3 禮物 Fly（純顯示層）
             maybeAutoOpenGift(m.targetUid);
           } else if (m.type === 'GIFT_OPENED') {
             if (m.uid !== myId) {
@@ -6456,6 +6469,7 @@ function SudokuGame() {
     }).pct || 0;
     return /*#__PURE__*/React.createElement("div", {
       key: idx,
+      "data-fly-uid": p.id,
       className: "shrink-0 flex flex-col gap-0.5 border-2 border-slate-800 rounded px-1.5 py-0.5 relative cursor-pointer hover:bg-slate-100 transition-colors ".concat(p.isSpectator ? 'opacity-60 bg-slate-100' : 'bg-white'),
       onClick: function onClick() {
         if (platSessRef.current && platSessRef.current.hub) {

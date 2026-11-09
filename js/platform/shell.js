@@ -3,15 +3,28 @@
   var booted = { sudoku: false, hashi: false, mines: false };
   var statusEl = null;
   var platLogBuf = []; window.__PLAT_LOG = platLogBuf; // 環形錯誤簿（稽核 I-01：正式站沒有診斷面板，至少留記憶體紀錄可查）
+  var errBarTimer = null;
   function showErrBar(msg) { // 正式站可見錯誤橫幅：❌ 級 status 不再寫進不存在的面板就消失，使用者截圖能帶回病名
     try {
       var bar = document.getElementById('plat-errbar'); if (!bar) return;
-      var tx = document.getElementById('plat-errbar-text'); if (tx) tx.textContent = msg;
+      var tx = document.getElementById('plat-errbar-text'); if (tx) tx.textContent = msg; // 先寫文字再顯示：第一幀即完整可讀
+      if (errBarTimer) { clearTimeout(errBarTimer); errBarTimer = null; }
+      bar.classList.remove('plat-err-out');
       bar.style.display = 'flex';
-      var x = document.getElementById('plat-errbar-x'); if (x && !x._wired) { x._wired = 1; x.onclick = function () { bar.style.display = 'none'; }; }
+      bar.classList.remove('plat-err-in'); void bar.offsetWidth; bar.classList.add('plat-err-in'); // 重掛進場動畫（連續錯誤也重播）
+      var x = document.getElementById('plat-errbar-x'); if (x && !x._wired) { x._wired = 1; x.onclick = function () { hideErrBar(); }; }
       var rl = document.getElementById('plat-errbar-reload'); if (rl && !rl._wired) { rl._wired = 1; rl.onclick = function () { location.reload(); }; }
     } catch (e) {}
   }
+  function hideErrBar() { // 退場：淡出 150ms 後才 display:none（reduced-motion 時 CSS 已關動畫，計時照走無感）
+    try {
+      var bar = document.getElementById('plat-errbar'); if (!bar || bar.style.display === 'none') return;
+      bar.classList.remove('plat-err-in'); bar.classList.add('plat-err-out');
+      if (errBarTimer) clearTimeout(errBarTimer);
+      errBarTimer = setTimeout(function () { bar.style.display = 'none'; bar.classList.remove('plat-err-out'); errBarTimer = null; }, 160);
+    } catch (e) {}
+  }
+  window.__PLAT_ERRBAR = { show: showErrBar, hide: hideErrBar }; // 測試/稽核用
   function status(msg) {
     platLogBuf.push({ t: Date.now(), msg: String(msg) }); if (platLogBuf.length > 80) platLogBuf.shift();
     if (!statusEl) statusEl = document.getElementById('plat-status-body');
@@ -165,7 +178,7 @@
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.58.0'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
+  var PLAT_VERSION = '1.59.0'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -340,6 +353,44 @@
 
   // ---------- 大廳 UI ----------
   function lobbyMsg(t) { var el = $('lob-msg'); if (el) window.PlatLite(el, t || ''); } // F2：連線狀態字改滾換（同字不重播由 PlatLite 內部把關）
+
+  // ===== 禮物 Fly（審查第 3 輪 H3・純顯示層）：圖示沿小弧線飛向目標錨點；不碰任何連線/數值，動畫與狀態更新並行。
+  // 錨點由各遊戲在玩家晶片上標 data-fly-uid、在自己的道具區標 data-fly-me；byUid 依遊戲 view 作用域查詢（三款共存同一文件）。
+  // 同時最多 3 顆在飛（多出的合併略過，避免里程碑連發時滿屏亂飛）；prefers-reduced-motion 不播；錨點不存在/無尺寸就靜默跳過。
+  var platFlyActive = 0;
+  window.PlatFly = {
+    byUid: function (game, uid) { try { return document.querySelector('#view-' + game + ' [data-fly-uid="' + uid + '"]'); } catch (e) { return null; } },
+    me: function (game) { try { return document.querySelector('#view-' + game + ' [data-fly-me]'); } catch (e) { return null; } },
+    fly: function (fromEl, toEl, icon) {
+      try {
+        if (!fromEl || !toEl || fromEl === toEl) return;
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        if (platFlyActive >= 3) return;
+        var a = fromEl.getBoundingClientRect(), b = toEl.getBoundingClientRect();
+        if ((!a.width && !a.height) || (!b.width && !b.height)) return;
+        platFlyActive++;
+        var el = document.createElement('div');
+        el.className = 'plat-fly-icon';
+        el.textContent = icon || '🎁';
+        el.style.cssText = 'position:fixed;left:0;top:0;z-index:99990;pointer-events:none;font-size:26px;line-height:1;will-change:transform;filter:drop-shadow(0 3px 5px rgba(0,0,0,.3));';
+        document.body.appendChild(el);
+        var ax = a.left + a.width / 2 - 13, ay = a.top + a.height / 2 - 13;
+        var bx = b.left + b.width / 2 - 13, by = b.top + b.height / 2 - 13;
+        var dx = bx - ax, dy = by - ay;
+        var lift = Math.min(90, Math.max(28, Math.abs(dx) * 0.16 + 22));
+        var anim = null;
+        try {
+          anim = el.animate([
+            { transform: 'translate(' + ax + 'px,' + ay + 'px) scale(1)', opacity: 1 },
+            { transform: 'translate(' + (ax + dx * 0.5) + 'px,' + (ay + dy * 0.5 - lift) + 'px) scale(1.18)', opacity: 1, offset: 0.55 },
+            { transform: 'translate(' + bx + 'px,' + by + 'px) scale(0.92)', opacity: 1 }
+          ], { duration: 520, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
+        } catch (e) {}
+        var done = function () { if (el.parentNode) el.parentNode.removeChild(el); platFlyActive--; };
+        if (anim && anim.finished && anim.finished.then) anim.finished.then(done, done); else setTimeout(done, 560);
+      } catch (err) {}
+    }
+  };
   function showStep(s) {
     $('lob-step-entry').style.display = (s === 'entry') ? 'block' : 'none';
     $('lob-step-nick').style.display = (s === 'nick') ? 'block' : 'none';
@@ -1925,10 +1976,11 @@
     t.history.forEach(function (h) { if (h.round > t.totalRounds) hasPlayoff = true; });
     if (hasPlayoff) html += '<span class="px-2 py-1 rounded-lg border-2 border-slate-800 text-xs font-black bg-rose-100 text-rose-600">加賽 數橋</span>';
     html += '</div>';
-    if (t.phase === 'playing' || t.phase === 'playoff') html += '<div class="font-black text-slate-700 text-sm mb-2">▶ ' + (t.phase === 'playoff' ? '加賽' : '第 ' + t.round + ' 局') + '進行中：' + tournGameLabel(t.curGame) + (t.roundSecs > 0 ? '（限時 ' + Math.round(t.roundSecs / 60) + ' 分鐘）' : '') + '</div>';
-    else if (t.phase === 'standings') html += '<div class="font-black text-slate-700 text-sm mb-2">第 ' + t.round + ' 局結束，下一局：' + tournGameName(t.rounds[t.round]) + '</div>';
-    else if (t.phase === 'playoff-pending') html += '<div class="font-black text-rose-600 text-sm mb-2">⚖️ 總分同分、冠軍局數也同分 — 加賽一局數橋決勝！</div>';
-    else if (t.phase === 'ended' && t.champion) html += '<div class="font-black text-amber-600 text-lg mb-1 text-center">🏆 總冠軍：' + esc(t.champion.name) + '</div>' + (t.endNote ? '<div class="text-center text-xs text-slate-500 font-bold mb-1">' + esc(t.endNote) + '</div>' : '');
+    // H1（審查第 3 輪）：狀態列換字才滾（prLiteSpan，key 固定 'tourn-status'；phase/局數/對戰組合任一變動才換字，同局重渲染不重播）
+    if (t.phase === 'playing' || t.phase === 'playoff') html += '<div class="font-black text-slate-700 text-sm mb-2">' + prLiteSpan('tourn-status', '▶ ' + (t.phase === 'playoff' ? '加賽' : '第 ' + t.round + ' 局') + '進行中：' + tournGameLabel(t.curGame) + (t.roundSecs > 0 ? '（限時 ' + Math.round(t.roundSecs / 60) + ' 分鐘）' : '')) + '</div>';
+    else if (t.phase === 'standings') html += '<div class="font-black text-slate-700 text-sm mb-2">' + prLiteSpan('tourn-status', '第 ' + t.round + ' 局結束，下一局：' + tournGameName(t.rounds[t.round])) + '</div>';
+    else if (t.phase === 'playoff-pending') html += '<div class="font-black text-rose-600 text-sm mb-2">' + prLiteSpan('tourn-status', '⚖️ 總分同分、冠軍局數也同分 — 加賽一局數橋決勝！') + '</div>';
+    else if (t.phase === 'ended' && t.champion) html += '<div class="font-black text-amber-600 text-lg mb-1 text-center">' + prLiteSpan('tourn-status', '🏆 總冠軍：' + t.champion.name) + '</div>' + (t.endNote ? '<div class="text-center text-xs text-slate-500 font-bold mb-1">' + esc(t.endNote) + '</div>' : '');
     if (Net.isHost && (t.phase === 'playing' || t.phase === 'playoff')) {
       html += '<button id="t-forceend" class="w-full mb-2 py-2 bg-rose-500 border-[3px] border-slate-800 rounded-xl font-black text-white active:translate-y-[2px] transition-all">⏹️ 結束本局（以目前進度結算）</button>';
       html += '<div class=\"mb-2 flex flex-col gap-1\">' + t.entrants.map(function (e) {

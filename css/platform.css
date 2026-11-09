@@ -285,6 +285,12 @@ body.plat-room-on[data-view="mines"] {
 /* 正式站錯誤橫幅（稽核 I-01）：❌ 級錯誤可見化，附重新載入；平常隱藏 */
 #plat-errbar { position: fixed; top: 8px; left: 50%; transform: translateX(-50%); z-index: 99999; max-width: min(92vw, 560px); align-items: center; gap: 8px; background: #fef2f2; color: #991b1b; border: 2.5px solid #dc2626; border-radius: 12px; padding: 8px 10px; font-size: 13px; font-weight: 800; box-shadow: 0 6px 24px rgba(0,0,0,.25); }
 #plat-errbar-text { flex: 1; word-break: break-word; }
+/* 錯誤橫幅進退場（審查 H2）：進場由上方小幅滑入＋淡入（transform 併入置中 translateX(-50%)，勿覆蓋）；退場淡出後才 display:none。文字在第一幀即完整（JS 先寫 textContent 再顯示），動畫不延遲訊息。 */
+@keyframes platErrIn { from { opacity: 0; transform: translateX(-50%) translateY(-10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+@keyframes platErrOut { from { opacity: 1; transform: translateX(-50%) translateY(0); } to { opacity: 0; transform: translateX(-50%) translateY(-6px); } }
+#plat-errbar.plat-err-in { animation: platErrIn 190ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+#plat-errbar.plat-err-out { animation: platErrOut 150ms ease-in both; }
+@media (prefers-reduced-motion: reduce) { #plat-errbar.plat-err-in, #plat-errbar.plat-err-out { animation: none; } }
 #plat-errbar button { flex-shrink: 0; border: 2px solid #991b1b; background: #fff; color: #991b1b; border-radius: 8px; padding: 3px 8px; font-weight: 900; cursor: pointer; }
 /* 鍵盤焦點可見（稽核 F-03 快修：原本全站無 :focus-visible，鍵盤/開關操作看不到焦點） */
 :focus-visible { outline: 3px solid #2563eb !important; outline-offset: 2px; }

@@ -823,6 +823,7 @@ function SudokuGame() {
                     });
                 }
                 giftCreditRef.current -= 1; // 送出 1 個，扣 1 額度（送出動作已完成；非連線模式不會進大亂鬥，這裡照扣避免迴圈卡死）
+                try { if (window.PlatFly) PlatFly.fly(PlatFly.byUid('sudoku', myId), PlatFly.byUid('sudoku', targetUid), '🎁'); } catch (e) {} // H3 禮物 Fly（純顯示層）
             }
         }
     }, [localCells, isGenerating, cSizeDef.size, cSizeDef.chars, ghostHints, isSpectator, matchPhase, conflictCellIds, ghostProgress, playersList, brawlWinners]);
@@ -2819,6 +2820,7 @@ function SudokuGame() {
                                 const q = prev[m.targetUid] || [];
                                 return { ...prev, [m.targetUid]: [...q, m.senderUid || 'system'] };
                             });
+                        if (m.targetUid === myId) { try { if (window.PlatFly) PlatFly.fly(PlatFly.byUid('sudoku', m.senderUid), document.getElementById('btn-open-gift') || PlatFly.byUid('sudoku', myId), '🎁'); } catch (e) {} } // H3 禮物 Fly（純顯示層）
                             maybeAutoOpenGift(m.targetUid);
                             connsRef.current.forEach(conn => { if (conn.open && conn !== c) conn.send(m); });
                         }
@@ -2937,6 +2939,7 @@ function SudokuGame() {
                             const q = prev[m.targetUid] || [];
                             return { ...prev, [m.targetUid]: [...q, m.senderUid || 'system'] };
                         });
+                        if (m.targetUid === myId) { try { if (window.PlatFly) PlatFly.fly(PlatFly.byUid('sudoku', m.senderUid), document.getElementById('btn-open-gift') || PlatFly.byUid('sudoku', myId), '🎁'); } catch (e) {} } // H3 禮物 Fly（純顯示層）
                         maybeAutoOpenGift(m.targetUid);
                     }
                     else if (m.type === 'GIFT_OPENED') {
@@ -3545,7 +3548,7 @@ function SudokuGame() {
                             const pct = isBrawlMode ? (ghostProgress[p.id] || 0) : ((playerProgress.find(x => x.uid === p.id) || { pct: 0 }).pct || 0);
 
                             return (
-                                <div key={idx} className={`shrink-0 flex flex-col gap-0.5 border-2 border-slate-800 rounded px-1.5 py-0.5 relative cursor-pointer hover:bg-slate-100 transition-colors ${p.isSpectator ? 'opacity-60 bg-slate-100' : 'bg-white'}`}
+                                <div key={idx} data-fly-uid={p.id} className={`shrink-0 flex flex-col gap-0.5 border-2 border-slate-800 rounded px-1.5 py-0.5 relative cursor-pointer hover:bg-slate-100 transition-colors ${p.isSpectator ? 'opacity-60 bg-slate-100' : 'bg-white'}`}
                                     onClick={() => {
                                         if (platSessRef.current && platSessRef.current.hub) {
                                             // 平台 hub：代表色由殼摩天輪決定，遊戲內不開色票——點自己請殼開摩天輪選色（回呼走既有改色管道）；點別人直接不開

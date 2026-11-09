@@ -710,7 +710,7 @@ function MinesGame() {
   function sendItemMsg(m) { if (mpRef.current.isHost) { hostBroadcast(m); processItemMsg(m); } else mpSend(m); } // 房主：廣播＋本地處理（自己也可能是目標）；來賓：送房主中繼
   function processItemMsg(m) {
     if (m.type === 'MINE_GRANT' && m.toUid === myId) applyItemGrant(m.item);
-    else if (m.type === 'MINE_GIFT' && m.toUid === myId) holdGift(m.fromName);
+    else if (m.type === 'MINE_GIFT' && m.toUid === myId) { holdGift(m.fromName); try { if (window.PlatFly) PlatFly.fly(PlatFly.byUid('mines', m.fromUid), PlatFly.me('mines'), '🎁'); } catch (e) {} } // H3 禮物 Fly（純顯示層）
     else if (m.type === 'MINE_HIT' && m.toUid === myId) applyItemHit(m.kind, m.fromName);
     saveResume(); // 道具庫存變動也刷新回座存檔（盤面沒變時 raceSendState 不會觸發）
   }
@@ -771,6 +771,7 @@ function MinesGame() {
       var tgt = pickWeightedMine(weaker, p => Math.sqrt((myP - effOfMine(p.id)) * 100 + 1));
       giftCreditRef.current -= 1;
       sendItemMsg({ type: 'MINE_GIFT', uid: myId, fromUid: myId, fromName: (myPlayer() || {}).name || '', toUid: tgt.id });
+      try { if (window.PlatFly) PlatFly.fly(PlatFly.me('mines'), PlatFly.byUid('mines', tgt.id), '🎁'); } catch (e) {} // H3 禮物 Fly（純顯示層）
       // 不提示送出：跳「你送了禮物」等於間接告訴送禮者他剛才那支旗插對了（使用者 2026-11-02 指示）——額度消耗與送禮都靜默進行
     }
   }
@@ -1834,7 +1835,7 @@ function MinesGame() {
           </div>
       {mpOn && mpRef.current.mode === 'race' && mpRef.current.itemsAllow && mpPhase === 'playing' && !myOutcome && !iAmSpec() && (
         <div className="w-full mt-2 flex items-center justify-center gap-2 shrink-0" style={{ width: colW, maxWidth: '100%' }}>
-          <button onClick={() => useGift()} disabled={myItems.gift <= 0} className="plat-btn-hard plat-btn-hard-3 relative w-14 h-14 shrink-0 rounded-full bg-white border-[3px] border-slate-800 shadow-[3px_3px_0px_rgba(30,41,59,1)] disabled:opacity-40 text-2xl" title="禮物：幫自己把一顆地雷標上旗子並鎖定（自己按才發動）">🎁{myItems.gift > 0 && (<span className="absolute -top-1.5 -right-1.5 min-w-[22px] h-[22px] px-1 rounded-full bg-emerald-500 text-white text-xs font-black border-2 border-slate-800 flex items-center justify-center"><PlatNum value={myItems.gift} /></span>)}</button>
+          <button data-fly-me="gift" onClick={() => useGift()} disabled={myItems.gift <= 0} className="plat-btn-hard plat-btn-hard-3 relative w-14 h-14 shrink-0 rounded-full bg-white border-[3px] border-slate-800 shadow-[3px_3px_0px_rgba(30,41,59,1)] disabled:opacity-40 text-2xl" title="禮物：幫自己把一顆地雷標上旗子並鎖定（自己按才發動）">🎁{myItems.gift > 0 && (<span className="absolute -top-1.5 -right-1.5 min-w-[22px] h-[22px] px-1 rounded-full bg-emerald-500 text-white text-xs font-black border-2 border-slate-800 flex items-center justify-center"><PlatNum value={myItems.gift} /></span>)}</button>
           <button onClick={() => fireItem('question')} disabled={myItems.question <= 0} className="plat-btn-hard plat-btn-hard-3 relative w-14 h-14 shrink-0 rounded-full bg-white border-[3px] border-slate-800 shadow-[3px_3px_0px_rgba(30,41,59,1)] disabled:opacity-40 text-2xl" title="問號干擾：把對手 3–6 個還沒確定的數字變成問號（10 秒）">❓{myItems.question > 0 && (<span className="absolute -top-1.5 -right-1.5 min-w-[22px] h-[22px] px-1 rounded-full bg-violet-600 text-white text-xs font-black border-2 border-slate-800 flex items-center justify-center"><PlatNum value={myItems.question} /></span>)}</button>
           <button onClick={() => fireItem('backfill')} disabled={myItems.backfill <= 0} className="plat-btn-hard plat-btn-hard-3 relative w-14 h-14 shrink-0 rounded-full bg-white border-[3px] border-slate-800 shadow-[3px_3px_0px_rgba(30,41,59,1)] disabled:opacity-40 text-2xl" title="回填：把對手已打開的一片格子（3×3，連鎖空格整片）蓋回去">⏪{myItems.backfill > 0 && (<span className="absolute -top-1.5 -right-1.5 min-w-[22px] h-[22px] px-1 rounded-full bg-amber-500 text-white text-xs font-black border-2 border-slate-800 flex items-center justify-center"><PlatNum value={myItems.backfill} /></span>)}</button>
         </div>)}
@@ -1854,7 +1855,7 @@ function MinesGame() {
       {mpOn && mpRef.current.mode === 'race' && mpPhase === 'playing' && !myOutcome && !iAmSpec() && (
         <div className="w-full mt-2 flex flex-wrap gap-1.5" style={{ width: colW, maxWidth: "100%" }}>
           {players.filter(p => !p.spectator && !p.pending && p.id !== myId).map(p => { const g = godBoards[p.id] || { progress: 0, state: 'playing' }; return (
-            <span key={p.id} className="text-xs font-black px-2 py-1 rounded-xl border-2 border-slate-300 bg-white flex flex-col gap-1 min-w-[84px]">
+            <span key={p.id} data-fly-uid={p.id} className="text-xs font-black px-2 py-1 rounded-xl border-2 border-slate-300 bg-white flex flex-col gap-1 min-w-[84px]">
               <span className="flex items-center gap-1">
                 <span className="w-2.5 h-2.5 rounded-full border border-slate-800" style={{ background: p.color }}></span>{p.name} {g.state === 'finished' ? '🏁' : g.state === 'boom' ? '💥' : <PlatPct value={Math.floor((progMode === 'bv' ? effOfGod(g) : (g.progress || 0)) * 100)} />}
               </span>

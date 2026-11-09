@@ -2281,6 +2281,12 @@ body.plat-room-on[data-view="mines"] {
 /* 正式站錯誤橫幅（稽核 I-01）：❌ 級錯誤可見化，附重新載入；平常隱藏 */
 #plat-errbar { position: fixed; top: 8px; left: 50%; transform: translateX(-50%); z-index: 99999; max-width: min(92vw, 560px); align-items: center; gap: 8px; background: #fef2f2; color: #991b1b; border: 2.5px solid #dc2626; border-radius: 12px; padding: 8px 10px; font-size: 13px; font-weight: 800; box-shadow: 0 6px 24px rgba(0,0,0,.25); }
 #plat-errbar-text { flex: 1; word-break: break-word; }
+/* 錯誤橫幅進退場（審查 H2）：進場由上方小幅滑入＋淡入（transform 併入置中 translateX(-50%)，勿覆蓋）；退場淡出後才 display:none。文字在第一幀即完整（JS 先寫 textContent 再顯示），動畫不延遲訊息。 */
+@keyframes platErrIn { from { opacity: 0; transform: translateX(-50%) translateY(-10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+@keyframes platErrOut { from { opacity: 1; transform: translateX(-50%) translateY(0); } to { opacity: 0; transform: translateX(-50%) translateY(-6px); } }
+#plat-errbar.plat-err-in { animation: platErrIn 190ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+#plat-errbar.plat-err-out { animation: platErrOut 150ms ease-in both; }
+@media (prefers-reduced-motion: reduce) { #plat-errbar.plat-err-in, #plat-errbar.plat-err-out { animation: none; } }
 #plat-errbar button { flex-shrink: 0; border: 2px solid #991b1b; background: #fff; color: #991b1b; border-radius: 8px; padding: 3px 8px; font-weight: 900; cursor: pointer; }
 /* 鍵盤焦點可見（稽核 F-03 快修：原本全站無 :focus-visible，鍵盤/開關操作看不到焦點） */
 :focus-visible { outline: 3px solid #2563eb !important; outline-offset: 2px; }
@@ -4883,6 +4889,9 @@ function SudokuGame() {
           });
         }
         giftCreditRef.current -= 1; // 送出 1 個，扣 1 額度（送出動作已完成；非連線模式不會進大亂鬥，這裡照扣避免迴圈卡死）
+        try {
+          if (window.PlatFly) PlatFly.fly(PlatFly.byUid('sudoku', myId), PlatFly.byUid('sudoku', targetUid), '🎁');
+        } catch (e) {} // H3 禮物 Fly（純顯示層）
       };
       while (giftCreditRef.current >= 1) {
         if (_loop2()) break;
@@ -8727,6 +8736,11 @@ function SudokuGame() {
                 var q = prev[m.targetUid] || [];
                 return _objectSpread(_objectSpread({}, prev), {}, _defineProperty({}, m.targetUid, [].concat(_toConsumableArray(q), [m.senderUid || 'system'])));
               });
+              if (m.targetUid === myId) {
+                try {
+                  if (window.PlatFly) PlatFly.fly(PlatFly.byUid('sudoku', m.senderUid), document.getElementById('btn-open-gift') || PlatFly.byUid('sudoku', myId), '🎁');
+                } catch (e) {}
+              } // H3 禮物 Fly（純顯示層）
               maybeAutoOpenGift(m.targetUid);
               connsRef.current.forEach(function (conn) {
                 if (conn.open && conn !== c) conn.send(m);
@@ -8917,6 +8931,11 @@ function SudokuGame() {
               var q = prev[m.targetUid] || [];
               return _objectSpread(_objectSpread({}, prev), {}, _defineProperty({}, m.targetUid, [].concat(_toConsumableArray(q), [m.senderUid || 'system'])));
             });
+            if (m.targetUid === myId) {
+              try {
+                if (window.PlatFly) PlatFly.fly(PlatFly.byUid('sudoku', m.senderUid), document.getElementById('btn-open-gift') || PlatFly.byUid('sudoku', myId), '🎁');
+              } catch (e) {}
+            } // H3 禮物 Fly（純顯示層）
             maybeAutoOpenGift(m.targetUid);
           } else if (m.type === 'GIFT_OPENED') {
             if (m.uid !== myId) {
@@ -9839,6 +9858,7 @@ function SudokuGame() {
     }).pct || 0;
     return /*#__PURE__*/React.createElement("div", {
       key: idx,
+      "data-fly-uid": p.id,
       className: "shrink-0 flex flex-col gap-0.5 border-2 border-slate-800 rounded px-1.5 py-0.5 relative cursor-pointer hover:bg-slate-100 transition-colors ".concat(p.isSpectator ? 'opacity-60 bg-slate-100' : 'bg-white'),
       onClick: function onClick() {
         if (platSessRef.current && platSessRef.current.hub) {
@@ -13149,6 +13169,11 @@ function HashiGame() {
     }).length >= 3) return; // 已有 3 個且自動發動排程中（理論上不會發生），多的不收
     var ni = myItemsRef.current.concat([effItem]);
     myItemsRef.current = ni;setMyItems(ni);
+    if (effItem === 'gift' && m.fromUid && m.fromUid !== myId) {
+      try {
+        if (window.PlatFly) PlatFly.fly(PlatFly.byUid('hashi', m.fromUid), PlatFly.me('hashi') || PlatFly.byUid('hashi', myId), '🎁');
+      } catch (e) {}
+    } // H3 禮物 Fly（純顯示層）
     showToast('🎁 里程碑道具：你獲得 ' + meta.icon + ' ' + meta.name + '！');
     if (ni.filter(function (x) {
       return x === effItem;
@@ -13588,6 +13613,9 @@ function HashiGame() {
         });
         var sel = platPickWeighted(weaker, ws);
         sendBrawlMsg({ type: 'BRAWL_GRANT', toUid: sel.id, item: 'gift', fromUid: myId });
+        try {
+          if (window.PlatFly) PlatFly.fly(PlatFly.byUid('hashi', myId), PlatFly.byUid('hashi', sel.id), '🎁');
+        } catch (e) {} // H3 禮物 Fly（純顯示層）
         hashiGiftCreditRef.current -= 1;
       }
     }
@@ -16991,7 +17019,7 @@ function HashiGame() {
             var pct = rinfo ? Math.round(rinfo.progress * 100) : 0;
             return React.createElement(
               'div',
-              { key: idx, className: "shrink-0 flex flex-col gap-0.5 border-2 border-slate-800 rounded px-1.5 py-0.5 relative cursor-pointer hover:bg-slate-100 transition-colors " + (p.isSpectator ? 'opacity-60 bg-slate-100' : 'bg-white'),
+              { key: idx, 'data-fly-uid': p.id, className: "shrink-0 flex flex-col gap-0.5 border-2 border-slate-800 rounded px-1.5 py-0.5 relative cursor-pointer hover:bg-slate-100 transition-colors " + (p.isSpectator ? 'opacity-60 bg-slate-100' : 'bg-white'),
                 onClick: function onClick() {
                   if (isMe || isHostRef.current) {
                     setEditName(p.name);setEditTarget(p.id);
@@ -17150,7 +17178,7 @@ function HashiGame() {
         ),
         inRace && (raceState === 'racing' || raceState === 'finished') && myItems.length > 0 && React.createElement(
           'div',
-          { className: 'absolute bottom-20 left-1/2 -translate-x-1/2 z-[45] flex items-end gap-4' },
+          { 'data-fly-me': 'items', className: 'absolute bottom-20 left-1/2 -translate-x-1/2 z-[45] flex items-end gap-4' },
           BRAWL_BAR_ORDER.filter(function (k) {
             return myItems.indexOf(k) >= 0;
           }).map(function (k) {
@@ -20237,7 +20265,13 @@ function MinesGame() {
     } else mpSend(m);
   } // 房主：廣播＋本地處理（自己也可能是目標）；來賓：送房主中繼
   function processItemMsg(m) {
-    if (m.type === 'MINE_GRANT' && m.toUid === myId) applyItemGrant(m.item);else if (m.type === 'MINE_GIFT' && m.toUid === myId) holdGift(m.fromName);else if (m.type === 'MINE_HIT' && m.toUid === myId) applyItemHit(m.kind, m.fromName);
+    if (m.type === 'MINE_GRANT' && m.toUid === myId) applyItemGrant(m.item);else if (m.type === 'MINE_GIFT' && m.toUid === myId) {
+      holdGift(m.fromName);
+      try {
+        if (window.PlatFly) PlatFly.fly(PlatFly.byUid('mines', m.fromUid), PlatFly.me('mines'), '🎁');
+      } catch (e) {}
+    } // H3 禮物 Fly（純顯示層）
+    else if (m.type === 'MINE_HIT' && m.toUid === myId) applyItemHit(m.kind, m.fromName);
     saveResume(); // 道具庫存變動也刷新回座存檔（盤面沒變時 raceSendState 不會觸發）
   }
   function hostHandleMilestone(fromUid) {
@@ -20366,6 +20400,9 @@ function MinesGame() {
         fromName: (myPlayer() || {}).name || '',
         toUid: tgt.id
       });
+      try {
+        if (window.PlatFly) PlatFly.fly(PlatFly.me('mines'), PlatFly.byUid('mines', tgt.id), '🎁');
+      } catch (e) {} // H3 禮物 Fly（純顯示層）
       // 不提示送出：跳「你送了禮物」等於間接告訴送禮者他剛才那支旗插對了（使用者 2026-11-02 指示）——額度消耗與送禮都靜默進行
     }
   }
@@ -23133,6 +23170,7 @@ function MinesGame() {
       maxWidth: '100%'
     }
   }, /*#__PURE__*/React.createElement("button", {
+    "data-fly-me": "gift",
     onClick: function onClick() {
       return useGift();
     },
@@ -23228,6 +23266,7 @@ function MinesGame() {
     };
     return /*#__PURE__*/React.createElement("span", {
       key: p.id,
+      "data-fly-uid": p.id,
       className: "text-xs font-black px-2 py-1 rounded-xl border-2 border-slate-300 bg-white flex flex-col gap-1 min-w-[84px]"
     }, /*#__PURE__*/React.createElement("span", {
       className: "flex items-center gap-1"
@@ -23283,15 +23322,28 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
   var booted = { sudoku: false, hashi: false, mines: false };
   var statusEl = null;
   var platLogBuf = []; window.__PLAT_LOG = platLogBuf; // 環形錯誤簿（稽核 I-01：正式站沒有診斷面板，至少留記憶體紀錄可查）
+  var errBarTimer = null;
   function showErrBar(msg) { // 正式站可見錯誤橫幅：❌ 級 status 不再寫進不存在的面板就消失，使用者截圖能帶回病名
     try {
       var bar = document.getElementById('plat-errbar'); if (!bar) return;
-      var tx = document.getElementById('plat-errbar-text'); if (tx) tx.textContent = msg;
+      var tx = document.getElementById('plat-errbar-text'); if (tx) tx.textContent = msg; // 先寫文字再顯示：第一幀即完整可讀
+      if (errBarTimer) { clearTimeout(errBarTimer); errBarTimer = null; }
+      bar.classList.remove('plat-err-out');
       bar.style.display = 'flex';
-      var x = document.getElementById('plat-errbar-x'); if (x && !x._wired) { x._wired = 1; x.onclick = function () { bar.style.display = 'none'; }; }
+      bar.classList.remove('plat-err-in'); void bar.offsetWidth; bar.classList.add('plat-err-in'); // 重掛進場動畫（連續錯誤也重播）
+      var x = document.getElementById('plat-errbar-x'); if (x && !x._wired) { x._wired = 1; x.onclick = function () { hideErrBar(); }; }
       var rl = document.getElementById('plat-errbar-reload'); if (rl && !rl._wired) { rl._wired = 1; rl.onclick = function () { location.reload(); }; }
     } catch (e) {}
   }
+  function hideErrBar() { // 退場：淡出 150ms 後才 display:none（reduced-motion 時 CSS 已關動畫，計時照走無感）
+    try {
+      var bar = document.getElementById('plat-errbar'); if (!bar || bar.style.display === 'none') return;
+      bar.classList.remove('plat-err-in'); bar.classList.add('plat-err-out');
+      if (errBarTimer) clearTimeout(errBarTimer);
+      errBarTimer = setTimeout(function () { bar.style.display = 'none'; bar.classList.remove('plat-err-out'); errBarTimer = null; }, 160);
+    } catch (e) {}
+  }
+  window.__PLAT_ERRBAR = { show: showErrBar, hide: hideErrBar }; // 測試/稽核用
   function status(msg) {
     platLogBuf.push({ t: Date.now(), msg: String(msg) }); if (platLogBuf.length > 80) platLogBuf.shift();
     if (!statusEl) statusEl = document.getElementById('plat-status-body');
@@ -23445,7 +23497,7 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.58.0'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
+  var PLAT_VERSION = '1.59.0'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -23620,6 +23672,44 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
 
   // ---------- 大廳 UI ----------
   function lobbyMsg(t) { var el = $('lob-msg'); if (el) window.PlatLite(el, t || ''); } // F2：連線狀態字改滾換（同字不重播由 PlatLite 內部把關）
+
+  // ===== 禮物 Fly（審查第 3 輪 H3・純顯示層）：圖示沿小弧線飛向目標錨點；不碰任何連線/數值，動畫與狀態更新並行。
+  // 錨點由各遊戲在玩家晶片上標 data-fly-uid、在自己的道具區標 data-fly-me；byUid 依遊戲 view 作用域查詢（三款共存同一文件）。
+  // 同時最多 3 顆在飛（多出的合併略過，避免里程碑連發時滿屏亂飛）；prefers-reduced-motion 不播；錨點不存在/無尺寸就靜默跳過。
+  var platFlyActive = 0;
+  window.PlatFly = {
+    byUid: function (game, uid) { try { return document.querySelector('#view-' + game + ' [data-fly-uid="' + uid + '"]'); } catch (e) { return null; } },
+    me: function (game) { try { return document.querySelector('#view-' + game + ' [data-fly-me]'); } catch (e) { return null; } },
+    fly: function (fromEl, toEl, icon) {
+      try {
+        if (!fromEl || !toEl || fromEl === toEl) return;
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        if (platFlyActive >= 3) return;
+        var a = fromEl.getBoundingClientRect(), b = toEl.getBoundingClientRect();
+        if ((!a.width && !a.height) || (!b.width && !b.height)) return;
+        platFlyActive++;
+        var el = document.createElement('div');
+        el.className = 'plat-fly-icon';
+        el.textContent = icon || '🎁';
+        el.style.cssText = 'position:fixed;left:0;top:0;z-index:99990;pointer-events:none;font-size:26px;line-height:1;will-change:transform;filter:drop-shadow(0 3px 5px rgba(0,0,0,.3));';
+        document.body.appendChild(el);
+        var ax = a.left + a.width / 2 - 13, ay = a.top + a.height / 2 - 13;
+        var bx = b.left + b.width / 2 - 13, by = b.top + b.height / 2 - 13;
+        var dx = bx - ax, dy = by - ay;
+        var lift = Math.min(90, Math.max(28, Math.abs(dx) * 0.16 + 22));
+        var anim = null;
+        try {
+          anim = el.animate([
+            { transform: 'translate(' + ax + 'px,' + ay + 'px) scale(1)', opacity: 1 },
+            { transform: 'translate(' + (ax + dx * 0.5) + 'px,' + (ay + dy * 0.5 - lift) + 'px) scale(1.18)', opacity: 1, offset: 0.55 },
+            { transform: 'translate(' + bx + 'px,' + by + 'px) scale(0.92)', opacity: 1 }
+          ], { duration: 520, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
+        } catch (e) {}
+        var done = function () { if (el.parentNode) el.parentNode.removeChild(el); platFlyActive--; };
+        if (anim && anim.finished && anim.finished.then) anim.finished.then(done, done); else setTimeout(done, 560);
+      } catch (err) {}
+    }
+  };
   function showStep(s) {
     $('lob-step-entry').style.display = (s === 'entry') ? 'block' : 'none';
     $('lob-step-nick').style.display = (s === 'nick') ? 'block' : 'none';
@@ -25205,10 +25295,11 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
     t.history.forEach(function (h) { if (h.round > t.totalRounds) hasPlayoff = true; });
     if (hasPlayoff) html += '<span class="px-2 py-1 rounded-lg border-2 border-slate-800 text-xs font-black bg-rose-100 text-rose-600">加賽 數橋</span>';
     html += '</div>';
-    if (t.phase === 'playing' || t.phase === 'playoff') html += '<div class="font-black text-slate-700 text-sm mb-2">▶ ' + (t.phase === 'playoff' ? '加賽' : '第 ' + t.round + ' 局') + '進行中：' + tournGameLabel(t.curGame) + (t.roundSecs > 0 ? '（限時 ' + Math.round(t.roundSecs / 60) + ' 分鐘）' : '') + '</div>';
-    else if (t.phase === 'standings') html += '<div class="font-black text-slate-700 text-sm mb-2">第 ' + t.round + ' 局結束，下一局：' + tournGameName(t.rounds[t.round]) + '</div>';
-    else if (t.phase === 'playoff-pending') html += '<div class="font-black text-rose-600 text-sm mb-2">⚖️ 總分同分、冠軍局數也同分 — 加賽一局數橋決勝！</div>';
-    else if (t.phase === 'ended' && t.champion) html += '<div class="font-black text-amber-600 text-lg mb-1 text-center">🏆 總冠軍：' + esc(t.champion.name) + '</div>' + (t.endNote ? '<div class="text-center text-xs text-slate-500 font-bold mb-1">' + esc(t.endNote) + '</div>' : '');
+    // H1（審查第 3 輪）：狀態列換字才滾（prLiteSpan，key 固定 'tourn-status'；phase/局數/對戰組合任一變動才換字，同局重渲染不重播）
+    if (t.phase === 'playing' || t.phase === 'playoff') html += '<div class="font-black text-slate-700 text-sm mb-2">' + prLiteSpan('tourn-status', '▶ ' + (t.phase === 'playoff' ? '加賽' : '第 ' + t.round + ' 局') + '進行中：' + tournGameLabel(t.curGame) + (t.roundSecs > 0 ? '（限時 ' + Math.round(t.roundSecs / 60) + ' 分鐘）' : '')) + '</div>';
+    else if (t.phase === 'standings') html += '<div class="font-black text-slate-700 text-sm mb-2">' + prLiteSpan('tourn-status', '第 ' + t.round + ' 局結束，下一局：' + tournGameName(t.rounds[t.round])) + '</div>';
+    else if (t.phase === 'playoff-pending') html += '<div class="font-black text-rose-600 text-sm mb-2">' + prLiteSpan('tourn-status', '⚖️ 總分同分、冠軍局數也同分 — 加賽一局數橋決勝！') + '</div>';
+    else if (t.phase === 'ended' && t.champion) html += '<div class="font-black text-amber-600 text-lg mb-1 text-center">' + prLiteSpan('tourn-status', '🏆 總冠軍：' + t.champion.name) + '</div>' + (t.endNote ? '<div class="text-center text-xs text-slate-500 font-bold mb-1">' + esc(t.endNote) + '</div>' : '');
     if (Net.isHost && (t.phase === 'playing' || t.phase === 'playoff')) {
       html += '<button id="t-forceend" class="w-full mb-2 py-2 bg-rose-500 border-[3px] border-slate-800 rounded-xl font-black text-white active:translate-y-[2px] transition-all">⏹️ 結束本局（以目前進度結算）</button>';
       html += '<div class=\"mb-2 flex flex-col gap-1\">' + t.entrants.map(function (e) {

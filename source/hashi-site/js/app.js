@@ -1342,6 +1342,7 @@ function PlatNum(props) {
         if (myItemsRef.current.filter(x => x === effItem).length >= 3) return; // 已有 3 個且自動發動排程中（理論上不會發生），多的不收
         const ni = myItemsRef.current.concat([effItem]);
         myItemsRef.current = ni; setMyItems(ni);
+        if (effItem === 'gift' && m.fromUid && m.fromUid !== myId) { try { if (window.PlatFly) PlatFly.fly(PlatFly.byUid('hashi', m.fromUid), PlatFly.me('hashi') || PlatFly.byUid('hashi', myId), '🎁'); } catch (e) {} } // H3 禮物 Fly（純顯示層）
         showToast('🎁 里程碑道具：你獲得 ' + meta.icon + ' ' + meta.name + '！');
         if (ni.filter(x => x === effItem).length >= 3) setTimeout(() => autoFireBrawlItem(effItem), 650); // 集滿 3 個 → 自動連續發動並歸零（禮物也同規，使用者定案）
         try { window.HASHI_SOUND.play('star'); } catch (e) {}
@@ -1611,6 +1612,7 @@ function PlatNum(props) {
             const ws = weaker.map(pl => { const info = raceProgressRef.current[pl.id]; return Math.sqrt(Math.max(0.01, p - (info ? info.progress : 0))); });
             const sel = platPickWeighted(weaker, ws);
             sendBrawlMsg({ type: 'BRAWL_GRANT', toUid: sel.id, item: 'gift', fromUid: myId });
+            try { if (window.PlatFly) PlatFly.fly(PlatFly.byUid('hashi', myId), PlatFly.byUid('hashi', sel.id), '🎁'); } catch (e) {} // H3 禮物 Fly（純顯示層）
             hashiGiftCreditRef.current -= 1;
           }
         }
@@ -3898,7 +3900,7 @@ function PlatNum(props) {
                     const rinfo = raceProgress[p.id];
                     const pct = rinfo ? Math.round(rinfo.progress * 100) : 0;
                     return (
-                      <div key={idx} className={"shrink-0 flex flex-col gap-0.5 border-2 border-slate-800 rounded px-1.5 py-0.5 relative cursor-pointer hover:bg-slate-100 transition-colors " + (p.isSpectator ? 'opacity-60 bg-slate-100' : 'bg-white')}
+                      <div key={idx} data-fly-uid={p.id} className={"shrink-0 flex flex-col gap-0.5 border-2 border-slate-800 rounded px-1.5 py-0.5 relative cursor-pointer hover:bg-slate-100 transition-colors " + (p.isSpectator ? 'opacity-60 bg-slate-100' : 'bg-white')}
                         onClick={() => {
                           if (isMe || isHostRef.current) { setEditName(p.name); setEditTarget(p.id); }
                           else { showToast("⚠️ 只有房主可以更改其他玩家的設定！"); }
@@ -3976,7 +3978,7 @@ function PlatNum(props) {
               )}
 
               {inRace && (raceState === 'racing' || raceState === 'finished') && myItems.length > 0 && (
-                <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-[45] flex items-end gap-4">
+                <div data-fly-me="items" className="absolute bottom-20 left-1/2 -translate-x-1/2 z-[45] flex items-end gap-4">
                   {BRAWL_BAR_ORDER.filter(k => myItems.indexOf(k) >= 0).map(k => {
                     const meta = BRAWL_ITEMS.find(x => x.key === k);
                     const cnt = myItems.filter(x => x === k).length;
