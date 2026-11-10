@@ -3004,7 +3004,7 @@ function SudokuGame() {
                 <div className="font-black text-xl text-slate-800 text-center mb-3"><span key={(winner || iFinished) ? 'fin' : 'spec'} className="plat-lite-in" style={{ display: 'inline-block' }}>{(winner || iFinished) ? '🏁 已完賽・觀戰中' : '👁️ 觀戰中'}</span></div>
                 <div className="flex flex-wrap justify-center gap-1.5 mb-3">
                     {watchable.map(p => (
-                        <button key={p.id} onClick={() => setGodUid(p.id)} className={"plat-btn-hard plat-btn-hard-2 flex items-center gap-1.5 px-2.5 py-1 rounded-full border-2 border-slate-800 font-black text-xs shadow-[2px_2px_0px_rgba(30,41,59,1)]" + (sel.id === p.id ? "bg-slate-800 text-white" : "bg-white text-slate-700")}>
+                        <button key={p.id} onClick={() => setGodUid(p.id)} className={"plat-btn-hard plat-btn-hard-2 flex items-center gap-1.5 px-2.5 py-1 rounded-full border-2 border-slate-800 font-black text-xs shadow-[2px_2px_0px_rgba(30,41,59,1)]" + (sel.id === p.id ? " bg-slate-800 text-white" : " bg-white text-slate-700")}>
                             <span className="w-3 h-3 rounded-full border border-slate-800 shrink-0" style={{ background: p.color === 'rainbow' ? 'linear-gradient(45deg, red, orange, yellow, green, blue, indigo, violet)' : p.color }}></span>
                             {p.name} {p.isHost && '👑'} {ghostProgress[p.id] || 0}%
                         </button>
@@ -3269,7 +3269,7 @@ function SudokuGame() {
                             ))}
                         </div>
                         {tournMyEntry && !tournMyEntry.pending && (
-                            <button onClick={handleTournReady} className={"plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 border-[3px] border-slate-800 rounded-xl font-black text-lg shadow-[3px_3px_0px_rgba(30,41,59,1)]" + (tournMyEntry.isReady ? 'bg-amber-400 text-slate-900' : 'bg-white text-slate-500')}>{tournMyEntry.isReady ? '✅ 已準備（點擊取消）' : '✋ 準備好了'}</button>
+                            <button onClick={handleTournReady} className={"plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 border-[3px] border-slate-800 rounded-xl font-black text-lg shadow-[3px_3px_0px_rgba(30,41,59,1)]" + (tournMyEntry.isReady ? ' bg-amber-400 text-slate-900' : ' bg-white text-slate-500')}>{tournMyEntry.isReady ? '✅ 已準備（點擊取消）' : '✋ 準備好了'}</button>
                         )}
                         {isHost ? (
                             <div>

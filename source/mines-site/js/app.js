@@ -1681,7 +1681,7 @@ function MinesGame() {
             {!players.length && <p className="font-bold text-slate-400 text-center py-2">連線中…</p>}
           </div>
           {myEntryW && !myEntryW.pending && !myEntryW.spectator && (
-            <button onClick={toggleMyReady} className={"plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 rounded-xl border-[3px] border-slate-800 font-black text-lg shadow-[3px_3px_0px_rgba(30,41,59,1)]" + (myReadySt ? 'bg-amber-400 text-slate-900' : 'bg-white text-slate-500')}>{myReadySt ? '✅ 已準備（點擊取消）' : '✋ 準備好了'}</button>
+            <button onClick={toggleMyReady} className={"plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 rounded-xl border-[3px] border-slate-800 font-black text-lg shadow-[3px_3px_0px_rgba(30,41,59,1)]" + (myReadySt ? ' bg-amber-400 text-slate-900' : ' bg-white text-slate-500')}>{myReadySt ? '✅ 已準備（點擊取消）' : '✋ 準備好了'}</button>
           )}
           {M.isHost ? (
             <div>
@@ -1771,7 +1771,7 @@ function MinesGame() {
               <p className="text-sm font-bold text-slate-600 mb-4">選一個盤面大小，會立刻重開一局。</p>
               <div className="flex flex-col gap-2 mb-4">
                 {[9, 16].map(sz => (
-                  <button key={sz} onClick={() => { setShowSettingsModal(false); newGame(sz); }} className={"plat-btn-hard plat-btn-hard-3 w-full text-left px-4 py-3 border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_rgba(30,41,59,1)]" + (sizeId === sz ? "bg-[#f97316] text-slate-900" : "bg-white text-slate-800")}>{SIZES[sz].name}</button>
+                  <button key={sz} onClick={() => { setShowSettingsModal(false); newGame(sz); }} className={"plat-btn-hard plat-btn-hard-3 w-full text-left px-4 py-3 border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_rgba(30,41,59,1)]" + (sizeId === sz ? " bg-[#f97316] text-slate-900" : " bg-white text-slate-800")}>{SIZES[sz].name}</button>
                 ))}
                 <div className="w-full bg-white border-[3px] border-slate-800 rounded-xl px-4 py-3 shadow-[3px_3px_0px_rgba(30,41,59,1)]">
                   <div className="font-black text-slate-800 mb-2">⚙️ 自訂盤面</div>

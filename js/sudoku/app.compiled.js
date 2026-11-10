@@ -5652,7 +5652,7 @@ function SudokuGame() {
         onClick: function onClick() {
           return setGodUid(p.id);
         },
-        className: "plat-btn-hard plat-btn-hard-2 flex items-center gap-1.5 px-2.5 py-1 rounded-full border-2 border-slate-800 font-black text-xs shadow-[2px_2px_0px_rgba(30,41,59,1)]" + (sel.id === p.id ? "bg-slate-800 text-white" : "bg-white text-slate-700")
+        className: "plat-btn-hard plat-btn-hard-2 flex items-center gap-1.5 px-2.5 py-1 rounded-full border-2 border-slate-800 font-black text-xs shadow-[2px_2px_0px_rgba(30,41,59,1)]" + (sel.id === p.id ? " bg-slate-800 text-white" : " bg-white text-slate-700")
       }, /*#__PURE__*/React.createElement("span", {
         className: "w-3 h-3 rounded-full border border-slate-800 shrink-0",
         style: {
@@ -6075,7 +6075,7 @@ function SudokuGame() {
     }, "\u672A\u6E96\u5099")));
   })), tournMyEntry && !tournMyEntry.pending && /*#__PURE__*/React.createElement("button", {
     onClick: handleTournReady,
-    className: "plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 border-[3px] border-slate-800 rounded-xl font-black text-lg shadow-[3px_3px_0px_rgba(30,41,59,1)]" + (tournMyEntry.isReady ? 'bg-amber-400 text-slate-900' : 'bg-white text-slate-500')
+    className: "plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 border-[3px] border-slate-800 rounded-xl font-black text-lg shadow-[3px_3px_0px_rgba(30,41,59,1)]" + (tournMyEntry.isReady ? ' bg-amber-400 text-slate-900' : ' bg-white text-slate-500')
   }, tournMyEntry.isReady ? '✅ 已準備（點擊取消）' : '✋ 準備好了'), isHost ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("button", {
     onClick: handleForceStart,
     disabled: !tournCanStart,

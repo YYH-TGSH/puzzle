@@ -4433,7 +4433,7 @@ function PlatNum(props) {
                       ))}
                     </div>
                     {tournMyEntry && !tournMyEntry.pending && (
-                      <button onClick={() => setMyReady(!(tournMyEntry && tournMyEntry.isReady))} className={"plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 rounded-xl border-[3px] border-slate-800 font-black text-lg shadow-[3px_3px_0px_rgba(30,41,59,1)]" + (tournMyEntry.isReady ? 'bg-amber-400 text-slate-900' : 'bg-white text-slate-500')}>{tournMyEntry.isReady ? '✅ 已準備（點擊取消）' : '✋ 準備好了'}</button>
+                      <button onClick={() => setMyReady(!(tournMyEntry && tournMyEntry.isReady))} className={"plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 rounded-xl border-[3px] border-slate-800 font-black text-lg shadow-[3px_3px_0px_rgba(30,41,59,1)]" + (tournMyEntry.isReady ? ' bg-amber-400 text-slate-900' : ' bg-white text-slate-500')}>{tournMyEntry.isReady ? '✅ 已準備（點擊取消）' : '✋ 準備好了'}</button>
                     )}
                     {isHostRef.current ? (
                       <div>
@@ -4585,7 +4585,7 @@ function PlatNum(props) {
                 <p className="text-sm font-bold text-slate-600 mb-4">{soloPick ? '選一個難度，開始一局新的挑戰。' : '選一個難度，立刻換一題新的。'}</p>
                 <div className="flex flex-col gap-2 mb-4">
                   {LEVELS.map(level => (
-                    <button key={level.id} onClick={() => { setShowSettingsModal(false); if (soloPick && level.id !== 'custom') { try { localStorage.setItem('hashi_solo_level', String(level.id)); } catch (e) {} setSoloPick(false); } handleLevelChange(level.id === 'custom' ? 'custom' : level.id); }} className={"plat-btn-hard plat-btn-hard-3 w-full text-left px-4 py-3 border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_rgba(30,41,59,1)]" + (String(currentLevelId) === String(level.id) ? "bg-[#4ade80] text-slate-900" : "bg-white text-slate-800")}>
+                    <button key={level.id} onClick={() => { setShowSettingsModal(false); if (soloPick && level.id !== 'custom') { try { localStorage.setItem('hashi_solo_level', String(level.id)); } catch (e) {} setSoloPick(false); } handleLevelChange(level.id === 'custom' ? 'custom' : level.id); }} className={"plat-btn-hard plat-btn-hard-3 w-full text-left px-4 py-3 border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_rgba(30,41,59,1)]" + (String(currentLevelId) === String(level.id) ? " bg-[#4ade80] text-slate-900" : " bg-white text-slate-800")}>
                       {level.name}
                       <span className="block text-xs font-bold opacity-70 mt-0.5">{level.description}</span>
                     </button>
