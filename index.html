@@ -2107,8 +2107,14 @@ body[data-view="lobby"] {
 #plat-chat-body { display: flex; flex-direction: column; }
 #plat-chat-list { height: 38vh; overflow-y: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
 .plat-msg { font-size: 14px; font-weight: 700; color: #1e293b; word-break: break-word; }
-.plat-msg .who { font-weight: 900; margin-right: 6px; }
-.plat-msg.sys { color: #64748b; font-size: 12px; text-align: center; }
+/* v1.61.0 K2 泡泡造型（使用者拍板）：訊息列改 flex 對齊——自己靠右、他人靠左、系統置中；泡泡本體 .plat-bubble（面板本體與進場節奏不動）。 */
+#plat-chat-list .plat-msg { display: flex; justify-content: flex-start; }
+#plat-chat-list .plat-msg.mine { justify-content: flex-end; }
+#plat-chat-list .plat-msg.sys { justify-content: center; }
+.plat-bubble { max-width: 78%; padding: 8px 12px; border-radius: 14px; background: rgba(255,255,255,.95); box-shadow: 0 1px 2px rgba(15,23,42,.15); overflow-wrap: break-word; }
+.plat-bubble .who { display: block; font-size: 11px; font-weight: 900; margin-bottom: 2px; }
+.plat-bubble-sys { background: #e2e8f0; color: #64748b; border-radius: 999px; padding: 3px 12px; font-size: 12px; text-align: center; }
+.plat-msg.sys { color: #64748b; font-size: 12px; }
 #plat-chat-inputrow { display: flex; gap: 8px; padding: 8px 10px; border-top: 2px solid rgba(30,41,59,.15); }
 #plat-chat-input { flex: 1; min-width: 0; border: 2px solid #1e293b; border-radius: 10px; padding: 7px 10px; font-weight: 700; }
 #plat-chat-send { background: #60a5fa; border: 2px solid #1e293b; border-radius: 10px; padding: 7px 16px; font-weight: 900; cursor: pointer; box-shadow: 2px 2px 0 rgba(30,41,59,1); }
@@ -2230,8 +2236,12 @@ body.plat-room-on[data-view="mines"] {
 /* ===== 訊息呈現（v1.55.0，P1＋P2）：訊息要有來與去——升起、滾著變、淡著退 ===== */
 /* 聊天訊息進場：由下升入＋淡入（settle）；自己的訊息 rise 較大（從輸入列方向升起的暗示）。transform 只在動畫期間存在，結束由 JS 移除 class、不殘留。 */
 @keyframes platMsgIn { from { opacity: 0; transform: translateY(var(--msg-rise, 8px)); } to { opacity: 1; transform: translateY(0); } }
+@keyframes platMsgInL { from { opacity: 0; transform: translate(-10px, 8px); } to { opacity: 1; transform: translate(0, 0); } }
+@keyframes platMsgInR { from { opacity: 0; transform: translate(10px, 10px); } to { opacity: 1; transform: translate(0, 0); } }
 .plat-msg-in { --msg-rise: 8px; animation: platMsgIn 220ms var(--plat-ease-settle) both; }
-.plat-msg-in.mine { --msg-rise: 14px; }
+/* K2：進場方向配合泡泡對齊側——他人由左下、自己由右下升入；系統維持置中升入。 */
+.plat-msg-in.in-l { animation-name: platMsgInL; }
+.plat-msg-in.in-r { animation-name: platMsgInR; }
 /* Toast 進場：由下 rise 升入＋settle；keyframes 全程帶 translate(-50%) 與置中 transform 合併，不弄壞置中（不用 animate-slideUpFade 的原因同此） */
 @keyframes platToastIn { from { opacity: 0; transform: translate(-50%, var(--plat-toast-rise)); } to { opacity: 1; transform: translate(-50%, 0); } }
 .plat-toast-in { animation: platToastIn 280ms var(--plat-ease-settle) both; }
@@ -2257,6 +2267,12 @@ body.plat-room-on[data-view="mines"] {
 .plat-collapse-x > * { min-width: 0; overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .plat-collapse-y, .plat-collapse-x { transition: none; } }
 @media (prefers-reduced-motion: reduce) { .plat-msg-in, .plat-toast-in, .plat-pop-in, .plat-pop-out, .plat-pop-in-x, .plat-pop-out-x { animation: none; } }
+/* ===== 段位滑動指示片（v1.61.0 K1）：容器 .plat-seg 內一顆絕對定位 pill 跟著選取滑動；子項需在 pill 之上（z-index） ===== */
+.plat-seg { position: relative; }
+.plat-seg-pill { position: absolute; left: 0; top: 0; border-radius: 12px; pointer-events: none; z-index: 0; }
+.plat-seg > :not(.plat-seg-pill) { position: relative; z-index: 1; }
+.plat-seg .seg-on { background-color: transparent !important; }
+.plat-seg .lob-tab-on { background: transparent; }
 /* 倒數 Roll 換位（PlatCountdown 升級）：每位數字由下滾入＋spring 落定 */
 @keyframes platCountRoll { 0% { transform: translateY(38%) scale(1.22); opacity: 0; } 100% { transform: translateY(0) scale(1); opacity: 1; } }
 .plat-count-roll { animation: platCountRoll 300ms var(--plat-ease-spring), platCountPulse .45s ease-in-out .3s infinite alternate; }
@@ -3753,6 +3769,14 @@ function SudokuGame() {
       localStorage.setItem('sudoku_input_mode', inputMode);
     } catch (e) {}
   }, [inputMode]);
+  // v1.61.0 K1：單機難度段位滑動指示片（殼 PlatSeg 共用；量測在 effect 內、選取變化才滑）
+  useEffect(function () {
+    if (window.PlatSeg) {
+      var c = document.querySelector('#view-sudoku [data-seg="sudoku-diff"]');
+      var b = c && c.querySelector('[data-seg-on="1"]');
+      if (c && b) window.PlatSeg(c, 'sudoku-diff', b, '#ffcc00');
+    }
+  }, [diffId, screen]);
   // 靜音偏好（與全域音效引擎同步，同數橋）
   var _useState83 = useState(function () {
       try {
@@ -9416,14 +9440,16 @@ function SudokuGame() {
   }, /*#__PURE__*/React.createElement("span", {
     className: "w-2 h-2 bg-emerald-400 rounded-full animate-pulse"
   }), " \uD83D\uDD25 \u6311\u6230\u96E3\u5EA6"), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-2 gap-3"
+    className: "grid grid-cols-2 gap-3 plat-seg",
+    "data-seg": "sudoku-diff"
   }, DIFFICULTIES.map(function (d) {
     return /*#__PURE__*/React.createElement("button", {
       key: d.id,
+      "data-seg-on": diffId === d.id ? '1' : undefined,
       onClick: function onClick() {
         return setDiffId(d.id);
       },
-      className: "py-3 border-2 border-slate-800 rounded-xl font-black text-sm transition-all " + (diffId === d.id ? 'bg-[#ffcc00] text-slate-900 shadow-[3px_3px_0px_#1e293b] -translate-y-0.5' : 'bg-slate-50 text-slate-400 hover:bg-white')
+      className: "py-3 border-2 border-slate-800 rounded-xl font-black text-sm transition-all " + (diffId === d.id ? 'bg-[#ffcc00] seg-on text-slate-900 shadow-[3px_3px_0px_#1e293b] -translate-y-0.5' : 'bg-slate-50 text-slate-400 hover:bg-white')
     }, d.name);
   })))), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
@@ -20226,9 +20252,7 @@ function MinesGame() {
   function effOfMine(uid) {
     return effOfGod(godRef.current[uid]);
   }
-  function dispFracOf(g) {
-    return progModeRef.current === 'bv' ? effOfGod(g) : g ? g.progress || 0 : 0;
-  } // 結算字串用（handler 內讀 ref 鏡像）
+  // v1.61.0 K4：對外顯示（對手晶片／觀戰面板／結算條目）一律 effOfGod（3BV 官方進度，與排名排序同語意），不再隨觀看者 progMode 切換；progMode 只管「自己的」進度文字顯示。
   function toggleProgMode() {
     var nx = progModeRef.current === 'bv' ? 'open' : 'bv';
     progModeRef.current = nx;
@@ -20641,7 +20665,7 @@ function MinesGame() {
         name: e.name,
         color: e.color,
         isMe: e.isMe,
-        right: e.g.state === 'finished' ? '⏱ ' + fmtTime(Math.floor((e.g.timeMs || 0) / 1000)) : e.g.state === 'boom' ? '💥 ' + Math.floor(dispFracOf(e.g) * 100) + '%' : '未完成・' + Math.floor(dispFracOf(e.g) * 100) + '%'
+        right: e.g.state === 'finished' ? '⏱ ' + fmtTime(Math.floor((e.g.timeMs || 0) / 1000)) : e.g.state === 'boom' ? '💥 ' + Math.floor(effOfGod(e.g) * 100) + '%' : '未完成・' + Math.floor(effOfGod(e.g) * 100) + '%'
       };
     });
     var fin = {
@@ -21725,7 +21749,7 @@ function MinesGame() {
             name: e.p.name,
             color: e.p.color,
             isMe: e.p.id === myId,
-            right: e.g.state === 'finished' ? '⏱ ' + fmtTime(Math.floor((e.g.timeMs || 0) / 1000)) : '💥 ' + Math.floor(dispFracOf(e.g) * 100) + '%'
+            right: e.g.state === 'finished' ? '⏱ ' + fmtTime(Math.floor((e.g.timeMs || 0) / 1000)) : '💥 ' + Math.floor(effOfGod(e.g) * 100) + '%'
           };
         }),
         verdict: myOutcome === 'finished' ? '🏁 你已完賽，先看看大家的盤面吧' : '💥 你踩到雷出局了，先看看大家的盤面吧',
@@ -22097,7 +22121,7 @@ function MinesGame() {
         style: {
           background: p.color
         }
-      }), p.name, " ", gg.state === 'finished' ? '⏱ ' + fmtTime(Math.floor((gg.timeMs || 0) / 1000)) : gg.state === 'boom' ? '💥 ' + Math.floor((progMode === 'bv' ? effOfGod(gg) : gg.progress || 0) * 100) + '%' : Math.floor((progMode === 'bv' ? effOfGod(gg) : gg.progress || 0) * 100) + '%');
+      }), p.name, " ", gg.state === 'finished' ? '⏱ ' + fmtTime(Math.floor((gg.timeMs || 0) / 1000)) : gg.state === 'boom' ? '💥 ' + Math.floor(effOfGod(gg) * 100) + '%' : Math.floor(effOfGod(gg) * 100) + '%');
     })), g.cells ? /*#__PURE__*/React.createElement("div", {
       style: {
         overflowX: 'auto',
@@ -22155,7 +22179,9 @@ function MinesGame() {
       className: "w-full flex items-center justify-between font-black text-xl text-slate-800"
     }, /*#__PURE__*/React.createElement("span", null, "\u2699\uFE0F \u81EA\u8A02\u76E4\u9762"), /*#__PURE__*/React.createElement("span", {
       className: "text-sm text-slate-400"
-    }, custOpen ? '▾ 收起' : '▸ 展開')), custOpen && /*#__PURE__*/React.createElement("div", {
+    }, custOpen ? '▾ 收起' : '▸ 展開')), /*#__PURE__*/React.createElement("div", {
+      className: "plat-collapse-y" + (custOpen ? " open" : "")
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
       className: "mt-3 flex flex-col gap-2"
     }, /*#__PURE__*/React.createElement("label", {
       className: "flex items-center justify-between font-bold text-slate-600 text-sm"
@@ -22206,7 +22232,7 @@ function MinesGame() {
     }, "\u7BC4\u570D\uFF1A\u5BEC 8\u201330\u3001\u9AD8 8\u201324\u3001\u96F7 5\u2013", effC.w * effC.h - 9, "\uFF08\u4F9D\u76EE\u524D\u5BEC\u9AD8\uFF1B\u9996\u9EDE\u4FDD\u8B77\u9700\u7559 9 \u683C\u7A7A\u767D\uFF09\u3002\u8D85\u51FA\u7BC4\u570D\u6703\u81EA\u52D5\u4FEE\u6B63\uFF0C\u958B\u59CB\u9215\u986F\u793A\u7684\u5C31\u662F\u5BE6\u969B\u6703\u958B\u7684\u76E4\u3002"), /*#__PURE__*/React.createElement("button", {
       onClick: startCustom,
       className: "plat-btn-hard plat-btn-hard-3 w-full py-3 bg-[#f97316] border-[3px] border-slate-800 rounded-xl font-black text-lg text-slate-900 shadow-[3px_3px_0px_rgba(30,41,59,1)]"
-    }, "\u25B6 \u958B\u59CB\uFF1A", effC.w, "\xD7", effC.h, "\u30FB", effC.mines, " \u96F7"))), /*#__PURE__*/React.createElement("button", {
+    }, "\u25B6 \u958B\u59CB\uFF1A", effC.w, "\xD7", effC.h, "\u30FB", effC.mines, " \u96F7"))))), /*#__PURE__*/React.createElement("button", {
       onClick: function onClick() {
         return setScreen('home');
       },
@@ -23275,25 +23301,27 @@ function MinesGame() {
       progress: 0,
       state: 'playing'
     };
-    return /*#__PURE__*/React.createElement("span", {
+    return /*#__PURE__*/React.createElement("div", {
       key: p.id,
       "data-fly-uid": p.id,
-      className: "text-xs font-black px-2 py-1 rounded-xl border-2 border-slate-300 bg-white flex flex-col gap-1 min-w-[84px]"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "flex items-center gap-1"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "w-2.5 h-2.5 rounded-full border border-slate-800",
+      className: "shrink-0 flex flex-col gap-0.5 border-2 border-slate-800 rounded px-1.5 py-0.5 relative bg-white"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "absolute left-0 top-0 bottom-0 w-1 rounded-l-[1px]",
       style: {
         background: p.color
       }
-    }), p.name, " ", g.state === 'finished' ? '🏁' : g.state === 'boom' ? '💥' : /*#__PURE__*/React.createElement(PlatPct, {
-      value: Math.floor((progMode === 'bv' ? effOfGod(g) : g.progress || 0) * 100)
-    })), /*#__PURE__*/React.createElement("span", {
-      className: "block h-1.5 rounded-full bg-slate-200 overflow-hidden"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "block h-full plat-pbar",
+    }), /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-1 text-[10px] md:text-xs font-bold text-slate-800 pl-1.5 whitespace-nowrap"
+    }, p.name, " ", g.state === 'finished' ? /*#__PURE__*/React.createElement("span", null, "\uD83C\uDFC1") : g.state === 'boom' ? /*#__PURE__*/React.createElement("span", null, "\uD83D\uDCA5") : /*#__PURE__*/React.createElement("span", {
+      className: "text-emerald-600 font-mono ml-1"
+    }, /*#__PURE__*/React.createElement(PlatPct, {
+      value: Math.floor(effOfGod(g) * 100)
+    }))), /*#__PURE__*/React.createElement("div", {
+      className: "w-24 md:w-32 h-1.5 bg-slate-200 rounded-full overflow-hidden ml-1.5 relative border border-slate-300"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "h-full plat-pbar",
       style: {
-        width: Math.floor((progMode === 'bv' ? effOfGod(g) : g.progress || 0) * 100) + '%',
+        width: Math.floor(effOfGod(g) * 100) + '%',
         background: p.color
       }
     })));
@@ -23508,7 +23536,7 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.60.0'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
+  var PLAT_VERSION = '1.61.0'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -23633,6 +23661,51 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
     if (Net.isHost) platBroadcast(obj, fromPid); else platToHost(obj);
   }
 
+  // ---------- 段位滑動指示片（v1.61.0 K1）：量測 selected 項 rect、在容器內絕對定位 pill 滑過去 ----------
+  // memo 以 key 記上一位置：innerHTML 重建後 pill 是新元素，有舊位置→從舊位置啟用 transition 滑入（retarget 天然成立）；首次（無 memo）直接定位不播。
+  var platSegMemo = {};
+  window.PlatSeg = function (container, key, selEl, color) {
+    if (!container || !selEl) return;
+    var pill = null;
+    for (var i = 0; i < container.children.length; i++) { var ch = container.children[i]; if (ch.classList && ch.classList.contains('plat-seg-pill')) { pill = ch; break; } }
+    if (!pill) { pill = document.createElement('div'); pill.className = 'plat-seg-pill'; container.insertBefore(pill, container.firstChild); }
+    if (color) pill.style.background = color;
+    var op = selEl.style && selEl.style.opacity; if (op) pill.style.opacity = op;
+    var cr = container.getBoundingClientRect(), r = selEl.getBoundingClientRect();
+    var x = r.left - cr.left + (container.scrollLeft || 0), y = r.top - cr.top + (container.scrollTop || 0), w = r.width, h = r.height;
+    var prev = platSegMemo[key];
+    var slideFrom = null;
+    if (prev && (prev.x !== x || prev.y !== y || prev.w !== w || prev.h !== h)) slideFrom = prev; // 選取改變：從上一位置滑
+    else if (prev && prev.el !== pill && prev.from && (Date.now() - (prev.at || 0) < 210)) slideFrom = prev.from; // 重建打斷滑動中：從原起點重播，畫面不跳
+    if (slideFrom) {
+      pill.style.transition = 'none';
+      pill.style.width = slideFrom.w + 'px'; pill.style.height = slideFrom.h + 'px';
+      pill.style.transform = 'translate(' + slideFrom.x + 'px,' + slideFrom.y + 'px)';
+      void pill.offsetWidth;
+      pill.style.transition = 'transform 200ms cubic-bezier(0.22, 1, 0.36, 1), width 200ms cubic-bezier(0.22, 1, 0.36, 1), height 200ms cubic-bezier(0.22, 1, 0.36, 1)';
+      pill.style.width = w + 'px'; pill.style.height = h + 'px';
+      pill.style.transform = 'translate(' + x + 'px,' + y + 'px)';
+      platSegMemo[key] = { x: x, y: y, w: w, h: h, el: pill, from: { x: slideFrom.x, y: slideFrom.y, w: slideFrom.w, h: slideFrom.h }, at: Date.now() };
+      return;
+    }
+    if (!prev || prev.el !== pill) {
+      // 首次、或 innerHTML 重建後的新 pill 元素（位置沒變也要直接定位，否則新元素是 0×0 未定位）
+      pill.style.transition = 'none';
+      pill.style.width = w + 'px'; pill.style.height = h + 'px';
+      pill.style.transform = 'translate(' + x + 'px,' + y + 'px)';
+    }
+    // 同一 pill 元素＋位置相同：什麼都不做——不能把先前換選時設的 200ms transition 洗回 'none'（殼每秒 tick 重渲染會打到這條）
+    platSegMemo[key] = { x: x, y: y, w: w, h: h, el: pill, from: prev ? prev.from : null, at: prev ? prev.at : 0 };
+  };
+  // 玩家色 → 淡色版（泡泡底）：與白色以 22% 混色；rainbow 用紫系淡底
+  function platTint(color) {
+    if (!color || color === 'rainbow') return '#f3e8ff';
+    var m = /^#?([0-9a-f]{6})$/i.exec(color); if (!m) return '#e0f2fe';
+    var n = parseInt(m[1], 16), r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    function mix(c) { return Math.round(c * 0.22 + 255 * 0.78); }
+    return 'rgb(' + mix(r) + ',' + mix(g) + ',' + mix(b) + ')';
+  }
+
   // ---------- 聊天 ----------
   function chatScrollBottom(list, smooth) {
     if (!list) return;
@@ -23642,18 +23715,30 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
   function appendChat(m) {
     var list = $('plat-chat-list'); if (!list) return;
     var d = document.createElement('div');
-    if (m.sys) { d.className = 'plat-msg sys'; d.textContent = m.text; }
-    else {
+    // v1.61.0 K2 泡泡造型（使用者拍板推翻行列式）：列只負責對齊，泡泡本體承載內容與底色。
+    if (m.sys) {
+      d.className = 'plat-msg sys';
+      var sb = document.createElement('span'); sb.className = 'plat-bubble-sys'; sb.textContent = m.text;
+      d.appendChild(sb);
+    } else if (m.mine) {
+      d.className = 'plat-msg mine';
+      var mb = document.createElement('span'); mb.className = 'plat-bubble mine-b'; mb.style.background = platTint(m.color);
+      mb.appendChild(document.createTextNode(m.text || ''));
+      d.appendChild(mb);
+    } else {
       d.className = 'plat-msg';
+      var ob = document.createElement('span'); ob.className = 'plat-bubble';
       var who = document.createElement('span'); who.className = 'who'; who.textContent = m.name || '玩家';
       who.style.color = (m.color === 'rainbow') ? '#a855f7' : (m.color || '#1e293b');
-      d.appendChild(who);
-      d.appendChild(document.createTextNode(m.text || ''));
+      ob.appendChild(who);
+      ob.appendChild(document.createTextNode(m.text || ''));
+      d.appendChild(ob);
     }
-    // v1.55.0 訊息進場（P1）：新訊息由下升入＋淡入（220ms settle；sys 同節奏、自己的訊息 rise 較大）；
-    // 動畫結束移除 class、不殘留 transform 影響排版。造型不動（行列式是使用者定的版面）。
-    d.classList.add('plat-msg-in'); if (m.mine) d.classList.add('mine');
-    (function (node) { setTimeout(function () { node.classList.remove('plat-msg-in'); node.classList.remove('mine'); }, 300); })(d);
+    // 進場（P1 沿用＋K2 方向）：他人由左下、自己由右下、系統置中升入；300ms 後只移除「進場」class
+    //（'mine' 是 K2 的常駐對齊 class、不再隨進場移除）。
+    d.classList.add('plat-msg-in');
+    if (m.mine) d.classList.add('in-r'); else if (!m.sys) d.classList.add('in-l');
+    (function (node) { setTimeout(function () { node.classList.remove('plat-msg-in'); node.classList.remove('in-l'); node.classList.remove('in-r'); }, 300); })(d);
     list.appendChild(d);
     while (list.children.length > 120) list.removeChild(list.firstChild); // 保留上限（B-06：防刷屏讓 DOM 無界累積）
     chatScrollBottom(list, !!(Net.chatOpen && !Net.chatMin)); // 面板開著時平滑捲到底（被推著走）；關著時維持瞬跳（無人看）
@@ -25110,7 +25195,7 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
       var dim = (tournLive && id !== 'tourn' && !on) || !Net.isHost; // 來賓端：四顆分頁全反灰（只有房主能選遊戲）
       return '<button data-rtab="' + id + '" class="lob-tab' + (on ? ' lob-tab-on' : '') + '" style="flex:1' + (dim ? ';opacity:.45' : '') + '">' + label + '</button>';
     }
-    var h = '<div class="flex gap-1.5">' + tabBtn('sudoku', '🔢 數獨') + tabBtn('hashi', '🌉 數橋') + tabBtn('mines', '💣 踩地雷') + tabBtn('tourn', '🏆 錦標賽') + '</div>';
+    var h = '<div class="flex gap-1.5 plat-seg" data-seg="roomtabs">' + tabBtn('sudoku', '🔢 數獨') + tabBtn('hashi', '🌉 數橋') + tabBtn('mines', '💣 踩地雷') + tabBtn('tourn', '🏆 錦標賽') + '</div>';
     // 模式（合作/大亂鬥）不在這裡切：兩款的「對局設定」裡本來就有，殼只負責換遊戲（使用者指示刪除重複的模式列）
     if (Net.roomTab !== 'tourn') {
       if (tournLive) h += '<div class="text-center text-[11px] font-black text-amber-600 mt-1.5">🏆 賽程進行中・本局由賽程決定</div>';
@@ -25121,6 +25206,8 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
       else if (!Net.isHost) h += '<div class="text-center text-[11px] font-black text-slate-400 mt-1.5">遊戲由房主選擇，跟著房主走</div>';
     }
     tabsRg.innerHTML = h;
+    var segC = tabsRg.querySelector('[data-seg="roomtabs"]'), segOn = segC && segC.querySelector('.lob-tab-on');
+    if (segC && segOn) window.PlatSeg(segC, 'roomtabs', segOn, '#1e293b'); // K1：分頁指示片（首次定位不播、換頁才滑）
   }
   // 分頁選了別款遊戲時，房主按本房的「開始」＝帶全房去選定遊戲的等待室（回傳 true 表示已改道，不再啟動本房遊戲）
   function tryTransportStart() {
@@ -25435,9 +25522,9 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
     // 輸入方式組（數獨專屬，遊戲以 showInput 開啟）
     if (st.showInput) {
       var numOn = st.inputMode !== 'cell';
-      h += '<div class="flex items-center bg-slate-800 p-1 rounded-2xl border-2 border-slate-800 shadow-inner">';
-      h += '<button data-pb="input-num" class="px-3 md:px-5 py-1.5 md:py-2 rounded-xl font-black text-sm md:text-base flex items-center gap-1.5 md:gap-2 transition-all ' + (numOn ? 'shadow-md' : 'text-slate-400 hover:text-white') + '"' + (numOn ? ' style="background:' + ac + ';color:#0f172a"' : '') + '><span class="text-lg md:text-xl leading-none">🔢</span><span class="hidden sm:inline">數字先行</span></button>';
-      h += '<button data-pb="input-cell" class="px-3 md:px-5 py-1.5 md:py-2 rounded-xl font-black text-sm md:text-base flex items-center gap-1.5 md:gap-2 transition-all ' + (!numOn ? 'shadow-md' : 'text-slate-400 hover:text-white') + '"' + (!numOn ? ' style="background:#38bdf8;color:#0f172a"' : '') + '><span class="sm:hidden text-lg leading-none">👆</span><span class="hidden sm:inline">👆 格子先行</span></button>';
+      h += '<div data-pbseg="input" class="plat-seg flex items-center bg-slate-800 p-1 rounded-2xl border-2 border-slate-800 shadow-inner">';
+      h += '<button data-pb="input-num" class="px-3 md:px-5 py-1.5 md:py-2 rounded-xl font-black text-sm md:text-base flex items-center gap-1.5 md:gap-2 transition-all ' + (numOn ? 'shadow-md seg-on' : 'text-slate-400 hover:text-white') + '"' + (numOn ? ' style="background:' + ac + ';color:#0f172a"' : '') + '><span class="text-lg md:text-xl leading-none">🔢</span><span class="hidden sm:inline">數字先行</span></button>';
+      h += '<button data-pb="input-cell" class="px-3 md:px-5 py-1.5 md:py-2 rounded-xl font-black text-sm md:text-base flex items-center gap-1.5 md:gap-2 transition-all ' + (!numOn ? 'shadow-md seg-on' : 'text-slate-400 hover:text-white') + '"' + (!numOn ? ' style="background:#38bdf8;color:#0f172a"' : '') + '><span class="sm:hidden text-lg leading-none">👆</span><span class="hidden sm:inline">👆 格子先行</span></button>';
       h += '</div>';
     }
     // 模式組
@@ -25480,6 +25567,9 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
     var anyPop = PB.dockOpen || PB.zoomOpen || PB.drawOpen || pbDying('zoom') || pbDying('draw') || pbDying('dock');
     PB.el.style.position = 'relative';
     PB.el.style.zIndex = anyPop ? '99990' : '';
+    // K1：輸入方式段位指示片（殼重渲染後重新定位；memo 記舊位→換選才滑、每秒 tick 同位不動）
+    var pbSegC = PB.el.querySelector('[data-pbseg="input"]');
+    if (pbSegC) { var pbSegOn = pbSegC.querySelector('.seg-on'); if (pbSegOn) window.PlatSeg(pbSegC, 'pb-input', pbSegOn, st.inputMode !== 'cell' ? ac : '#38bdf8'); }
     var vv = $('plat-videos'); if (vv) vv.style.zIndex = anyPop ? '9990' : '';
   }
   function pbAct(name, payload) { if (PB.cfg && PB.cfg.onAction) { try { PB.cfg.onAction(name, payload); } catch (e) {} } }

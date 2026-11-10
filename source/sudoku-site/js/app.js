@@ -136,6 +136,8 @@ function SudokuGame() {
     const [inputMode, setInputMode] = useState(() => { try { return localStorage.getItem('sudoku_input_mode') === 'cell' ? 'cell' : 'num'; } catch (e) { return 'num'; } });
     const [selectedCellId, setSelectedCellId] = useState(null);
     useEffect(() => { try { localStorage.setItem('sudoku_input_mode', inputMode); } catch (e) {} }, [inputMode]);
+    // v1.61.0 K1：單機難度段位滑動指示片（殼 PlatSeg 共用；量測在 effect 內、選取變化才滑）
+    useEffect(() => { if (window.PlatSeg) { var c = document.querySelector('#view-sudoku [data-seg="sudoku-diff"]'); var b = c && c.querySelector('[data-seg-on="1"]'); if (c && b) window.PlatSeg(c, 'sudoku-diff', b, '#ffcc00'); } }, [diffId, screen]);
     // 靜音偏好（與全域音效引擎同步，同數橋）
     const [muted, setMuted] = useState(() => { try { return localStorage.getItem('sudoku_muted') === '1'; } catch (e) { return false; } });
 
@@ -3233,9 +3235,9 @@ function SudokuGame() {
                                         <h3 className="font-semibold text-slate-400 text-xs uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
                                             <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span> 🔥 挑戰難度
                                         </h3>
-                                        <div className="grid grid-cols-2 gap-3">
+                                        <div className="grid grid-cols-2 gap-3 plat-seg" data-seg="sudoku-diff">
                                             {DIFFICULTIES.map(d => (
-                                                <button key={d.id} onClick={() => setDiffId(d.id)} className={"py-3 border-2 border-slate-800 rounded-xl font-black text-sm transition-all " + (diffId === d.id ? 'bg-[#ffcc00] text-slate-900 shadow-[3px_3px_0px_#1e293b] -translate-y-0.5' : 'bg-slate-50 text-slate-400 hover:bg-white')}>
+                                                <button key={d.id} data-seg-on={diffId === d.id ? '1' : undefined} onClick={() => setDiffId(d.id)} className={"py-3 border-2 border-slate-800 rounded-xl font-black text-sm transition-all " + (diffId === d.id ? 'bg-[#ffcc00] seg-on text-slate-900 shadow-[3px_3px_0px_#1e293b] -translate-y-0.5' : 'bg-slate-50 text-slate-400 hover:bg-white')}>
                                                     {d.name}
                                                 </button>
                                             ))}

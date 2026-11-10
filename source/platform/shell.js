@@ -178,7 +178,7 @@
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.60.0'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
+  var PLAT_VERSION = '1.61.0'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -303,6 +303,51 @@
     if (Net.isHost) platBroadcast(obj, fromPid); else platToHost(obj);
   }
 
+  // ---------- 段位滑動指示片（v1.61.0 K1）：量測 selected 項 rect、在容器內絕對定位 pill 滑過去 ----------
+  // memo 以 key 記上一位置：innerHTML 重建後 pill 是新元素，有舊位置→從舊位置啟用 transition 滑入（retarget 天然成立）；首次（無 memo）直接定位不播。
+  var platSegMemo = {};
+  window.PlatSeg = function (container, key, selEl, color) {
+    if (!container || !selEl) return;
+    var pill = null;
+    for (var i = 0; i < container.children.length; i++) { var ch = container.children[i]; if (ch.classList && ch.classList.contains('plat-seg-pill')) { pill = ch; break; } }
+    if (!pill) { pill = document.createElement('div'); pill.className = 'plat-seg-pill'; container.insertBefore(pill, container.firstChild); }
+    if (color) pill.style.background = color;
+    var op = selEl.style && selEl.style.opacity; if (op) pill.style.opacity = op;
+    var cr = container.getBoundingClientRect(), r = selEl.getBoundingClientRect();
+    var x = r.left - cr.left + (container.scrollLeft || 0), y = r.top - cr.top + (container.scrollTop || 0), w = r.width, h = r.height;
+    var prev = platSegMemo[key];
+    var slideFrom = null;
+    if (prev && (prev.x !== x || prev.y !== y || prev.w !== w || prev.h !== h)) slideFrom = prev; // 選取改變：從上一位置滑
+    else if (prev && prev.el !== pill && prev.from && (Date.now() - (prev.at || 0) < 210)) slideFrom = prev.from; // 重建打斷滑動中：從原起點重播，畫面不跳
+    if (slideFrom) {
+      pill.style.transition = 'none';
+      pill.style.width = slideFrom.w + 'px'; pill.style.height = slideFrom.h + 'px';
+      pill.style.transform = 'translate(' + slideFrom.x + 'px,' + slideFrom.y + 'px)';
+      void pill.offsetWidth;
+      pill.style.transition = 'transform 200ms cubic-bezier(0.22, 1, 0.36, 1), width 200ms cubic-bezier(0.22, 1, 0.36, 1), height 200ms cubic-bezier(0.22, 1, 0.36, 1)';
+      pill.style.width = w + 'px'; pill.style.height = h + 'px';
+      pill.style.transform = 'translate(' + x + 'px,' + y + 'px)';
+      platSegMemo[key] = { x: x, y: y, w: w, h: h, el: pill, from: { x: slideFrom.x, y: slideFrom.y, w: slideFrom.w, h: slideFrom.h }, at: Date.now() };
+      return;
+    }
+    if (!prev || prev.el !== pill) {
+      // 首次、或 innerHTML 重建後的新 pill 元素（位置沒變也要直接定位，否則新元素是 0×0 未定位）
+      pill.style.transition = 'none';
+      pill.style.width = w + 'px'; pill.style.height = h + 'px';
+      pill.style.transform = 'translate(' + x + 'px,' + y + 'px)';
+    }
+    // 同一 pill 元素＋位置相同：什麼都不做——不能把先前換選時設的 200ms transition 洗回 'none'（殼每秒 tick 重渲染會打到這條）
+    platSegMemo[key] = { x: x, y: y, w: w, h: h, el: pill, from: prev ? prev.from : null, at: prev ? prev.at : 0 };
+  };
+  // 玩家色 → 淡色版（泡泡底）：與白色以 22% 混色；rainbow 用紫系淡底
+  function platTint(color) {
+    if (!color || color === 'rainbow') return '#f3e8ff';
+    var m = /^#?([0-9a-f]{6})$/i.exec(color); if (!m) return '#e0f2fe';
+    var n = parseInt(m[1], 16), r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    function mix(c) { return Math.round(c * 0.22 + 255 * 0.78); }
+    return 'rgb(' + mix(r) + ',' + mix(g) + ',' + mix(b) + ')';
+  }
+
   // ---------- 聊天 ----------
   function chatScrollBottom(list, smooth) {
     if (!list) return;
@@ -312,18 +357,30 @@
   function appendChat(m) {
     var list = $('plat-chat-list'); if (!list) return;
     var d = document.createElement('div');
-    if (m.sys) { d.className = 'plat-msg sys'; d.textContent = m.text; }
-    else {
+    // v1.61.0 K2 泡泡造型（使用者拍板推翻行列式）：列只負責對齊，泡泡本體承載內容與底色。
+    if (m.sys) {
+      d.className = 'plat-msg sys';
+      var sb = document.createElement('span'); sb.className = 'plat-bubble-sys'; sb.textContent = m.text;
+      d.appendChild(sb);
+    } else if (m.mine) {
+      d.className = 'plat-msg mine';
+      var mb = document.createElement('span'); mb.className = 'plat-bubble mine-b'; mb.style.background = platTint(m.color);
+      mb.appendChild(document.createTextNode(m.text || ''));
+      d.appendChild(mb);
+    } else {
       d.className = 'plat-msg';
+      var ob = document.createElement('span'); ob.className = 'plat-bubble';
       var who = document.createElement('span'); who.className = 'who'; who.textContent = m.name || '玩家';
       who.style.color = (m.color === 'rainbow') ? '#a855f7' : (m.color || '#1e293b');
-      d.appendChild(who);
-      d.appendChild(document.createTextNode(m.text || ''));
+      ob.appendChild(who);
+      ob.appendChild(document.createTextNode(m.text || ''));
+      d.appendChild(ob);
     }
-    // v1.55.0 訊息進場（P1）：新訊息由下升入＋淡入（220ms settle；sys 同節奏、自己的訊息 rise 較大）；
-    // 動畫結束移除 class、不殘留 transform 影響排版。造型不動（行列式是使用者定的版面）。
-    d.classList.add('plat-msg-in'); if (m.mine) d.classList.add('mine');
-    (function (node) { setTimeout(function () { node.classList.remove('plat-msg-in'); node.classList.remove('mine'); }, 300); })(d);
+    // 進場（P1 沿用＋K2 方向）：他人由左下、自己由右下、系統置中升入；300ms 後只移除「進場」class
+    //（'mine' 是 K2 的常駐對齊 class、不再隨進場移除）。
+    d.classList.add('plat-msg-in');
+    if (m.mine) d.classList.add('in-r'); else if (!m.sys) d.classList.add('in-l');
+    (function (node) { setTimeout(function () { node.classList.remove('plat-msg-in'); node.classList.remove('in-l'); node.classList.remove('in-r'); }, 300); })(d);
     list.appendChild(d);
     while (list.children.length > 120) list.removeChild(list.firstChild); // 保留上限（B-06：防刷屏讓 DOM 無界累積）
     chatScrollBottom(list, !!(Net.chatOpen && !Net.chatMin)); // 面板開著時平滑捲到底（被推著走）；關著時維持瞬跳（無人看）
@@ -1780,7 +1837,7 @@
       var dim = (tournLive && id !== 'tourn' && !on) || !Net.isHost; // 來賓端：四顆分頁全反灰（只有房主能選遊戲）
       return '<button data-rtab="' + id + '" class="lob-tab' + (on ? ' lob-tab-on' : '') + '" style="flex:1' + (dim ? ';opacity:.45' : '') + '">' + label + '</button>';
     }
-    var h = '<div class="flex gap-1.5">' + tabBtn('sudoku', '🔢 數獨') + tabBtn('hashi', '🌉 數橋') + tabBtn('mines', '💣 踩地雷') + tabBtn('tourn', '🏆 錦標賽') + '</div>';
+    var h = '<div class="flex gap-1.5 plat-seg" data-seg="roomtabs">' + tabBtn('sudoku', '🔢 數獨') + tabBtn('hashi', '🌉 數橋') + tabBtn('mines', '💣 踩地雷') + tabBtn('tourn', '🏆 錦標賽') + '</div>';
     // 模式（合作/大亂鬥）不在這裡切：兩款的「對局設定」裡本來就有，殼只負責換遊戲（使用者指示刪除重複的模式列）
     if (Net.roomTab !== 'tourn') {
       if (tournLive) h += '<div class="text-center text-[11px] font-black text-amber-600 mt-1.5">🏆 賽程進行中・本局由賽程決定</div>';
@@ -1791,6 +1848,8 @@
       else if (!Net.isHost) h += '<div class="text-center text-[11px] font-black text-slate-400 mt-1.5">遊戲由房主選擇，跟著房主走</div>';
     }
     tabsRg.innerHTML = h;
+    var segC = tabsRg.querySelector('[data-seg="roomtabs"]'), segOn = segC && segC.querySelector('.lob-tab-on');
+    if (segC && segOn) window.PlatSeg(segC, 'roomtabs', segOn, '#1e293b'); // K1：分頁指示片（首次定位不播、換頁才滑）
   }
   // 分頁選了別款遊戲時，房主按本房的「開始」＝帶全房去選定遊戲的等待室（回傳 true 表示已改道，不再啟動本房遊戲）
   function tryTransportStart() {
@@ -2105,9 +2164,9 @@
     // 輸入方式組（數獨專屬，遊戲以 showInput 開啟）
     if (st.showInput) {
       var numOn = st.inputMode !== 'cell';
-      h += '<div class="flex items-center bg-slate-800 p-1 rounded-2xl border-2 border-slate-800 shadow-inner">';
-      h += '<button data-pb="input-num" class="px-3 md:px-5 py-1.5 md:py-2 rounded-xl font-black text-sm md:text-base flex items-center gap-1.5 md:gap-2 transition-all ' + (numOn ? 'shadow-md' : 'text-slate-400 hover:text-white') + '"' + (numOn ? ' style="background:' + ac + ';color:#0f172a"' : '') + '><span class="text-lg md:text-xl leading-none">🔢</span><span class="hidden sm:inline">數字先行</span></button>';
-      h += '<button data-pb="input-cell" class="px-3 md:px-5 py-1.5 md:py-2 rounded-xl font-black text-sm md:text-base flex items-center gap-1.5 md:gap-2 transition-all ' + (!numOn ? 'shadow-md' : 'text-slate-400 hover:text-white') + '"' + (!numOn ? ' style="background:#38bdf8;color:#0f172a"' : '') + '><span class="sm:hidden text-lg leading-none">👆</span><span class="hidden sm:inline">👆 格子先行</span></button>';
+      h += '<div data-pbseg="input" class="plat-seg flex items-center bg-slate-800 p-1 rounded-2xl border-2 border-slate-800 shadow-inner">';
+      h += '<button data-pb="input-num" class="px-3 md:px-5 py-1.5 md:py-2 rounded-xl font-black text-sm md:text-base flex items-center gap-1.5 md:gap-2 transition-all ' + (numOn ? 'shadow-md seg-on' : 'text-slate-400 hover:text-white') + '"' + (numOn ? ' style="background:' + ac + ';color:#0f172a"' : '') + '><span class="text-lg md:text-xl leading-none">🔢</span><span class="hidden sm:inline">數字先行</span></button>';
+      h += '<button data-pb="input-cell" class="px-3 md:px-5 py-1.5 md:py-2 rounded-xl font-black text-sm md:text-base flex items-center gap-1.5 md:gap-2 transition-all ' + (!numOn ? 'shadow-md seg-on' : 'text-slate-400 hover:text-white') + '"' + (!numOn ? ' style="background:#38bdf8;color:#0f172a"' : '') + '><span class="sm:hidden text-lg leading-none">👆</span><span class="hidden sm:inline">👆 格子先行</span></button>';
       h += '</div>';
     }
     // 模式組
@@ -2150,6 +2209,9 @@
     var anyPop = PB.dockOpen || PB.zoomOpen || PB.drawOpen || pbDying('zoom') || pbDying('draw') || pbDying('dock');
     PB.el.style.position = 'relative';
     PB.el.style.zIndex = anyPop ? '99990' : '';
+    // K1：輸入方式段位指示片（殼重渲染後重新定位；memo 記舊位→換選才滑、每秒 tick 同位不動）
+    var pbSegC = PB.el.querySelector('[data-pbseg="input"]');
+    if (pbSegC) { var pbSegOn = pbSegC.querySelector('.seg-on'); if (pbSegOn) window.PlatSeg(pbSegC, 'pb-input', pbSegOn, st.inputMode !== 'cell' ? ac : '#38bdf8'); }
     var vv = $('plat-videos'); if (vv) vv.style.zIndex = anyPop ? '9990' : '';
   }
   function pbAct(name, payload) { if (PB.cfg && PB.cfg.onAction) { try { PB.cfg.onAction(name, payload); } catch (e) {} } }

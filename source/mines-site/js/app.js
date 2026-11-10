@@ -700,7 +700,7 @@ function MinesGame() {
   function effOfCells(cellsArr, layoutArr, numsArr) { var b = bvOfLayout(layoutArr, numsArr); if (!b || !cellsArr) return null; return effProgressOf(cellsArr, b.weights, b.bv); }
   function effOfGod(g) { if (!g) return 0; return (typeof g.effProgress === 'number' && isFinite(g.effProgress)) ? g.effProgress : (g.progress || 0); } // 混版 fallback：舊版來賓無 eff → 用開格 %（不得 NaN）
   function effOfMine(uid) { return effOfGod(godRef.current[uid]); }
-  function dispFracOf(g) { return progModeRef.current === 'bv' ? effOfGod(g) : (g ? (g.progress || 0) : 0); } // 結算字串用（handler 內讀 ref 鏡像）
+  // v1.61.0 K4：對外顯示（對手晶片／觀戰面板／結算條目）一律 effOfGod（3BV 官方進度，與排名排序同語意），不再隨觀看者 progMode 切換；progMode 只管「自己的」進度文字顯示。
   function toggleProgMode() { var nx = progModeRef.current === 'bv' ? 'open' : 'bv'; progModeRef.current = nx; setProgMode(nx); } // 點進度文字切換（規格 5.1/5.2：純文字、不做成按鈕）
   function unfinishedRacers() { return playersRef.current.filter(p => { if (p.spectator || p.pending) return false; if (p.id === myId) return !outcomeRef.current; var g = godRef.current[p.id]; return !g || g.state === 'playing'; }); }
   function amLastOne() { var u = unfinishedRacers(); return u.length === 1 && u[0].id === myId && playersRef.current.filter(p => !p.spectator && !p.pending).length > 1; }
@@ -858,7 +858,7 @@ function MinesGame() {
     rest.sort((a, b) => effOfGod(b.g) - effOfGod(a.g));
     var entries = fins.concat(booms, rest).map(e => ({
       key: e.key, name: e.name, color: e.color, isMe: e.isMe,
-      right: e.g.state === 'finished' ? ('⏱ ' + fmtTime(Math.floor((e.g.timeMs || 0) / 1000))) : (e.g.state === 'boom' ? ('💥 ' + Math.floor(dispFracOf(e.g) * 100) + '%') : ('未完成・' + Math.floor(dispFracOf(e.g) * 100) + '%'))
+      right: e.g.state === 'finished' ? ('⏱ ' + fmtTime(Math.floor((e.g.timeMs || 0) / 1000))) : (e.g.state === 'boom' ? ('💥 ' + Math.floor(effOfGod(e.g) * 100) + '%') : ('未完成・' + Math.floor(effOfGod(e.g) * 100) + '%'))
     }));
     var fin = { entries: entries, winnerUid: fins.length ? fins[0].key : null };
     finalRef.current = fin; setRaceFinal(fin);
@@ -1285,7 +1285,7 @@ function MinesGame() {
       var res2 = playersRef.current.filter(p => !p.spectator && !p.pending).map(p => ({ p: p, g: godRef.current[p.id] || { progress: 0, state: 'playing' } })).filter(e => e.g.state === 'finished' || e.g.state === 'boom');
       res2.sort((a, b) => ((a.g.state === 'finished' ? 0 : 1) - (b.g.state === 'finished' ? 0 : 1)) || (a.g.state === 'finished' ? (a.g.timeMs || 0) - (b.g.timeMs || 0) : effOfGod(b.g) - effOfGod(a.g)));
       specR = { accent: ACCENT, title: '本場成績', waitingText: '等待其他玩家完成…',
-        entries: res2.map(e => ({ key: e.p.id, name: e.p.name, color: e.p.color, isMe: e.p.id === myId, right: e.g.state === 'finished' ? ('⏱ ' + fmtTime(Math.floor((e.g.timeMs || 0) / 1000))) : ('💥 ' + Math.floor(dispFracOf(e.g) * 100) + '%') })),
+        entries: res2.map(e => ({ key: e.p.id, name: e.p.name, color: e.p.color, isMe: e.p.id === myId, right: e.g.state === 'finished' ? ('⏱ ' + fmtTime(Math.floor((e.g.timeMs || 0) / 1000))) : ('💥 ' + Math.floor(effOfGod(e.g) * 100) + '%') })),
         verdict: myOutcome === 'finished' ? '🏁 你已完賽，先看看大家的盤面吧' : '💥 你踩到雷出局了，先看看大家的盤面吧',
         buttons: [{ id: 'watch', label: '👁️ 轉變為上帝模式（觀戰）', kind: 'primary' }, homeBtn], onAction: acts };
     } else {
@@ -1431,7 +1431,7 @@ function MinesGame() {
         <div className="flex flex-wrap gap-1.5 mb-2">
           {opps.map(p => { var gg = godBoards[p.id] || { progress: 0, state: 'playing' }; return (
             <button key={p.id} onClick={() => setGodUid(p.id)} className="text-xs font-black px-2 py-1 rounded-full border-2 flex items-center gap-1 active:translate-y-[1px]" style={p.id === sel ? { background: '#1e293b', color: '#fff', borderColor: '#1e293b' } : { background: '#fff', color: '#334155', borderColor: '#cbd5e1' }}>
-              <span className="w-2.5 h-2.5 rounded-full border border-slate-800" style={{ background: p.color }}></span>{p.name} {gg.state === 'finished' ? '⏱ ' + fmtTime(Math.floor((gg.timeMs || 0) / 1000)) : gg.state === 'boom' ? '💥 ' + Math.floor((progMode === 'bv' ? effOfGod(gg) : (gg.progress || 0)) * 100) + '%' : Math.floor((progMode === 'bv' ? effOfGod(gg) : (gg.progress || 0)) * 100) + '%'}
+              <span className="w-2.5 h-2.5 rounded-full border border-slate-800" style={{ background: p.color }}></span>{p.name} {gg.state === 'finished' ? '⏱ ' + fmtTime(Math.floor((gg.timeMs || 0) / 1000)) : gg.state === 'boom' ? '💥 ' + Math.floor(effOfGod(gg) * 100) + '%' : Math.floor(effOfGod(gg) * 100) + '%'}
             </button>); })}
         </div>
         {g.cells ? <div style={{ overflowX: 'auto', maxWidth: '100%' }}>{renderGodBoard(g, mpRef.current.sizeId)}</div> : <p className="font-bold text-slate-400 text-center py-3">等待 {selP ? selP.name : '對手'} 的盤面…</p>}
@@ -1461,7 +1461,7 @@ function MinesGame() {
               <button onClick={() => setCustOpen(!custOpen)} className="w-full flex items-center justify-between font-black text-xl text-slate-800">
                 <span>⚙️ 自訂盤面</span><span className="text-sm text-slate-400">{custOpen ? '▾ 收起' : '▸ 展開'}</span>
               </button>
-              {custOpen && (<div className="mt-3 flex flex-col gap-2">
+              <div className={"plat-collapse-y" + (custOpen ? " open" : "")}><div><div className="mt-3 flex flex-col gap-2">
                 <label className="flex items-center justify-between font-bold text-slate-600 text-sm">寬度（左右格數）
                   <input type="number" min="8" max="30" value={custCfg.w} onChange={e => setCustCfg(c => Object.assign({}, c, { w: e.target.value }))} className="w-24 bg-white border-2 border-slate-800 rounded-lg p-1.5 font-black text-slate-800 text-center outline-none" />
                 </label>
@@ -1473,7 +1473,7 @@ function MinesGame() {
                 </label>
                 <div className="text-xs font-semibold text-slate-400 leading-relaxed">範圍：寬 8–30、高 8–24、雷 5–{effC.w * effC.h - 9}（依目前寬高；首點保護需留 9 格空白）。超出範圍會自動修正，開始鈕顯示的就是實際會開的盤。</div>
                 <button onClick={startCustom} className="plat-btn-hard plat-btn-hard-3 w-full py-3 bg-[#f97316] border-[3px] border-slate-800 rounded-xl font-black text-lg text-slate-900 shadow-[3px_3px_0px_rgba(30,41,59,1)]">▶ 開始：{effC.w}×{effC.h}・{effC.mines} 雷</button>
-              </div>)}
+              </div></div></div>
             </div>
             <button onClick={() => setScreen('home')} className="plat-btn-hard plat-btn-hard-3 w-full py-3 bg-white border-[3px] border-slate-800 rounded-xl font-black text-lg text-slate-700 shadow-[3px_3px_0px_rgba(30,41,59,1)]">← 返回主選單</button>
           </div>
@@ -1855,12 +1855,15 @@ function MinesGame() {
       {mpOn && mpRef.current.mode === 'race' && mpPhase === 'playing' && !myOutcome && !iAmSpec() && (
         <div className="w-full mt-2 flex flex-wrap gap-1.5" style={{ width: colW, maxWidth: "100%" }}>
           {players.filter(p => !p.spectator && !p.pending && p.id !== myId).map(p => { const g = godBoards[p.id] || { progress: 0, state: 'playing' }; return (
-            <span key={p.id} data-fly-uid={p.id} className="text-xs font-black px-2 py-1 rounded-xl border-2 border-slate-300 bg-white flex flex-col gap-1 min-w-[84px]">
-              <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-full border border-slate-800" style={{ background: p.color }}></span>{p.name} {g.state === 'finished' ? '🏁' : g.state === 'boom' ? '💥' : <PlatPct value={Math.floor((progMode === 'bv' ? effOfGod(g) : (g.progress || 0)) * 100)} />}
-              </span>
-              <span className="block h-1.5 rounded-full bg-slate-200 overflow-hidden"><span className="block h-full plat-pbar" style={{ width: Math.floor((progMode === 'bv' ? effOfGod(g) : (g.progress || 0)) * 100) + '%', background: p.color }}></span></span>
-            </span>); })}
+            <div key={p.id} data-fly-uid={p.id} className="shrink-0 flex flex-col gap-0.5 border-2 border-slate-800 rounded px-1.5 py-0.5 relative bg-white">
+              <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-[1px]" style={{ background: p.color }}></div>
+              <div className="flex items-center gap-1 text-[10px] md:text-xs font-bold text-slate-800 pl-1.5 whitespace-nowrap">
+                {p.name} {g.state === 'finished' ? <span>🏁</span> : g.state === 'boom' ? <span>💥</span> : <span className="text-emerald-600 font-mono ml-1"><PlatPct value={Math.floor(effOfGod(g) * 100)} /></span>}
+              </div>
+              <div className="w-24 md:w-32 h-1.5 bg-slate-200 rounded-full overflow-hidden ml-1.5 relative border border-slate-300">
+                <div className="h-full plat-pbar" style={{ width: Math.floor(effOfGod(g) * 100) + '%', background: p.color }}></div>
+              </div>
+            </div>); })}
         </div>
       )}
           {renderGodPanel()}

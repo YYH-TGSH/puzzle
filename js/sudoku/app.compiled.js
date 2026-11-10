@@ -353,6 +353,14 @@ function SudokuGame() {
       localStorage.setItem('sudoku_input_mode', inputMode);
     } catch (e) {}
   }, [inputMode]);
+  // v1.61.0 K1：單機難度段位滑動指示片（殼 PlatSeg 共用；量測在 effect 內、選取變化才滑）
+  useEffect(function () {
+    if (window.PlatSeg) {
+      var c = document.querySelector('#view-sudoku [data-seg="sudoku-diff"]');
+      var b = c && c.querySelector('[data-seg-on="1"]');
+      if (c && b) window.PlatSeg(c, 'sudoku-diff', b, '#ffcc00');
+    }
+  }, [diffId, screen]);
   // 靜音偏好（與全域音效引擎同步，同數橋）
   var _useState83 = useState(function () {
       try {
@@ -6016,14 +6024,16 @@ function SudokuGame() {
   }, /*#__PURE__*/React.createElement("span", {
     className: "w-2 h-2 bg-emerald-400 rounded-full animate-pulse"
   }), " \uD83D\uDD25 \u6311\u6230\u96E3\u5EA6"), /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-2 gap-3"
+    className: "grid grid-cols-2 gap-3 plat-seg",
+    "data-seg": "sudoku-diff"
   }, DIFFICULTIES.map(function (d) {
     return /*#__PURE__*/React.createElement("button", {
       key: d.id,
+      "data-seg-on": diffId === d.id ? '1' : undefined,
       onClick: function onClick() {
         return setDiffId(d.id);
       },
-      className: "py-3 border-2 border-slate-800 rounded-xl font-black text-sm transition-all " + (diffId === d.id ? 'bg-[#ffcc00] text-slate-900 shadow-[3px_3px_0px_#1e293b] -translate-y-0.5' : 'bg-slate-50 text-slate-400 hover:bg-white')
+      className: "py-3 border-2 border-slate-800 rounded-xl font-black text-sm transition-all " + (diffId === d.id ? 'bg-[#ffcc00] seg-on text-slate-900 shadow-[3px_3px_0px_#1e293b] -translate-y-0.5' : 'bg-slate-50 text-slate-400 hover:bg-white')
     }, d.name);
   })))), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {

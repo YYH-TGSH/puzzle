@@ -1779,9 +1779,7 @@ function MinesGame() {
   function effOfMine(uid) {
     return effOfGod(godRef.current[uid]);
   }
-  function dispFracOf(g) {
-    return progModeRef.current === 'bv' ? effOfGod(g) : g ? g.progress || 0 : 0;
-  } // 結算字串用（handler 內讀 ref 鏡像）
+  // v1.61.0 K4：對外顯示（對手晶片／觀戰面板／結算條目）一律 effOfGod（3BV 官方進度，與排名排序同語意），不再隨觀看者 progMode 切換；progMode 只管「自己的」進度文字顯示。
   function toggleProgMode() {
     var nx = progModeRef.current === 'bv' ? 'open' : 'bv';
     progModeRef.current = nx;
@@ -2194,7 +2192,7 @@ function MinesGame() {
         name: e.name,
         color: e.color,
         isMe: e.isMe,
-        right: e.g.state === 'finished' ? '⏱ ' + fmtTime(Math.floor((e.g.timeMs || 0) / 1000)) : e.g.state === 'boom' ? '💥 ' + Math.floor(dispFracOf(e.g) * 100) + '%' : '未完成・' + Math.floor(dispFracOf(e.g) * 100) + '%'
+        right: e.g.state === 'finished' ? '⏱ ' + fmtTime(Math.floor((e.g.timeMs || 0) / 1000)) : e.g.state === 'boom' ? '💥 ' + Math.floor(effOfGod(e.g) * 100) + '%' : '未完成・' + Math.floor(effOfGod(e.g) * 100) + '%'
       };
     });
     var fin = {
@@ -3278,7 +3276,7 @@ function MinesGame() {
             name: e.p.name,
             color: e.p.color,
             isMe: e.p.id === myId,
-            right: e.g.state === 'finished' ? '⏱ ' + fmtTime(Math.floor((e.g.timeMs || 0) / 1000)) : '💥 ' + Math.floor(dispFracOf(e.g) * 100) + '%'
+            right: e.g.state === 'finished' ? '⏱ ' + fmtTime(Math.floor((e.g.timeMs || 0) / 1000)) : '💥 ' + Math.floor(effOfGod(e.g) * 100) + '%'
           };
         }),
         verdict: myOutcome === 'finished' ? '🏁 你已完賽，先看看大家的盤面吧' : '💥 你踩到雷出局了，先看看大家的盤面吧',
@@ -3650,7 +3648,7 @@ function MinesGame() {
         style: {
           background: p.color
         }
-      }), p.name, " ", gg.state === 'finished' ? '⏱ ' + fmtTime(Math.floor((gg.timeMs || 0) / 1000)) : gg.state === 'boom' ? '💥 ' + Math.floor((progMode === 'bv' ? effOfGod(gg) : gg.progress || 0) * 100) + '%' : Math.floor((progMode === 'bv' ? effOfGod(gg) : gg.progress || 0) * 100) + '%');
+      }), p.name, " ", gg.state === 'finished' ? '⏱ ' + fmtTime(Math.floor((gg.timeMs || 0) / 1000)) : gg.state === 'boom' ? '💥 ' + Math.floor(effOfGod(gg) * 100) + '%' : Math.floor(effOfGod(gg) * 100) + '%');
     })), g.cells ? /*#__PURE__*/React.createElement("div", {
       style: {
         overflowX: 'auto',
@@ -3708,7 +3706,9 @@ function MinesGame() {
       className: "w-full flex items-center justify-between font-black text-xl text-slate-800"
     }, /*#__PURE__*/React.createElement("span", null, "\u2699\uFE0F \u81EA\u8A02\u76E4\u9762"), /*#__PURE__*/React.createElement("span", {
       className: "text-sm text-slate-400"
-    }, custOpen ? '▾ 收起' : '▸ 展開')), custOpen && /*#__PURE__*/React.createElement("div", {
+    }, custOpen ? '▾ 收起' : '▸ 展開')), /*#__PURE__*/React.createElement("div", {
+      className: "plat-collapse-y" + (custOpen ? " open" : "")
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
       className: "mt-3 flex flex-col gap-2"
     }, /*#__PURE__*/React.createElement("label", {
       className: "flex items-center justify-between font-bold text-slate-600 text-sm"
@@ -3759,7 +3759,7 @@ function MinesGame() {
     }, "\u7BC4\u570D\uFF1A\u5BEC 8\u201330\u3001\u9AD8 8\u201324\u3001\u96F7 5\u2013", effC.w * effC.h - 9, "\uFF08\u4F9D\u76EE\u524D\u5BEC\u9AD8\uFF1B\u9996\u9EDE\u4FDD\u8B77\u9700\u7559 9 \u683C\u7A7A\u767D\uFF09\u3002\u8D85\u51FA\u7BC4\u570D\u6703\u81EA\u52D5\u4FEE\u6B63\uFF0C\u958B\u59CB\u9215\u986F\u793A\u7684\u5C31\u662F\u5BE6\u969B\u6703\u958B\u7684\u76E4\u3002"), /*#__PURE__*/React.createElement("button", {
       onClick: startCustom,
       className: "plat-btn-hard plat-btn-hard-3 w-full py-3 bg-[#f97316] border-[3px] border-slate-800 rounded-xl font-black text-lg text-slate-900 shadow-[3px_3px_0px_rgba(30,41,59,1)]"
-    }, "\u25B6 \u958B\u59CB\uFF1A", effC.w, "\xD7", effC.h, "\u30FB", effC.mines, " \u96F7"))), /*#__PURE__*/React.createElement("button", {
+    }, "\u25B6 \u958B\u59CB\uFF1A", effC.w, "\xD7", effC.h, "\u30FB", effC.mines, " \u96F7"))))), /*#__PURE__*/React.createElement("button", {
       onClick: function onClick() {
         return setScreen('home');
       },
@@ -4828,25 +4828,27 @@ function MinesGame() {
       progress: 0,
       state: 'playing'
     };
-    return /*#__PURE__*/React.createElement("span", {
+    return /*#__PURE__*/React.createElement("div", {
       key: p.id,
       "data-fly-uid": p.id,
-      className: "text-xs font-black px-2 py-1 rounded-xl border-2 border-slate-300 bg-white flex flex-col gap-1 min-w-[84px]"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "flex items-center gap-1"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "w-2.5 h-2.5 rounded-full border border-slate-800",
+      className: "shrink-0 flex flex-col gap-0.5 border-2 border-slate-800 rounded px-1.5 py-0.5 relative bg-white"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "absolute left-0 top-0 bottom-0 w-1 rounded-l-[1px]",
       style: {
         background: p.color
       }
-    }), p.name, " ", g.state === 'finished' ? '🏁' : g.state === 'boom' ? '💥' : /*#__PURE__*/React.createElement(PlatPct, {
-      value: Math.floor((progMode === 'bv' ? effOfGod(g) : g.progress || 0) * 100)
-    })), /*#__PURE__*/React.createElement("span", {
-      className: "block h-1.5 rounded-full bg-slate-200 overflow-hidden"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "block h-full plat-pbar",
+    }), /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-1 text-[10px] md:text-xs font-bold text-slate-800 pl-1.5 whitespace-nowrap"
+    }, p.name, " ", g.state === 'finished' ? /*#__PURE__*/React.createElement("span", null, "\uD83C\uDFC1") : g.state === 'boom' ? /*#__PURE__*/React.createElement("span", null, "\uD83D\uDCA5") : /*#__PURE__*/React.createElement("span", {
+      className: "text-emerald-600 font-mono ml-1"
+    }, /*#__PURE__*/React.createElement(PlatPct, {
+      value: Math.floor(effOfGod(g) * 100)
+    }))), /*#__PURE__*/React.createElement("div", {
+      className: "w-24 md:w-32 h-1.5 bg-slate-200 rounded-full overflow-hidden ml-1.5 relative border border-slate-300"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "h-full plat-pbar",
       style: {
-        width: Math.floor((progMode === 'bv' ? effOfGod(g) : g.progress || 0) * 100) + '%',
+        width: Math.floor(effOfGod(g) * 100) + '%',
         background: p.color
       }
     })));
