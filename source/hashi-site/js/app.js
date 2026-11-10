@@ -3993,7 +3993,7 @@ function PlatNum(props) {
                 </div>
               )}
 
-              <div ref={zoomContainerRef} className="p-2 md:p-6 flex-1 overflow-auto custom-scrollbar relative z-0">
+              <div ref={zoomContainerRef} className="p-2 md:p-6 flex-1 overflow-auto custom-scrollbar plat-chat-clear relative z-0">
                 <div key={boardFadeKey} className="flex justify-center items-center min-w-max min-h-max m-auto pb-2 pr-2 animate-boardFade" style={raceState === 'countdown' ? { filter: 'blur(18px)', pointerEvents: 'none' } : { transition: 'filter 0.3s' }}>
                   <svg
                     ref={svgRef}
@@ -4349,7 +4349,7 @@ function PlatNum(props) {
               </div>
 
               {(raceState === 'spectating' || (inRace && raceWaiting)) && (
-                <div className="relative z-0 flex-1 min-h-0 overflow-y-auto p-4">
+                <div className="relative z-0 flex-1 min-h-0 overflow-y-auto p-4 plat-chat-clear">
                   <div className="max-w-md mx-auto bg-white border-4 border-[#1e293b] rounded-2xl shadow-[10px_10px_0px_#1e293b] p-5 mt-2">
                     <div className="flex items-center justify-between mb-3">
                       <h2 className="text-xl font-black text-[#1e293b]"><span key={raceState === 'spectating' ? 'spec' : 'fin'} className="plat-lite-in" style={{ display: 'inline-block' }}>{raceState === 'spectating' ? '👁️ 觀戰中' : '🏁 已完賽・觀戰中'}</span></h2>

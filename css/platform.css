@@ -120,6 +120,9 @@ body[data-view="lobby"] {
 .plat-bubble-sys { background: #e2e8f0; color: #64748b; border-radius: 999px; padding: 3px 12px; font-size: 12px; text-align: center; }
 .plat-msg.sys { color: #64748b; font-size: 12px; }
 #plat-chat-inputrow { display: flex; gap: 8px; padding: 8px 10px; border-top: 2px solid rgba(30,41,59,.15); }
+/* v1.61.3 聊天可見留白：聊天面板浮動於 bottom:96px、縮小態標題列約 46px → 捲動內容底部留 156px＋安全區，最後一列能完整捲到聊天列上方；聊天關閉（body 無 plat-chat-vis）留白自動歸零 */
+body.plat-chat-vis #view-lobby, body.plat-chat-vis #view-mines { padding-bottom: calc(156px + env(safe-area-inset-bottom, 0px)); }
+body.plat-chat-vis .plat-chat-clear { padding-bottom: calc(156px + env(safe-area-inset-bottom, 0px)); }
 #plat-chat-input { flex: 1; min-width: 0; border: 2px solid #1e293b; border-radius: 10px; padding: 7px 10px; font-weight: 700; }
 #plat-chat-send { background: #60a5fa; border: 2px solid #1e293b; border-radius: 10px; padding: 7px 16px; font-weight: 900; cursor: pointer; box-shadow: 2px 2px 0 rgba(30,41,59,1); }
 #plat-chat-emoji { background: #fff; border: 2px solid #1e293b; border-radius: 10px; padding: 7px 10px; font-size: 16px; line-height: 1; cursor: pointer; box-shadow: 2px 2px 0 rgba(30,41,59,1); }

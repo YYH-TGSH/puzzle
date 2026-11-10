@@ -6320,7 +6320,7 @@ function HashiGame() {
         ),
         React.createElement(
           'div',
-          { ref: zoomContainerRef, className: 'p-2 md:p-6 flex-1 overflow-auto custom-scrollbar relative z-0' },
+          { ref: zoomContainerRef, className: 'p-2 md:p-6 flex-1 overflow-auto custom-scrollbar plat-chat-clear relative z-0' },
           React.createElement(
             'div',
             { key: boardFadeKey, className: 'flex justify-center items-center min-w-max min-h-max m-auto pb-2 pr-2 animate-boardFade', style: raceState === 'countdown' ? { filter: 'blur(18px)', pointerEvents: 'none' } : { transition: 'filter 0.3s' } },
@@ -6712,7 +6712,7 @@ function HashiGame() {
         ),
         (raceState === 'spectating' || inRace && raceWaiting) && React.createElement(
           'div',
-          { className: 'relative z-0 flex-1 min-h-0 overflow-y-auto p-4' },
+          { className: 'relative z-0 flex-1 min-h-0 overflow-y-auto p-4 plat-chat-clear' },
           React.createElement(
             'div',
             { className: 'max-w-md mx-auto bg-white border-4 border-[#1e293b] rounded-2xl shadow-[10px_10px_0px_#1e293b] p-5 mt-2' },

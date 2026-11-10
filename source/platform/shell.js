@@ -178,7 +178,7 @@
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.61.2'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
+  var PLAT_VERSION = '1.61.3'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -392,14 +392,15 @@
     var u = $('plat-chat-unread'); if (u) { u.style.display = (Net.chatOpen && Net.chatMin && Net.unread > 0) ? 'inline-block' : 'none'; window.PlatLite(u, Net.unread > 99 ? '99+' : Net.unread); }
     if (window.PlatDock) window.PlatDock._emit();
   }
+  function syncChatVis() { try { document.body.classList.toggle('plat-chat-vis', !!Net.chatOpen); } catch (e) {} } // v1.61.3：聊天可見狀態給 CSS 留白規則用（捲動內容讓位浮動聊天列）
   function openChat() {
-    Net.chatOpen = true; Net.chatMin = false; Net.unread = 0; renderUnread();
+    Net.chatOpen = true; Net.chatMin = false; Net.unread = 0; renderUnread(); syncChatVis();
     var w = $('plat-chat'); if (w) { if (w._fadeT) { clearTimeout(w._fadeT); w._fadeT = null; } w.style.opacity = ''; w.style.display = 'block'; }
     platPopOpen($('plat-chat-panel'), '50% 100%', 'block', true); // v1.55.0：面板本體收編 popover 通則（由下微放大落定）
     $('plat-chat-body').style.display = 'flex'; $('plat-chat-min').textContent = '🔽';
     var list = $('plat-chat-list'); if (list) list.scrollTop = list.scrollHeight;
   }
-  function closeChat() { Net.chatOpen = false; var ep = $('plat-chat-emojis'); if (ep) platPopClose(ep); platPopClose($('plat-chat-panel'), function () { var w = $('plat-chat'); if (w && !Net.chatOpen) w.style.display = 'none'; }, true); }
+  function closeChat() { Net.chatOpen = false; syncChatVis(); var ep = $('plat-chat-emojis'); if (ep) platPopClose(ep); platPopClose($('plat-chat-panel'), function () { var w = $('plat-chat'); if (w && !Net.chatOpen) w.style.display = 'none'; }, true); }
   var lastChatSent = { text: '', at: 0 };
   function sendChat() {
     var inp = $('plat-chat-input'); var text = (inp.value || '').trim().slice(0, 200); if (!text || !Net.active) return; // 送出端也截斷（B-06，不只靠 HTML maxlength）
