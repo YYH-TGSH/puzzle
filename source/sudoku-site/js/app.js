@@ -3655,7 +3655,7 @@ function SudokuGame() {
                     )}
 
 
-                    <div ref={zoomContainerRef} className="p-2 md:p-6 flex-1 overflow-auto custom-scrollbar relative z-0 flex flex-col">
+                    <div ref={zoomContainerRef} className="px-2 pt-2 pb-28 md:px-6 md:pt-6 md:pb-24 flex-1 overflow-auto custom-scrollbar relative z-0 flex flex-col">
                         {isSpectator || (isBrawlMode && winner && finishViewMode === 'god') ? (
                             isBrawlMode ? renderHostGodView() : (
                                 <div className="flex-1 flex flex-col items-center justify-center min-h-[400px]">

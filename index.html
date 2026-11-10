@@ -10033,7 +10033,7 @@ function SudokuGame() {
     }, c);
   })), /*#__PURE__*/React.createElement("div", {
     ref: zoomContainerRef,
-    className: "p-2 md:p-6 flex-1 overflow-auto custom-scrollbar relative z-0 flex flex-col"
+    className: "px-2 pt-2 pb-28 md:px-6 md:pt-6 md:pb-24 flex-1 overflow-auto custom-scrollbar relative z-0 flex flex-col"
   }, isSpectator || isBrawlMode && winner && finishViewMode === 'god' ? isBrawlMode ? renderHostGodView() : /*#__PURE__*/React.createElement("div", {
     className: "flex-1 flex flex-col items-center justify-center min-h-[400px]"
   }, /*#__PURE__*/React.createElement("div", {
@@ -23536,7 +23536,7 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.61.1'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
+  var PLAT_VERSION = '1.61.2'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -23758,8 +23758,12 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
     var list = $('plat-chat-list'); if (list) list.scrollTop = list.scrollHeight;
   }
   function closeChat() { Net.chatOpen = false; var ep = $('plat-chat-emojis'); if (ep) platPopClose(ep); platPopClose($('plat-chat-panel'), function () { var w = $('plat-chat'); if (w && !Net.chatOpen) w.style.display = 'none'; }, true); }
+  var lastChatSent = { text: '', at: 0 };
   function sendChat() {
     var inp = $('plat-chat-input'); var text = (inp.value || '').trim().slice(0, 200); if (!text || !Net.active) return; // 送出端也截斷（B-06，不只靠 HTML maxlength）
+    var now = Date.now();
+    if (text === lastChatSent.text && now - lastChatSent.at < 800) { inp.value = ''; return; } // v1.61.2 送出冪等：同文 800ms 內重入＝實機事件層重複派發（連按/長按 repeat/webview 二次派發），吞掉但照清輸入框；不同文與 800ms 後同文照常送
+    lastChatSent = { text: text, at: now };
     inp.value = '';
     var m = { kind: 'chat', pid: Net.myPid, name: Net.me.name, color: Net.me.color, text: text };
     appendChat({ name: m.name, color: m.color, text: text, mine: true });
@@ -26576,7 +26580,11 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
       PLAT_EMOJIS.forEach(function (em) { var b = document.createElement('button'); b.type = 'button'; b.className = 'plat-emoji-btn'; b.textContent = em; b.onclick = function () { var inp = $('plat-chat-input'); var st = (inp.selectionStart != null) ? inp.selectionStart : inp.value.length; var en = (inp.selectionEnd != null) ? inp.selectionEnd : inp.value.length; if (inp.value.length + em.length > 200) return; inp.value = inp.value.slice(0, st) + em + inp.value.slice(en); try { inp.setSelectionRange(st + em.length, st + em.length); } catch (e2) {} inp.focus(); }; emojiPanel.appendChild(b); });
       $('plat-chat-emoji').onclick = function (e) { e.stopPropagation(); if (emojiPanel.style.display === 'none' || !emojiPanel.style.display) platPopOpen(emojiPanel, '0% 100%', 'grid'); else platPopClose(emojiPanel); }; // v1.55.0：經 popover helper（origin 對齊左下 😊 觸發鈕）
     }
-    $('plat-chat-input').addEventListener('keydown', function (e) { if (e.key === 'Enter') sendChat(); });
+    var chatInp = $('plat-chat-input');
+    if (chatInp && !chatInp.dataset.bound) {
+      chatInp.dataset.bound = '1';
+      chatInp.addEventListener('keydown', function (e) { if (e.key !== 'Enter') return; if (e.repeat || e.isComposing || e.keyCode === 229) return; sendChat(); }); // v1.61.2：長按 repeat 與中文組字中（isComposing/229）的 Enter 不送出——組字 Enter 是確認候選字、不是送訊息
+    }
     $('plat-speak-yes').onclick = function () { if (!Net.speakerOn) toggleSpeaker(); speakHide(); Net.speakPid = null; };
     $('plat-speak-no').onclick = function () { speakHide(); Net.speakPid = null; };
     // 邀請連結複製鈕（v1.51.0）
