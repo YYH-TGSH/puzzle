@@ -2561,88 +2561,6 @@ body.plat-room-on[data-view="mines"] {
   </div>
 
 <script>
-// === 零成本音效引擎：Web Audio API 即時合成，無任何外部音檔 ===
-    // 單例，全域透過 window.HASHI_SOUND.play(type) 呼叫
-    window.HASHI_SOUND = (function () {
-      let ctx = null;
-      let muted = false;
-      try { muted = localStorage.getItem('hashi_muted') === '1'; } catch (e) {}
-      function ensureCtx() {
-        if (!ctx) {
-          const AC = window.AudioContext || window.webkitAudioContext;
-          if (!AC) return null;
-          ctx = new AC();
-        }
-        // iOS Safari 要求在使用者手勢中 resume，否則無聲
-        if (ctx.state === 'suspended') { try { ctx.resume(); } catch (e) {} }
-        return ctx;
-      }
-      function beep(freq, dur, type, vol, delay) {
-        if (muted) return;
-        const c = ensureCtx();
-        if (!c) return;
-        try {
-          const t = c.currentTime + (delay || 0);
-          const o = c.createOscillator();
-          const g = c.createGain();
-          o.type = type || 'square';
-          o.frequency.setValueAtTime(freq, t);
-          g.gain.setValueAtTime(vol || 0.07, t);
-          g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-          o.connect(g);
-          g.connect(c.destination);
-          o.start(t);
-          o.stop(t + dur + 0.05);
-        } catch (e) {}
-      }
-      function buzz(pattern) {
-        try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (e) {}
-      }
-      return {
-        play: function (type) {
-          if (muted) return;
-          switch (type) {
-            case 'bridge':  // 架橋成功：清脆嗶聲 + 輕震
-              beep(600, 0.06, 'square', 0.07, 0);
-              buzz(10);
-              break;
-            case 'remove':  // 取消橋樑：低音噗聲
-              beep(300, 0.06, 'square', 0.07, 0);
-              break;
-            case 'error':   // 違規（橋樑交叉）：嗡嗡兩聲 + 震動
-              beep(160, 0.09, 'sawtooth', 0.09, 0);
-              beep(160, 0.09, 'sawtooth', 0.09, 0.13);
-              buzz([30, 30, 30]);
-              break;
-            case 'win':     // 過關：C-E-G 上行琶音 + 勝利震動
-              beep(523.25, 0.12, 'triangle', 0.10, 0);
-              beep(659.25, 0.12, 'triangle', 0.10, 0.13);
-              beep(783.99, 0.22, 'triangle', 0.10, 0.26);
-              buzz([50, 50, 100]);
-              break;
-            case 'countdown': // 🏁 競速倒數嗶聲
-              beep(880, 0.09, 'square', 0.08, 0);
-              break;
-            case 'go':      // 🏁 競速 GO！
-              beep(1320, 0.25, 'square', 0.09, 0);
-              break;
-            case 'star':    // ⭐ 星星叮聲
-              beep(1568, 0.18, 'sine', 0.09, 0);
-              break;
-            case 'click':   // UI 輕觸
-              beep(440, 0.04, 'sine', 0.05, 0);
-              break;
-          }
-        },
-        toggleMute: function () {
-          muted = !muted;
-          try { localStorage.setItem('hashi_muted', muted ? '1' : '0'); } catch (e) {}
-          return muted;
-        }
-      };
-    })();
-  </script>
-<script>
 // ============================================================
 // HASHI_SOLVER — 數橋求解器（純邏輯，無 DOM 依賴）
 //
@@ -3091,88 +3009,6 @@ window.HASHI_PUZZLE = (function () {
 })();
   </script>
 <script>
-// === 零成本音效引擎：Web Audio API 即時合成，無任何外部音檔（與數橋同款引擎/音色，兩款一致） ===
-    // 單例，全域透過 window.SUDOKU_SOUND.play(type) 呼叫
-    window.SUDOKU_SOUND = (function () {
-      let ctx = null;
-      let muted = false;
-      try { muted = localStorage.getItem('sudoku_muted') === '1'; } catch (e) {}
-      function ensureCtx() {
-        if (!ctx) {
-          const AC = window.AudioContext || window.webkitAudioContext;
-          if (!AC) return null;
-          ctx = new AC();
-        }
-        // iOS Safari 要求在使用者手勢中 resume，否則無聲
-        if (ctx.state === 'suspended') { try { ctx.resume(); } catch (e) {} }
-        return ctx;
-      }
-      function beep(freq, dur, type, vol, delay) {
-        if (muted) return;
-        const c = ensureCtx();
-        if (!c) return;
-        try {
-          const t = c.currentTime + (delay || 0);
-          const o = c.createOscillator();
-          const g = c.createGain();
-          o.type = type || 'square';
-          o.frequency.setValueAtTime(freq, t);
-          g.gain.setValueAtTime(vol || 0.07, t);
-          g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-          o.connect(g);
-          g.connect(c.destination);
-          o.start(t);
-          o.stop(t + dur + 0.05);
-        } catch (e) {}
-      }
-      function buzz(pattern) {
-        try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (e) {}
-      }
-      return {
-        play: function (type) {
-          if (muted) return;
-          switch (type) {
-            case 'place':   // 填入數字：清脆嗶聲 + 輕震（同數橋架橋）
-              beep(600, 0.06, 'square', 0.07, 0);
-              buzz(10);
-              break;
-            case 'remove':  // 清除格子：低音噗聲
-              beep(300, 0.06, 'square', 0.07, 0);
-              break;
-            case 'error':   // 被拒（格子凍結中）：嗡嗡兩聲 + 震動
-              beep(160, 0.09, 'sawtooth', 0.09, 0);
-              beep(160, 0.09, 'sawtooth', 0.09, 0.13);
-              buzz([30, 30, 30]);
-              break;
-            case 'win':     // 完成題目：C-E-G 上行琶音 + 勝利震動
-              beep(523.25, 0.12, 'triangle', 0.10, 0);
-              beep(659.25, 0.12, 'triangle', 0.10, 0.13);
-              beep(783.99, 0.22, 'triangle', 0.10, 0.26);
-              buzz([50, 50, 100]);
-              break;
-            case 'countdown': // 🏁 倒數嗶聲
-              beep(880, 0.09, 'square', 0.08, 0);
-              break;
-            case 'go':      // 🏁 GO！
-              beep(1320, 0.25, 'square', 0.09, 0);
-              break;
-            case 'star':    // ⭐ 叮聲
-              beep(1568, 0.18, 'sine', 0.09, 0);
-              break;
-            case 'click':   // UI 輕觸
-              beep(440, 0.04, 'sine', 0.05, 0);
-              break;
-          }
-        },
-        toggleMute: function () {
-          muted = !muted;
-          try { localStorage.setItem('sudoku_muted', muted ? '1' : '0'); } catch (e) {}
-          return muted;
-        }
-      };
-    })();
-  </script>
-<script>
 // 數獨引擎：常數、題目生成（唯一解驗證）、求解器、本地存檔
 // 由 sudoku-v3.13.4.html 拆出，純邏輯無 JSX，以一般 script 先於 app.js 載入
 
@@ -3556,6 +3392,8 @@ function platAudio() {
       try {
         if (readMuted()) return;
         var r = RECIPES[name]; if (!r) return;
+        var vib = { place: 10, error: [30, 30, 30], complete: [50, 50, 100], win: [50, 50, 100], gift: 10 }[name];
+        if (vib !== undefined) { try { if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(vib); } catch (e) {} }
         if (!unlocked || !ctx || ctx.state === 'suspended') return;
         var now = Date.now();
         if (lastPlay[name] && now - lastPlay[name] < 60) return;
@@ -11560,6 +11398,12 @@ function platAudio() {
       try {
         if (readMuted()) return;
         var r = RECIPES[name];if (!r) return;
+        var vib = { place: 10, error: [30, 30, 30], complete: [50, 50, 100], win: [50, 50, 100], gift: 10 }[name];
+        if (vib !== undefined) {
+          try {
+            if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(vib);
+          } catch (e) {}
+        }
         if (!unlocked || !ctx || ctx.state === 'suspended') return;
         var now = Date.now();
         if (lastPlay[name] && now - lastPlay[name] < 60) return;
@@ -14309,12 +14153,17 @@ function HashiGame() {
     });
     if (!target) return;
     if (target.locked) {
-      showToast('🎁 這是禮物補上的橋，已鎖定，不會被改掉');return;
-    } // 新規格數橋無 error 音（v1.64.0） // 禮物橋：誤觸不刪（點按/拖曳共用此入口）
+      showToast('🎁 這是禮物補上的橋，已鎖定，不會被改掉');try {
+        platAudio().play('error');
+      } catch (e) {}return;
+    } // 禮物橋鎖定拒絕＝error（v1.64.1 稽核裁示復原：主動操作被拒要有聲音回饋） // 禮物橋：誤觸不刪（點按/拖曳共用此入口）
 
     if (target.count + (target.draftCount || 0) === 0) {
       if (crossedBridgeIds.has(bId)) {
-        return showToast("🚫 橋樑不能交叉喔！請先移除阻擋的橋。"); // 交叉拒絕：新規格數橋無 error 音（v1.64.0，回報中申報待裁）
+        try {
+          platAudio().play('error');
+        } catch (e) {} // 交叉拒絕＝error（v1.64.1 稽核裁示復原：與數獨衝突同類——嘗試的落子不合法）
+        return showToast("🚫 橋樑不能交叉喔！請先移除阻擋的橋。");
       }
     }
 
@@ -19219,6 +19068,18 @@ function platAudio() {
         if (readMuted()) return;
         var r = RECIPES[name];
         if (!r) return;
+        var vib = {
+          place: 10,
+          error: [30, 30, 30],
+          complete: [50, 50, 100],
+          win: [50, 50, 100],
+          gift: 10
+        }[name];
+        if (vib !== undefined) {
+          try {
+            if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(vib);
+          } catch (e) {}
+        }
         if (!unlocked || !ctx || ctx.state === 'suspended') return;
         var now = Date.now();
         if (lastPlay[name] && now - lastPlay[name] < 60) return;
@@ -19665,48 +19526,7 @@ function countFlags(cells) {
   return c;
 } // 'L'＝禮物鎖定旗、'x'＝容錯踩雷格（皆計入旗數/剩餘雷數扣減）
 
-// ---------- 極簡音效（WebAudio，靜音鍵 mines_muted） ----------
-var _ac = null;
-function beep(freq, dur, type, vol, slideTo) {
-  if (platAudio().isMuted()) return; // 靜音統一殼級 plat_muted（PlatAudio，v1.64.0；未遷移自有音效同受其管轄）
-  try {
-    _ac = _ac || new (window.AudioContext || window.webkitAudioContext)();
-    if (_ac.state === 'suspended') _ac.resume();
-    var o = _ac.createOscillator(),
-      g = _ac.createGain(),
-      t = _ac.currentTime;
-    o.type = type || 'sine';
-    o.frequency.setValueAtTime(freq, t);
-    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
-    g.gain.setValueAtTime(vol || 0.08, t);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g);
-    g.connect(_ac.destination);
-    o.start(t);
-    o.stop(t + dur + 0.02);
-  } catch (e) {}
-}
-var SFX = {
-  dig: function dig() {
-    beep(520, 0.05, 'sine', 0.06);
-  },
-  flag: function flag() {
-    beep(880, 0.06, 'triangle', 0.07);
-  },
-  boom: function boom() {
-    beep(180, 0.5, 'sawtooth', 0.12, 40);
-  },
-  win: function win() {
-    [523, 659, 784, 1046].forEach(function (f, i) {
-      setTimeout(function () {
-        beep(f, 0.16, 'triangle', 0.08);
-      }, i * 110);
-    });
-  },
-  click: function click() {
-    beep(700, 0.04, 'sine', 0.05);
-  }
-};
+// ---------- 音效已全面收編 PlatAudio（v1.64.1：自有 beep/SFX 引擎刪除；未遷移音效經稽核裁示全數處理完畢） ----------
 var NUM_COLORS = {
   1: '#2563eb',
   2: '#16a34a',
@@ -20455,7 +20275,6 @@ function MinesGame() {
     setCustCfg(cl);
     platSave().write('mines_custom_cfg', cl);
     regCustomSpec(cl);
-    SFX.click();
     newGame('custom');
   }
   function chord(idx) {
@@ -21356,7 +21175,6 @@ function MinesGame() {
       toUid: tgt.id,
       kind: kind
     });
-    SFX.click();
     itemSay(kind === 'question' ? '❓ 已對 ' + tgt.name + ' 發動問號干擾！' : '⏪ 已對 ' + tgt.name + ' 發動回填！');
   }
   function maybeAutoFire() {
@@ -21441,7 +21259,7 @@ function MinesGame() {
       });
       questionFxRef.current = fx;
       setQuestionFx(fx);
-      SFX.boom();
+      platAudio().play('error');
       itemSay('❓ ' + (fromName || '對手') + ' 把你 ' + n + ' 個數字變成了問號（10 秒）！');
     } else {
       // 回填：隨機已開格為中心 3×3；碰到連鎖空格 → 整片相連空格＋其邊界數字一併蓋回
@@ -21504,7 +21322,7 @@ function MinesGame() {
         setQuestionFx(fx2);
       }
       setCells(NC);
-      SFX.boom();
+      platAudio().play('error');
       raceSendState(NC, B.nums, B.layout, true);
       itemSay('⏪ ' + (fromName || '對手') + ' 回填了你 ' + cnt + ' 格！');
     }
@@ -22358,7 +22176,6 @@ function MinesGame() {
         setInputMode(function (m) {
           return m === 'dig' ? 'flag' : m === 'flag' ? 'draw' : 'dig';
         });
-        SFX.click();
       } else if (name === 'draw-tool') {
         setDrawTool(payload);
       } else if (name === 'draw-erase-dbl') {
@@ -22370,10 +22187,8 @@ function MinesGame() {
       // 接到與卡片內 🔍 相同的 zoom state，兩組永遠同步；數獨/數橋的 PlatBar 本來就有接，只有地雷漏了。
       else if (name === 'zoom-in') {
         setZoom(pz().add(0.25));
-        SFX.click();
       } else if (name === 'zoom-out') {
         setZoom(pz().add(-0.25));
-        SFX.click();
       } else if (name === 'zoom-cycle') {
         var steps = [1, 1.5, 2, 2.5];
         var cur = pz().value();
@@ -22384,7 +22199,6 @@ function MinesGame() {
         }
         pz().setRaw(nx);
         setZoom(nx);
-        SFX.click();
       }
     }
   };
@@ -23031,7 +22845,6 @@ function MinesGame() {
       selected: dailySel,
       onPick: function onPick(ds) {
         setDailySel(ds);
-        SFX.click();
         startDaily(ds);
       }
     });
@@ -23054,7 +22867,6 @@ function MinesGame() {
       return /*#__PURE__*/React.createElement("button", {
         key: sz,
         onClick: function onClick() {
-          SFX.click();
           newGame(sz);
         },
         className: "plat-btn-hard plat-btn-hard-3 w-full py-4 bg-[#f97316] border-[3px] border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[3px_3px_0px_rgba(30,41,59,1)] flex items-center justify-between px-4"
@@ -23157,13 +22969,11 @@ function MinesGame() {
       className: "flex flex-col gap-3"
     }, /*#__PURE__*/React.createElement("button", {
       onClick: function onClick() {
-        SFX.click();
         setScreen('setup');
       },
       className: "plat-btn-hard plat-btn-hard-3 w-full py-4 bg-[#f97316] border-[3px] border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[3px_3px_0px_rgba(30,41,59,1)]"
     }, "\uD83D\uDC64 \u55AE\u6A5F\u6311\u6230"), /*#__PURE__*/React.createElement("button", {
       onClick: function onClick() {
-        SFX.click();
         startDaily(dailySel);
       },
       className: "plat-btn-hard plat-btn-hard-3 w-full py-4 bg-[#f97316] border-[3px] border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[3px_3px_0px_rgba(30,41,59,1)] flex items-center justify-center gap-2"
@@ -23237,7 +23047,7 @@ function MinesGame() {
         onClick: function onClick() {
           if (n === -1) {
             setTutDemoBoom(true);
-            SFX.boom();
+            platAudio().play('boom');
             return;
           }
           var open = tutDemoOpen.slice();
@@ -23257,7 +23067,7 @@ function MinesGame() {
             }
           }
           setTutDemoOpen(open);
-          SFX.dig();
+          platAudio().play('place');
         },
         className: "w-11 h-11 rounded-[4px] border border-orange-900/20",
         style: {
@@ -23462,7 +23272,6 @@ function MinesGame() {
       className: "flex gap-3"
     }, tutStep > 0 ? /*#__PURE__*/React.createElement("button", {
       onClick: function onClick() {
-        SFX.click();
         setTutStep(tutStep - 1);
       },
       className: "plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-white text-slate-800"
@@ -23475,7 +23284,6 @@ function MinesGame() {
       className: "plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-white text-slate-400"
     }, "\u8DF3\u904E"), tutStep < 3 ? /*#__PURE__*/React.createElement("button", {
       onClick: function onClick() {
-        SFX.click();
         setTutStep(tutStep + 1);
       },
       className: "plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-[#f97316] text-slate-900"
@@ -24426,7 +24234,7 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.64.0'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
+  var PLAT_VERSION = '1.64.1'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -24593,6 +24401,9 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
         try {
           if (readMuted()) return;
           var r = RECIPES[name]; if (!r) return;
+          // 震動復原（v1.64.1 稽核裁示）：舊 SUDOKU/HASHI 引擎震型逐字抽出——place 10、error [30,30,30]、win 系 [50,50,100]（complete/win）、gift 10（數橋禮物補橋舊走 bridge 音＋buzz 10）；地雷原本無震動、boom 不震。受靜音閘門管轄（舊 play() 首行即擋）、不隨節流/未解鎖丟棄（舊制每次未靜音呼叫皆震）
+          var vib = { place: 10, error: [30, 30, 30], complete: [50, 50, 100], win: [50, 50, 100], gift: 10 }[name];
+          if (vib !== undefined) { try { if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(vib); } catch (e) {} }
           if (!unlocked || !ctx || ctx.state === 'suspended') return; // 無手勢/未解鎖：靜默丟棄
           var now = Date.now();
           if (lastPlay[name] && now - lastPlay[name] < 60) return; // 同名 60ms 節流

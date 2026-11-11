@@ -23,6 +23,8 @@ function boot(seed) {
       w.__SHARED_REG__ = reg;
       mockAC(w);
       if (seed) for (const k in seed) { try { w.localStorage.setItem(k, seed[k]); } catch (e) {} }
+      w.__VIB = [];
+      try { Object.defineProperty(w.navigator, 'vibrate', { value: (p) => { w.__VIB.push(p); return true; }, configurable: true }); } catch (e) {}
       w.addEventListener('error', () => {});
     }
   });
@@ -75,6 +77,16 @@ function boot(seed) {
   await sleep(90);
   b = oscN(); PA.play('place');
   ok(oscN() - b === 1, '節流：90ms 後同名可再播');
+  // 震動復原（v1.64.1）：舊引擎震型——place 10、error [30,30,30]、complete [50,50,100]、boom 不震
+  w.__VIB.length = 0;
+  await sleep(90); PA.play('place');
+  ok(w.__VIB.length === 1 && w.__VIB[0] === 10, '震動：place → vibrate(10)');
+  PA.play('error');
+  ok(w.__VIB.length === 2 && JSON.stringify(w.__VIB[1]) === '[30,30,30]', '震動：error → vibrate([30,30,30])');
+  PA.play('complete');
+  ok(w.__VIB.length === 3 && JSON.stringify(w.__VIB[2]) === '[50,50,100]', '震動：complete → vibrate([50,50,100])（舊 win 震型）');
+  PA.play('boom');
+  ok(w.__VIB.length === 3, '震動：boom 不震（地雷原本無震動）');
   // 未知事件
   threw = false; try { PA.play('nope'); } catch (e) { threw = true; }
   ok(!threw, '未知事件名不 throw');
@@ -83,6 +95,8 @@ function boot(seed) {
   ok(w.localStorage.getItem('plat_muted') === '1' && PA.isMuted() === true, 'setMuted(true) → plat_muted=1');
   b = oscN(); PA.play('win');
   ok(oscN() - b === 0, '靜音時 play 零 oscillator');
+  w.__VIB.length = 0; PA.play('place');
+  ok(w.__VIB.length === 0, '靜音時不震動（照舊制閘門）');
   ok(PA.toggleMuted() === false && PA.isMuted() === false, 'toggleMuted 回傳新狀態');
   PA.setMuted(true);
   ok(PA.toggleMuted() === false && w.localStorage.getItem('plat_muted') === '0', 'toggle 後 plat_muted=0');

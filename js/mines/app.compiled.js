@@ -296,6 +296,18 @@ function platAudio() {
         if (readMuted()) return;
         var r = RECIPES[name];
         if (!r) return;
+        var vib = {
+          place: 10,
+          error: [30, 30, 30],
+          complete: [50, 50, 100],
+          win: [50, 50, 100],
+          gift: 10
+        }[name];
+        if (vib !== undefined) {
+          try {
+            if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(vib);
+          } catch (e) {}
+        }
         if (!unlocked || !ctx || ctx.state === 'suspended') return;
         var now = Date.now();
         if (lastPlay[name] && now - lastPlay[name] < 60) return;
@@ -742,48 +754,7 @@ function countFlags(cells) {
   return c;
 } // 'L'＝禮物鎖定旗、'x'＝容錯踩雷格（皆計入旗數/剩餘雷數扣減）
 
-// ---------- 極簡音效（WebAudio，靜音鍵 mines_muted） ----------
-var _ac = null;
-function beep(freq, dur, type, vol, slideTo) {
-  if (platAudio().isMuted()) return; // 靜音統一殼級 plat_muted（PlatAudio，v1.64.0；未遷移自有音效同受其管轄）
-  try {
-    _ac = _ac || new (window.AudioContext || window.webkitAudioContext)();
-    if (_ac.state === 'suspended') _ac.resume();
-    var o = _ac.createOscillator(),
-      g = _ac.createGain(),
-      t = _ac.currentTime;
-    o.type = type || 'sine';
-    o.frequency.setValueAtTime(freq, t);
-    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
-    g.gain.setValueAtTime(vol || 0.08, t);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g);
-    g.connect(_ac.destination);
-    o.start(t);
-    o.stop(t + dur + 0.02);
-  } catch (e) {}
-}
-var SFX = {
-  dig: function dig() {
-    beep(520, 0.05, 'sine', 0.06);
-  },
-  flag: function flag() {
-    beep(880, 0.06, 'triangle', 0.07);
-  },
-  boom: function boom() {
-    beep(180, 0.5, 'sawtooth', 0.12, 40);
-  },
-  win: function win() {
-    [523, 659, 784, 1046].forEach(function (f, i) {
-      setTimeout(function () {
-        beep(f, 0.16, 'triangle', 0.08);
-      }, i * 110);
-    });
-  },
-  click: function click() {
-    beep(700, 0.04, 'sine', 0.05);
-  }
-};
+// ---------- 音效已全面收編 PlatAudio（v1.64.1：自有 beep/SFX 引擎刪除；未遷移音效經稽核裁示全數處理完畢） ----------
 var NUM_COLORS = {
   1: '#2563eb',
   2: '#16a34a',
@@ -1532,7 +1503,6 @@ function MinesGame() {
     setCustCfg(cl);
     platSave().write('mines_custom_cfg', cl);
     regCustomSpec(cl);
-    SFX.click();
     newGame('custom');
   }
   function chord(idx) {
@@ -2433,7 +2403,6 @@ function MinesGame() {
       toUid: tgt.id,
       kind: kind
     });
-    SFX.click();
     itemSay(kind === 'question' ? '❓ 已對 ' + tgt.name + ' 發動問號干擾！' : '⏪ 已對 ' + tgt.name + ' 發動回填！');
   }
   function maybeAutoFire() {
@@ -2518,7 +2487,7 @@ function MinesGame() {
       });
       questionFxRef.current = fx;
       setQuestionFx(fx);
-      SFX.boom();
+      platAudio().play('error');
       itemSay('❓ ' + (fromName || '對手') + ' 把你 ' + n + ' 個數字變成了問號（10 秒）！');
     } else {
       // 回填：隨機已開格為中心 3×3；碰到連鎖空格 → 整片相連空格＋其邊界數字一併蓋回
@@ -2581,7 +2550,7 @@ function MinesGame() {
         setQuestionFx(fx2);
       }
       setCells(NC);
-      SFX.boom();
+      platAudio().play('error');
       raceSendState(NC, B.nums, B.layout, true);
       itemSay('⏪ ' + (fromName || '對手') + ' 回填了你 ' + cnt + ' 格！');
     }
@@ -3435,7 +3404,6 @@ function MinesGame() {
         setInputMode(function (m) {
           return m === 'dig' ? 'flag' : m === 'flag' ? 'draw' : 'dig';
         });
-        SFX.click();
       } else if (name === 'draw-tool') {
         setDrawTool(payload);
       } else if (name === 'draw-erase-dbl') {
@@ -3447,10 +3415,8 @@ function MinesGame() {
       // 接到與卡片內 🔍 相同的 zoom state，兩組永遠同步；數獨/數橋的 PlatBar 本來就有接，只有地雷漏了。
       else if (name === 'zoom-in') {
         setZoom(pz().add(0.25));
-        SFX.click();
       } else if (name === 'zoom-out') {
         setZoom(pz().add(-0.25));
-        SFX.click();
       } else if (name === 'zoom-cycle') {
         var steps = [1, 1.5, 2, 2.5];
         var cur = pz().value();
@@ -3461,7 +3427,6 @@ function MinesGame() {
         }
         pz().setRaw(nx);
         setZoom(nx);
-        SFX.click();
       }
     }
   };
@@ -4108,7 +4073,6 @@ function MinesGame() {
       selected: dailySel,
       onPick: function onPick(ds) {
         setDailySel(ds);
-        SFX.click();
         startDaily(ds);
       }
     });
@@ -4131,7 +4095,6 @@ function MinesGame() {
       return /*#__PURE__*/React.createElement("button", {
         key: sz,
         onClick: function onClick() {
-          SFX.click();
           newGame(sz);
         },
         className: "plat-btn-hard plat-btn-hard-3 w-full py-4 bg-[#f97316] border-[3px] border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[3px_3px_0px_rgba(30,41,59,1)] flex items-center justify-between px-4"
@@ -4234,13 +4197,11 @@ function MinesGame() {
       className: "flex flex-col gap-3"
     }, /*#__PURE__*/React.createElement("button", {
       onClick: function onClick() {
-        SFX.click();
         setScreen('setup');
       },
       className: "plat-btn-hard plat-btn-hard-3 w-full py-4 bg-[#f97316] border-[3px] border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[3px_3px_0px_rgba(30,41,59,1)]"
     }, "\uD83D\uDC64 \u55AE\u6A5F\u6311\u6230"), /*#__PURE__*/React.createElement("button", {
       onClick: function onClick() {
-        SFX.click();
         startDaily(dailySel);
       },
       className: "plat-btn-hard plat-btn-hard-3 w-full py-4 bg-[#f97316] border-[3px] border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[3px_3px_0px_rgba(30,41,59,1)] flex items-center justify-center gap-2"
@@ -4314,7 +4275,7 @@ function MinesGame() {
         onClick: function onClick() {
           if (n === -1) {
             setTutDemoBoom(true);
-            SFX.boom();
+            platAudio().play('boom');
             return;
           }
           var open = tutDemoOpen.slice();
@@ -4334,7 +4295,7 @@ function MinesGame() {
             }
           }
           setTutDemoOpen(open);
-          SFX.dig();
+          platAudio().play('place');
         },
         className: "w-11 h-11 rounded-[4px] border border-orange-900/20",
         style: {
@@ -4539,7 +4500,6 @@ function MinesGame() {
       className: "flex gap-3"
     }, tutStep > 0 ? /*#__PURE__*/React.createElement("button", {
       onClick: function onClick() {
-        SFX.click();
         setTutStep(tutStep - 1);
       },
       className: "plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-white text-slate-800"
@@ -4552,7 +4512,6 @@ function MinesGame() {
       className: "plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-white text-slate-400"
     }, "\u8DF3\u904E"), tutStep < 3 ? /*#__PURE__*/React.createElement("button", {
       onClick: function onClick() {
-        SFX.click();
         setTutStep(tutStep + 1);
       },
       className: "plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-[#f97316] text-slate-900"

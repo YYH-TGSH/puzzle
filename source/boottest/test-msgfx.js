@@ -17,7 +17,7 @@ ok(!/\$\('plat-speak'\)\.style\.display/.test(shellSrc), 'plat-speak 不再直�
 ok(/function speakShow/.test(shellSrc) && /function speakHide/.test(shellSrc), 'speakShow/speakHide 包裝存在');
 ok(/PlatLite\(span, msg\)/.test(shellSrc) && /plat-toast-in/.test(shellSrc), 'toast 換字走 PlatLite＋升起 class');
 ok((shellSrc.match(/data-pbmenu=/g) || []).length >= 3, 'PlatBar 三個子選單帶 data-pbmenu');
-ok(/PLAT_VERSION = '1\.64\.0'/.test(shellSrc), '版本 1.64.0');
+ok(/PLAT_VERSION = '1\.64\.1'/.test(shellSrc), '版本 1.64.1');
 
 const sharedReg = {};
 function loadPage(label) {

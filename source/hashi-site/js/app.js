@@ -285,6 +285,8 @@ function platAudio() {
       try {
         if (readMuted()) return;
         var r = RECIPES[name]; if (!r) return;
+        var vib = { place: 10, error: [30, 30, 30], complete: [50, 50, 100], win: [50, 50, 100], gift: 10 }[name];
+        if (vib !== undefined) { try { if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(vib); } catch (e) {} }
         if (!unlocked || !ctx || ctx.state === 'suspended') return;
         var now = Date.now();
         if (lastPlay[name] && now - lastPlay[name] < 60) return;
@@ -1944,11 +1946,12 @@ function platAudio() {
         const cur = bridges || [];
         const target = cur.find(b => b.id === bId);
         if (!target) return;
-        if (target.locked) { showToast('🎁 這是禮物補上的橋，已鎖定，不會被改掉'); return; } // 新規格數橋無 error 音（v1.64.0） // 禮物橋：誤觸不刪（點按/拖曳共用此入口）
+        if (target.locked) { showToast('🎁 這是禮物補上的橋，已鎖定，不會被改掉'); try { platAudio().play('error'); } catch (e) {} return; } // 禮物橋鎖定拒絕＝error（v1.64.1 稽核裁示復原：主動操作被拒要有聲音回饋） // 禮物橋：誤觸不刪（點按/拖曳共用此入口）
 
         if (target.count + (target.draftCount || 0) === 0) {
           if (crossedBridgeIds.has(bId)) {
-             return showToast("🚫 橋樑不能交叉喔！請先移除阻擋的橋。"); // 交叉拒絕：新規格數橋無 error 音（v1.64.0，回報中申報待裁）
+             try { platAudio().play('error'); } catch (e) {} // 交叉拒絕＝error（v1.64.1 稽核裁示復原：與數獨衝突同類——嘗試的落子不合法）
+             return showToast("🚫 橋樑不能交叉喔！請先移除阻擋的橋。");
           }
         }
 

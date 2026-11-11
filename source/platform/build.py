@@ -46,10 +46,8 @@ def classic(code):
     return '<script>\n' + code.rstrip() + '\n  </script>'
 
 classics = '\n'.join([
-    classic(read(HASHI, 'js/sound.js')),
     classic(read(HASHI, 'js/solver.js')),
     classic(read(HASHI, 'js/puzzle.js')),
-    classic(read(SUDOKU, 'js/sound.js')),
     classic(read(SUDOKU, 'js/engine.js')),
 ])
 
@@ -105,8 +103,7 @@ def build_site(outdir):
     # js: classics + compiled apps + shell
     import shutil, subprocess
     shutil.copy(os.path.join(SUDOKU, 'js/engine.js'), os.path.join(outdir, 'js/sudoku/engine.js'))
-    shutil.copy(os.path.join(SUDOKU, 'js/sound.js'), os.path.join(outdir, 'js/sudoku/sound.js'))
-    for f in ['sound.js', 'solver.js', 'puzzle.js']:
+    for f in ['solver.js', 'puzzle.js']:
         shutil.copy(os.path.join(HASHI, 'js', f), os.path.join(outdir, 'js/hashi', f))
     subprocess.run(['node', os.path.join(BASE, 'compile.js')], check=True)
     shutil.copy(os.path.join(BASE, '.build', 'plat-sudoku-compiled.js'), os.path.join(outdir, 'js/sudoku/app.compiled.js'))
@@ -122,10 +119,8 @@ def build_site(outdir):
     html = html.replace('<!--PLATFORM_CSS-->', '')
     html = re.sub(r'  <style>\n\n  </style>', '  <link rel="stylesheet" href="css/sudoku.css">\n  <link rel="stylesheet" href="css/hashi.css">\n  <link rel="stylesheet" href="css/mines.css">\n  <link rel="stylesheet" href="css/platform.css">', html)
     html = html.replace('<!--CLASSIC_SCRIPTS-->', '\n'.join([
-        '  <script src="js/hashi/sound.js"></script>',
         '  <script src="js/hashi/solver.js"></script>',
         '  <script src="js/hashi/puzzle.js"></script>',
-        '  <script src="js/sudoku/sound.js"></script>',
         '  <script src="js/sudoku/engine.js"></script>']))
     html = re.sub(r'  <script type="text/plain" id="code-sudoku">.*?</script>\n', '', html, flags=re.S)
     html = re.sub(r'  <script type="text/plain" id="code-hashi">.*?</script>\n', '', html, flags=re.S)

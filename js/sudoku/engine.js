@@ -381,6 +381,8 @@ function platAudio() {
       try {
         if (readMuted()) return;
         var r = RECIPES[name]; if (!r) return;
+        var vib = { place: 10, error: [30, 30, 30], complete: [50, 50, 100], win: [50, 50, 100], gift: 10 }[name];
+        if (vib !== undefined) { try { if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(vib); } catch (e) {} }
         if (!unlocked || !ctx || ctx.state === 'suspended') return;
         var now = Date.now();
         if (lastPlay[name] && now - lastPlay[name] < 60) return;

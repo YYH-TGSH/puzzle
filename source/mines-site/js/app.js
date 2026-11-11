@@ -136,6 +136,8 @@ function platAudio() {
       try {
         if (readMuted()) return;
         var r = RECIPES[name]; if (!r) return;
+        var vib = { place: 10, error: [30, 30, 30], complete: [50, 50, 100], win: [50, 50, 100], gift: 10 }[name];
+        if (vib !== undefined) { try { if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(vib); } catch (e) {} }
         if (!unlocked || !ctx || ctx.state === 'suspended') return;
         var now = Date.now();
         if (lastPlay[name] && now - lastPlay[name] < 60) return;
@@ -325,28 +327,7 @@ function computeBVWeights(w, h, L, N) {
 function effProgressOf(cellsArr, weights, bv) { if (!bv || !weights) return 0; var sm = 0; for (var i = 0; i < cellsArr.length; i++) if (cellsArr[i] === 'o') sm += weights[i]; var e = sm / bv; return e > 1 ? 1 : e; }
 function countFlags(cells) { var c = 0; for (var i = 0; i < cells.length; i++) if (cells[i] === 'f' || cells[i] === 'L' || cells[i] === 'x') c++; return c; } // 'L'＝禮物鎖定旗、'x'＝容錯踩雷格（皆計入旗數/剩餘雷數扣減）
 
-// ---------- 極簡音效（WebAudio，靜音鍵 mines_muted） ----------
-var _ac = null;
-function beep(freq, dur, type, vol, slideTo) {
-  if (platAudio().isMuted()) return; // 靜音統一殼級 plat_muted（PlatAudio，v1.64.0；未遷移自有音效同受其管轄）
-  try {
-    _ac = _ac || new (window.AudioContext || window.webkitAudioContext)();
-    if (_ac.state === 'suspended') _ac.resume();
-    var o = _ac.createOscillator(), g = _ac.createGain(), t = _ac.currentTime;
-    o.type = type || 'sine'; o.frequency.setValueAtTime(freq, t);
-    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
-    g.gain.setValueAtTime(vol || 0.08, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g); g.connect(_ac.destination); o.start(t); o.stop(t + dur + 0.02);
-  } catch (e) {}
-}
-var SFX = {
-  dig: function () { beep(520, 0.05, 'sine', 0.06); },
-  flag: function () { beep(880, 0.06, 'triangle', 0.07); },
-  boom: function () { beep(180, 0.5, 'sawtooth', 0.12, 40); },
-  win: function () { [523, 659, 784, 1046].forEach(function (f, i) { setTimeout(function () { beep(f, 0.16, 'triangle', 0.08); }, i * 110); }); },
-  click: function () { beep(700, 0.04, 'sine', 0.05); }
-};
-
+// ---------- 音效已全面收編 PlatAudio（v1.64.1：自有 beep/SFX 引擎刪除；未遷移音效經稽核裁示全數處理完畢） ----------
 var NUM_COLORS = { 1: '#2563eb', 2: '#16a34a', 3: '#dc2626', 4: '#1e3a8a', 5: '#7f1d1d', 6: '#0d9488', 7: '#111827', 8: '#6b7280' };
 var ACCENT = '#f97316';
 var MP_COLORS = ['#E3002B', '#F35B00', '#b58900', '#D7157A', '#007A61', '#87D300', '#00538A', '#008CC1', '#935CB9', '#7A0026'];
@@ -600,7 +581,6 @@ function MinesGame() {
     var cl = clampCustomSpec(custCfg.w, custCfg.h, custCfg.mines);
     setCustCfg(cl); platSave().write('mines_custom_cfg', cl);
     regCustomSpec(cl);
-    SFX.click();
     newGame('custom');
   }
 
@@ -975,7 +955,6 @@ function MinesGame() {
     var tgt = pickWeightedMine(tgts, p => Math.pow(effOfMine(p.id), 2) + 0.1); // 攻擊權重（打強者）定版公式（v1.50.0 改用 3BV eff）
     var ni = Object.assign({}, itemsRef.current); ni[kind] -= 1; itemsRef.current = ni; setMyItems(ni);
     sendItemMsg({ type: 'MINE_HIT', uid: myId, fromUid: myId, fromName: (myPlayer() || {}).name || '', toUid: tgt.id, kind: kind });
-    SFX.click();
     itemSay(kind === 'question' ? '❓ 已對 ' + tgt.name + ' 發動問號干擾！' : '⏪ 已對 ' + tgt.name + ' 發動回填！');
   }
   function maybeAutoFire() { // 集滿 3 自動連發（每 550ms 一發、每發重新挑目標；觸發的那種一路打到歸零——定版「滿 3 連發歸零」；沒有目標就停下）
@@ -1013,7 +992,7 @@ function MinesGame() {
       var fx = Object.assign({}, questionFxRef.current), exp = Date.now() + 10000;
       cluster.slice(0, n).forEach(i3 => { fx[i3] = exp; });
       questionFxRef.current = fx; setQuestionFx(fx);
-      SFX.boom();
+      platAudio().play('error');
       itemSay('❓ ' + (fromName || '對手') + ' 把你 ' + n + ' 個數字變成了問號（10 秒）！');
     } else {
       // 回填：隨機已開格為中心 3×3；碰到連鎖空格 → 整片相連空格＋其邊界數字一併蓋回
@@ -1027,7 +1006,7 @@ function MinesGame() {
       var NC = B.cells.slice(), cnt = 0; for (var key in cover) { NC[key] = 'h'; cnt++; }
       var fx2 = Object.assign({}, questionFxRef.current), fxChanged = false; for (var key2 in cover) if (fx2[key2]) { delete fx2[key2]; fxChanged = true; }
       if (fxChanged) { questionFxRef.current = fx2; setQuestionFx(fx2); }
-      setCells(NC); SFX.boom();
+      setCells(NC); platAudio().play('error');
       raceSendState(NC, B.nums, B.layout, true);
       itemSay('⏪ ' + (fromName || '對手') + ' 回填了你 ' + cnt + ' 格！');
     }
@@ -1351,15 +1330,15 @@ function MinesGame() {
   platBarCfgRef.current = {
     accent: ACCENT,
     onAction: (name) => {
-      if (name === 'mode-press') { setInputMode(m => (m === 'dig' ? 'flag' : m === 'flag' ? 'draw' : 'dig')); SFX.click(); }
+      if (name === 'mode-press') { setInputMode(m => (m === 'dig' ? 'flag' : m === 'flag' ? 'draw' : 'dig')); }
       else if (name === 'draw-tool') { setDrawTool(payload); }
       else if (name === 'draw-erase-dbl') { clearOwnStrokes(); }
       else if (name === 'draw-clear') { clearAllStrokes(); }
       // 殼 PlatBar 左下角縮放組（＋/－/循環）：v1.31 只做了卡片內 🔍 那組、這組沒人接線 → 按了沒反應（使用者 2026-11-04 截圖回報）。
       // 接到與卡片內 🔍 相同的 zoom state，兩組永遠同步；數獨/數橋的 PlatBar 本來就有接，只有地雷漏了。
-      else if (name === 'zoom-in') { setZoom(pz().add(0.25)); SFX.click(); }
-      else if (name === 'zoom-out') { setZoom(pz().add(-0.25)); SFX.click(); }
-      else if (name === 'zoom-cycle') { var steps = [1, 1.5, 2, 2.5]; var cur = pz().value(); var nx = 1; for (var i = 0; i < steps.length; i++) if (steps[i] > cur + 0.001) { nx = steps[i]; break; } pz().setRaw(nx); setZoom(nx); SFX.click(); }
+      else if (name === 'zoom-in') { setZoom(pz().add(0.25)); }
+      else if (name === 'zoom-out') { setZoom(pz().add(-0.25)); }
+      else if (name === 'zoom-cycle') { var steps = [1, 1.5, 2, 2.5]; var cur = pz().value(); var nx = 1; for (var i = 0; i < steps.length; i++) if (steps[i] > cur + 0.001) { nx = steps[i]; break; } pz().setRaw(nx); setZoom(nx); }
     }
   };
   // F3（v1.56.0）：縮放過渡（FLIP 式）——版面直接跳到新尺寸，視覺先以 transform 從舊比例開始、200ms travel 曲線收回 1；
@@ -1633,7 +1612,7 @@ function MinesGame() {
   }
 
   // ---------- 每日一題月曆（規格比照數獨/數橋：固定 6 列、完成亮燈、未來反灰） ----------
-  function openDailyCal() { if (window.PlatCalendar) window.PlatCalendar.show({ accent: '#f97316', records: readDailyRecords(), selected: dailySel, onPick: (ds) => { setDailySel(ds); SFX.click(); startDaily(ds); } }); } // 每日月曆已統一為殼端 PlatCalendar（v1.16）
+  function openDailyCal() { if (window.PlatCalendar) window.PlatCalendar.show({ accent: '#f97316', records: readDailyRecords(), selected: dailySel, onPick: (ds) => { setDailySel(ds); startDaily(ds); } }); } // 每日月曆已統一為殼端 PlatCalendar（v1.16）
 
   if (screen === 'setup') {
     const effC = clampCustomSpec(custCfg.w, custCfg.h, custCfg.mines); // 自訂盤實際會開的規格（輸入超出範圍先 clamp，開始鈕直接顯示修正後的值，不讓玩家猜）
@@ -1644,7 +1623,7 @@ function MinesGame() {
           <p className="font-semibold text-slate-400 text-sm mb-5">選一個盤面大小開始</p>
           <div className="flex flex-col gap-3">
             {[9, 16].map(sz => (
-              <button key={sz} onClick={() => { SFX.click(); newGame(sz); }}
+              <button key={sz} onClick={() => { newGame(sz); }}
                 className="plat-btn-hard plat-btn-hard-3 w-full py-4 bg-[#f97316] border-[3px] border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[3px_3px_0px_rgba(30,41,59,1)] flex items-center justify-between px-4">
                 <span>{sz === 9 ? '🌱' : '🔥'} {SIZES[sz].name}</span>
                 <span className="text-sm text-slate-700">{bestText(sz)}</span>
@@ -1690,8 +1669,8 @@ function MinesGame() {
             <p className="text-slate-800 font-black text-xl tracking-widest uppercase italic">Minesweeper</p>
           </div>
           <div className="flex flex-col gap-3">
-            <button onClick={() => { SFX.click(); setScreen('setup'); }} className="plat-btn-hard plat-btn-hard-3 w-full py-4 bg-[#f97316] border-[3px] border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[3px_3px_0px_rgba(30,41,59,1)]">👤 單機挑戰</button>
-            <button onClick={() => { SFX.click(); startDaily(dailySel); }} className="plat-btn-hard plat-btn-hard-3 w-full py-4 bg-[#f97316] border-[3px] border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[3px_3px_0px_rgba(30,41,59,1)] flex items-center justify-center gap-2">
+            <button onClick={() => { setScreen('setup'); }} className="plat-btn-hard plat-btn-hard-3 w-full py-4 bg-[#f97316] border-[3px] border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[3px_3px_0px_rgba(30,41,59,1)]">👤 單機挑戰</button>
+            <button onClick={() => { startDaily(dailySel); }} className="plat-btn-hard plat-btn-hard-3 w-full py-4 bg-[#f97316] border-[3px] border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[3px_3px_0px_rgba(30,41,59,1)] flex items-center justify-center gap-2">
               <span>📅 每日一題</span>{dDone && <span className="text-base bg-white/70 rounded-lg px-2 py-0.5">✓ 已完成</span>}
             </button>
             <div className="flex items-center gap-2">
@@ -1722,7 +1701,7 @@ function MinesGame() {
                     {[0, 1, -1, 0, 1, 1, 0, 0, 0].map((n, i) => {
                       const isOpen = tutDemoOpen[i] || (tutDemoBoom && n === -1);
                       if (!isOpen) return (<button key={i} onClick={() => {
-                        if (n === -1) { setTutDemoBoom(true); SFX.boom(); return; }
+                        if (n === -1) { setTutDemoBoom(true); platAudio().play('boom'); return; }
                         const open = tutDemoOpen.slice();
                         const stack = [i];
                         while (stack.length) {
@@ -1734,7 +1713,7 @@ function MinesGame() {
                             for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const nx = cx + dx, ny = cy + dy; if (nx >= 0 && nx < 3 && ny >= 0 && ny < 3) stack.push(ny * 3 + nx); }
                           }
                         }
-                        setTutDemoOpen(open); SFX.dig();
+                        setTutDemoOpen(open); platAudio().play('place');
                       }} className="w-11 h-11 rounded-[4px] border border-orange-900/20" style={{ background: 'linear-gradient(145deg,#fdba74,#fb923c)' }}></button>);
                       return (<div key={i} className="w-11 h-11 flex items-center justify-center font-black text-lg rounded-[4px] border border-orange-900/20" style={{ background: n === -1 ? '#fecaca' : '#f8fafc', color: n > 0 ? NUM_COLORS[n] : undefined }}>{n === -1 ? '💣' : (n > 0 ? n : '')}</div>);
                     })}
@@ -1820,9 +1799,9 @@ function MinesGame() {
                     {[0, 1, 2, 3].map(idx => (<div key={idx} className={"w-2.5 h-2.5 rounded-full border-2 border-slate-800 " + (idx === tutStep ? "bg-[#f97316]" : "bg-white")} />))}
                 </div>
                 <div className="flex gap-3">
-                    {tutStep > 0 ? (<button onClick={() => { SFX.click(); setTutStep(tutStep - 1); }} className="plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-white text-slate-800">上一步</button>) : (<div className="flex-1"></div>)}
+                    {tutStep > 0 ? (<button onClick={() => { setTutStep(tutStep - 1); }} className="plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-white text-slate-800">上一步</button>) : (<div className="flex-1"></div>)}
                     <button onClick={() => setShowHelp(false)} className="plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-white text-slate-400">跳過</button>
-                    {tutStep < 3 ? (<button onClick={() => { SFX.click(); setTutStep(tutStep + 1); }} className="plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-[#f97316] text-slate-900">下一步</button>) : (<button onClick={() => setShowHelp(false)} className="plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-emerald-400 text-slate-900">開始遊戲 🎮</button>)}
+                    {tutStep < 3 ? (<button onClick={() => { setTutStep(tutStep + 1); }} className="plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-[#f97316] text-slate-900">下一步</button>) : (<button onClick={() => setShowHelp(false)} className="plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-emerald-400 text-slate-900">開始遊戲 🎮</button>)}
                 </div>
             </div>
           </div>
