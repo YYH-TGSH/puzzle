@@ -4,7 +4,7 @@
   "seedBase": 20261111,
   "round": 2,
   "startedAt": "2026-11-11T13:31:27.776Z",
-  "updatedAt": "2026-11-11T15:22:32.182Z"
+  "updatedAt": "2026-11-11T16:13:43.461Z"
  },
  "sudoku": {
   "4-easy": {
@@ -238,8 +238,326 @@
     "min": 99,
     "max": 9105
    }
+  },
+  "16-hard": {
+   "size": 16,
+   "diff": "hard",
+   "targetGivens": [
+    98,
+    108
+   ],
+   "n": 300,
+   "givens": {
+    "mean": 105.31,
+    "std": 2.1,
+    "p10": 102,
+    "p50": 106,
+    "p90": 108,
+    "min": 98,
+    "max": 108
+   },
+   "givensInTargetRangePct": 100,
+   "singlesOnlySolvedPct": 21,
+   "genMs": {
+    "mean": 6397.63,
+    "std": 4307.27,
+    "p10": 467,
+    "p50": 8088,
+    "p90": 9079,
+    "min": 149,
+    "max": 26165
+   }
   }
  },
- "hashi": {},
- "mines": {}
+ "hashi": {
+  "L1": {
+   "level": 1,
+   "name": "5x5 幼幼班",
+   "size": "5x5",
+   "n": 300,
+   "attempts": {
+    "mean": 1.3,
+    "std": 0.6,
+    "p10": 1,
+    "p50": 1,
+    "p90": 2,
+    "min": 1,
+    "max": 5
+   },
+   "totalOutOfBandRejects": 58,
+   "cappedFallback": 0,
+   "shippedInBandPct": 100,
+   "islands": {
+    "mean": 4.45,
+    "std": 1.26,
+    "p10": 3,
+    "p50": 4,
+    "p90": 6,
+    "min": 3,
+    "max": 8
+   },
+   "totalBridgesInSolution": {
+    "mean": 5.34,
+    "std": 1.99,
+    "p10": 3,
+    "p50": 5,
+    "p90": 8,
+    "min": 3,
+    "max": 10
+   },
+   "genMs": {
+    "mean": 0.09,
+    "std": 0.32,
+    "p10": 0,
+    "p50": 0,
+    "p90": 0,
+    "min": 0,
+    "max": 3
+   }
+  },
+  "L2": {
+   "level": 2,
+   "name": "10x10 標準",
+   "size": "10x10",
+   "n": 300,
+   "attempts": {
+    "mean": 2.17,
+    "std": 1.59,
+    "p10": 1,
+    "p50": 2,
+    "p90": 4,
+    "min": 1,
+    "max": 9
+   },
+   "totalOutOfBandRejects": 39,
+   "cappedFallback": 0,
+   "shippedInBandPct": 100,
+   "islands": {
+    "mean": 19.01,
+    "std": 4.23,
+    "p10": 13,
+    "p50": 19,
+    "p90": 24,
+    "min": 11,
+    "max": 28
+   },
+   "totalBridgesInSolution": {
+    "mean": 28.08,
+    "std": 6.56,
+    "p10": 19,
+    "p50": 28,
+    "p90": 37,
+    "min": 16,
+    "max": 40
+   },
+   "genMs": {
+    "mean": 0.64,
+    "std": 2.83,
+    "p10": 0,
+    "p50": 0,
+    "p90": 1,
+    "min": 0,
+    "max": 38
+   }
+  },
+  "L3": {
+   "level": 3,
+   "name": "10x20 手機直式",
+   "size": "10x20",
+   "n": 300,
+   "attempts": {
+    "mean": 4.02,
+    "std": 3.44,
+    "p10": 1,
+    "p50": 3,
+    "p90": 8,
+    "min": 1,
+    "max": 23
+   },
+   "totalOutOfBandRejects": 50,
+   "cappedFallback": 0,
+   "shippedInBandPct": 100,
+   "islands": {
+    "mean": 40.94,
+    "std": 6.46,
+    "p10": 31,
+    "p50": 42,
+    "p90": 49,
+    "min": 26,
+    "max": 52
+   },
+   "totalBridgesInSolution": {
+    "mean": 61.9,
+    "std": 10.33,
+    "p10": 47,
+    "p50": 63,
+    "p90": 75,
+    "min": 39,
+    "max": 82
+   },
+   "genMs": {
+    "mean": 2.49,
+    "std": 2.58,
+    "p10": 0,
+    "p50": 2,
+    "p90": 6,
+    "min": 0,
+    "max": 16
+   }
+  },
+  "L4": {
+   "level": 4,
+   "name": "15x15 魔王",
+   "size": "15x15",
+   "n": 300,
+   "attempts": {
+    "mean": 4.45,
+    "std": 3.87,
+    "p10": 1,
+    "p50": 3,
+    "p90": 11,
+    "min": 1,
+    "max": 25
+   },
+   "totalOutOfBandRejects": 0,
+   "cappedFallback": 0,
+   "shippedInBandPct": 100,
+   "islands": {
+    "mean": 45.42,
+    "std": 9.98,
+    "p10": 29,
+    "p50": 48,
+    "p90": 56,
+    "min": 18,
+    "max": 64
+   },
+   "totalBridgesInSolution": {
+    "mean": 68.8,
+    "std": 15.78,
+    "p10": 43,
+    "p50": 72,
+    "p90": 85,
+    "min": 28,
+    "max": 98
+   },
+   "genMs": {
+    "mean": 4.93,
+    "std": 6.07,
+    "p10": 1,
+    "p50": 3,
+    "p90": 12,
+    "min": 0,
+    "max": 40
+   }
+  },
+  "L5": {
+   "level": 5,
+   "name": "20x20 史詩",
+   "size": "20x20",
+   "n": 300,
+   "attempts": {
+    "mean": 15.7,
+    "std": 15.4,
+    "p10": 2,
+    "p50": 11,
+    "p90": 38,
+    "min": 1,
+    "max": 87
+   },
+   "totalOutOfBandRejects": 0,
+   "cappedFallback": 0,
+   "shippedInBandPct": 100,
+   "islands": {
+    "mean": 84.16,
+    "std": 15.72,
+    "p10": 60,
+    "p50": 89,
+    "p90": 99,
+    "min": 36,
+    "max": 110
+   },
+   "totalBridgesInSolution": {
+    "mean": 130.58,
+    "std": 25.43,
+    "p10": 91,
+    "p50": 138,
+    "p90": 156,
+    "min": 54,
+    "max": 172
+   },
+   "genMs": {
+    "mean": 577.66,
+    "std": 642.37,
+    "p10": 28,
+    "p50": 369,
+    "p90": 1605,
+    "min": 0,
+    "max": 3857
+   }
+  }
+ },
+ "mines": {
+  "S9": {
+   "preset": "9×9・10 雷",
+   "n": 300,
+   "probes": 900,
+   "band": [
+    10,
+    22
+   ],
+   "shippedBv3": {
+    "mean": 14.79,
+    "std": 3.36,
+    "p10": 11,
+    "p50": 14,
+    "p90": 20,
+    "min": 10,
+    "max": 22
+   },
+   "inBandPct": 100,
+   "cappedApproxPct": 0,
+   "tries": {
+    "mean": 1.32,
+    "std": 0.68,
+    "p10": 1,
+    "p50": 1,
+    "p90": 2,
+    "min": 1,
+    "max": 6
+   },
+   "zoneSafePct": 100,
+   "minesPreservedPct": 100
+  },
+  "S16": {
+   "preset": "16×16・40 雷",
+   "n": 300,
+   "probes": 900,
+   "band": [
+    52,
+    81
+   ],
+   "shippedBv3": {
+    "mean": 65.82,
+    "std": 7.44,
+    "p10": 56,
+    "p50": 65,
+    "p90": 77,
+    "min": 52,
+    "max": 81
+   },
+   "inBandPct": 100,
+   "cappedApproxPct": 0,
+   "tries": {
+    "mean": 1.23,
+    "std": 0.51,
+    "p10": 1,
+    "p50": 1,
+    "p90": 2,
+    "min": 1,
+    "max": 5
+   },
+   "zoneSafePct": 100,
+   "minesPreservedPct": 100
+  }
+ }
 }
