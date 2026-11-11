@@ -178,7 +178,7 @@
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.65.2';
+  var PLAT_VERSION = '1.65.3';
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -323,11 +323,22 @@
       return ctx;
     }
     if (typeof document !== 'undefined' && document.addEventListener) {
-      document.addEventListener('pointerdown', function () {
+      // 解鎖/恢復（v1.65.3）：iOS 中斷（通知/Siri/切 App/主畫面 App 凍結解凍）會把 ctx 打入 'interrupted'（iOS 17+）或 'suspended'；
+      // 舊版只 resume 'suspended' → interrupted 永不恢復、音排進凍結的 currentTime、整場靜音（實機「數獨全程沒聲音」根因）。
+      // pointerdown/touchend/click 三路手勢都嘗試恢復；回前景（visibilitychange）也補一次 resume 嘗試（不設 unlocked、手勢外未必生效、下一個 pointerdown 會再補）。
+      var __paUnlock = function () {
         unlocked = true;
         var c = ensureCtx();
-        if (c && c.state === 'suspended') { try { var p = c.resume(); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
-      }, true);
+        if (c && (c.state === 'suspended' || c.state === 'interrupted')) { try { var p = c.resume(); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
+      };
+      document.addEventListener('pointerdown', __paUnlock, true);
+      document.addEventListener('touchend', __paUnlock, true);
+      document.addEventListener('click', __paUnlock, true);
+      document.addEventListener('visibilitychange', function () {
+        if (document.hidden) return;
+        var c = ensureCtx();
+        if (c && (c.state === 'suspended' || c.state === 'interrupted')) { try { var p = c.resume(); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
+      });
     }
     function tone(freq, at, dur, vol, type) {
       var t = ctx.currentTime + at;
@@ -348,7 +359,8 @@
           // 震動復原（v1.64.1 稽核裁示）：舊 SUDOKU/HASHI 引擎震型逐字抽出——place 10、error [30,30,30]、win 系 [50,50,100]（complete/win）、gift 10（數橋禮物補橋舊走 bridge 音＋buzz 10）；地雷原本無震動、boom 不震。受靜音閘門管轄（舊 play() 首行即擋）、不隨節流/未解鎖丟棄（舊制每次未靜音呼叫皆震）
           var vib = { place: 10, error: [30, 30, 30], complete: [50, 50, 100], win: [50, 50, 100], gift: 10 }[name];
           if (vib !== undefined) { try { if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(vib); } catch (e) {} }
-          if (!unlocked || !ctx || ctx.state === 'suspended') return; // 無手勢/未解鎖：靜默丟棄
+          if (!unlocked || !ctx) return;
+        if (ctx.state === 'suspended' || ctx.state === 'interrupted') { try { var rp = ctx.resume(); if (rp && rp.catch) rp.catch(function () {}); } catch (e) {} return; } // 非 running 不排音：排進凍結時鐘永遠不出聲、復原後還會爆出陳舊音（v1.65.3）
           var now = Date.now();
           if (lastPlay[name] && now - lastPlay[name] < 60) return; // 同名 60ms 節流
           lastPlay[name] = now;

@@ -114,11 +114,22 @@ function platAudio() {
     return ctx;
   }
   if (typeof document !== 'undefined' && document.addEventListener) {
-    document.addEventListener('pointerdown', function () {
+    // 解鎖/恢復（v1.65.3）：iOS 中斷（通知/Siri/切 App/主畫面 App 凍結解凍）會把 ctx 打入 'interrupted'（iOS 17+）或 'suspended'；
+    // 舊版只 resume 'suspended' → interrupted 永不恢復、音排進凍結的 currentTime、整場靜音（實機「數獨全程沒聲音」根因）。
+    // pointerdown/touchend/click 三路手勢都嘗試恢復；回前景（visibilitychange）也補一次 resume 嘗試（不設 unlocked、手勢外未必生效、下一個 pointerdown 會再補）。
+    var __paUnlock = function () {
       unlocked = true;
       var c = ensureCtx();
-      if (c && c.state === 'suspended') { try { var p = c.resume(); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
-    }, true);
+      if (c && (c.state === 'suspended' || c.state === 'interrupted')) { try { var p = c.resume(); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
+    };
+    document.addEventListener('pointerdown', __paUnlock, true);
+    document.addEventListener('touchend', __paUnlock, true);
+    document.addEventListener('click', __paUnlock, true);
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) return;
+      var c = ensureCtx();
+      if (c && (c.state === 'suspended' || c.state === 'interrupted')) { try { var p = c.resume(); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
+    });
   }
   function tone(freq, at, dur, vol, type) {
     var t = ctx.currentTime + at;
@@ -138,7 +149,8 @@ function platAudio() {
         var r = RECIPES[name]; if (!r) return;
         var vib = { place: 10, error: [30, 30, 30], complete: [50, 50, 100], win: [50, 50, 100], gift: 10 }[name];
         if (vib !== undefined) { try { if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(vib); } catch (e) {} }
-        if (!unlocked || !ctx || ctx.state === 'suspended') return;
+        if (!unlocked || !ctx) return;
+        if (ctx.state === 'suspended' || ctx.state === 'interrupted') { try { var rp = ctx.resume(); if (rp && rp.catch) rp.catch(function () {}); } catch (e) {} return; } // 非 running 不排音：排進凍結時鐘永遠不出聲、復原後還會爆出陳舊音（v1.65.3）
         var now = Date.now();
         if (lastPlay[name] && now - lastPlay[name] < 60) return;
         lastPlay[name] = now;
