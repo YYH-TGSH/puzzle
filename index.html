@@ -13336,12 +13336,12 @@ function HashiGame() {
         var pt = getSvgCoords(e.clientX, e.clientY);
         var dx = pt ? pt.x - dd.startX : 0,
             dy = pt ? pt.y - dd.startY : 0;
-        // 判定收編 PlatTap（v1.63.0）：tap＝未武裝＋TAP_MAX_MS 內＋client 漂移 ≤22（v1.56.0 F1 守恆）；武裝後（hold DRAG_HOLD_MS）走拖曳結算、由 dragCommitInfo 門檻決定是否成橋
+        // 判定收編 PlatTap（v1.63.0）：tap＝未武裝＋TAP_MAX_MS 內＋client 漂移 ≤22（v1.56.0 F1 守恆）；拖曳結算的武裝有兩路——hold DRAG_HOLD_MS（poll 旗標）或移動超過 TAP_MOVE_TOL（move 處理器設 dd.dragging、預覽線即由此顯示）——結算必須兩路都認，否則快拖看得到預覽卻永遠不成橋（v1.65.1 修：v1.63.0 結算只認 longpress 旗標，快拖被歸入「未武裝取消」）；成橋與否仍由 dragCommitInfo 門檻決定
         var res = tapTrk().up(e.clientX, e.clientY, Date.now());
         if (res.type === 'tap') {
           // 點擊：快速按下放開（有容錯）→ 只有橋樑能點，島嶼不做事
           if (dd.kind === 'bridge') handleBridgeClick(dd.id);
-        } else if (res.longpress && dd.targetId) {
+        } else if ((res.longpress || dd.dragging) && dd.targetId) {
           // 拖曳：有目標且拉超過門檻才真正架橋
           var info = dragCommitInfo(dd, dx, dy);
           if (info.len > info.threshold) handleBridgeClick(dd.targetId);
@@ -24314,7 +24314,7 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.65.0';
+  var PLAT_VERSION = '1.65.1';
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。

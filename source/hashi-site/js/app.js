@@ -1348,12 +1348,12 @@ function platAudio() {
             if (e.type !== 'pointercancel' && interactionMode < 2 && !isWon) {
                 const pt = getSvgCoords(e.clientX, e.clientY);
                 const dx = pt ? pt.x - dd.startX : 0, dy = pt ? pt.y - dd.startY : 0;
-                // 判定收編 PlatTap（v1.63.0）：tap＝未武裝＋TAP_MAX_MS 內＋client 漂移 ≤22（v1.56.0 F1 守恆）；武裝後（hold DRAG_HOLD_MS）走拖曳結算、由 dragCommitInfo 門檻決定是否成橋
+                // 判定收編 PlatTap（v1.63.0）：tap＝未武裝＋TAP_MAX_MS 內＋client 漂移 ≤22（v1.56.0 F1 守恆）；拖曳結算的武裝有兩路——hold DRAG_HOLD_MS（poll 旗標）或移動超過 TAP_MOVE_TOL（move 處理器設 dd.dragging、預覽線即由此顯示）——結算必須兩路都認，否則快拖看得到預覽卻永遠不成橋（v1.65.1 修：v1.63.0 結算只認 longpress 旗標，快拖被歸入「未武裝取消」）；成橋與否仍由 dragCommitInfo 門檻決定
                 const res = tapTrk().up(e.clientX, e.clientY, Date.now());
                 if (res.type === 'tap') {
                     // 點擊：快速按下放開（有容錯）→ 只有橋樑能點，島嶼不做事
                     if (dd.kind === 'bridge') handleBridgeClick(dd.id);
-                } else if (res.longpress && dd.targetId) {
+                } else if ((res.longpress || dd.dragging) && dd.targetId) {
                     // 拖曳：有目標且拉超過門檻才真正架橋
                     const info = dragCommitInfo(dd, dx, dy);
                     if (info.len > info.threshold) handleBridgeClick(dd.targetId);
