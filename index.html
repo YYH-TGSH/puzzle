@@ -24314,7 +24314,7 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.65.1';
+  var PLAT_VERSION = '1.65.2';
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -24607,6 +24607,31 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
   // ---------- 段位滑動指示片（v1.61.0 K1）：量測 selected 項 rect、在容器內絕對定位 pill 滑過去 ----------
   // memo 以 key 記上一位置：innerHTML 重建後 pill 是新元素，有舊位置→從舊位置啟用 transition 滑入（retarget 天然成立）；首次（無 memo）直接定位不播。
   var platSegMemo = {};
+  // 版面定稿再量測（v1.65.2）：PlatSeg 的一次性量測可能落在暫態版面上（Tailwind Play CDN 工具類尚未生成、字體/捲軸未定——
+  // 按鈕先以全寬堆疊排版，pill 吃下全寬幾何後凍結，定稿後永不校正＝數獨難度格黃條穿出卡片）。量測後以 50/250/700ms 三探針
+  // 重量：與上次目標幾何不同才以無過渡 snap 校正並更新 memo（滑動中的合法過渡目標與量測一致→不打斷）；元素已卸載/零尺寸靜默跳過。
+  var platSegSettleT = {};
+  function platSegSettle(key) {
+    var rec = platSegMemo[key]; if (!rec || !rec.container) return;
+    var container = rec.container; if (!container.isConnected) return;
+    var el = (rec.selEl && rec.selEl.isConnected) ? rec.selEl : container.querySelector('[data-seg-on="1"], .seg-on, .lob-tab-on');
+    if (!el) return;
+    var pill = null;
+    for (var i = 0; i < container.children.length; i++) { var ch = container.children[i]; if (ch.classList && ch.classList.contains('plat-seg-pill')) { pill = ch; break; } }
+    if (!pill) return;
+    var cr = container.getBoundingClientRect(), r = el.getBoundingClientRect();
+    if (!(r.width > 0 && r.height > 0)) return; // 隱藏/未定版面：不 snap 到零，留給下一探針或下次呼叫
+    var x = r.left - cr.left + (container.scrollLeft || 0), y = r.top - cr.top + (container.scrollTop || 0), w = r.width, h = r.height;
+    if (Math.abs(x - rec.x) <= 1 && Math.abs(y - rec.y) <= 1 && Math.abs(w - rec.w) <= 1 && Math.abs(h - rec.h) <= 1) return;
+    pill.style.transition = 'none';
+    pill.style.width = w + 'px'; pill.style.height = h + 'px';
+    pill.style.transform = 'translate(' + x + 'px,' + y + 'px)';
+    platSegMemo[key] = { x: x, y: y, w: w, h: h, el: pill, container: container, selEl: el, color: rec.color, from: { x: x, y: y, w: w, h: h }, at: Date.now() };
+  }
+  function platSegScheduleSettle(key) {
+    var old = platSegSettleT[key]; if (old) old.forEach(clearTimeout);
+    platSegSettleT[key] = [50, 250, 700].map(function (ms) { return setTimeout(function () { try { platSegSettle(key); } catch (e) {} }, ms); });
+  }
   window.PlatSeg = function (container, key, selEl, color) {
     if (!container || !selEl) return;
     var pill = null;
@@ -24628,7 +24653,8 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
       pill.style.transition = 'transform 200ms cubic-bezier(0.22, 1, 0.36, 1), width 200ms cubic-bezier(0.22, 1, 0.36, 1), height 200ms cubic-bezier(0.22, 1, 0.36, 1)';
       pill.style.width = w + 'px'; pill.style.height = h + 'px';
       pill.style.transform = 'translate(' + x + 'px,' + y + 'px)';
-      platSegMemo[key] = { x: x, y: y, w: w, h: h, el: pill, from: { x: slideFrom.x, y: slideFrom.y, w: slideFrom.w, h: slideFrom.h }, at: Date.now() };
+      platSegMemo[key] = { x: x, y: y, w: w, h: h, el: pill, container: container, selEl: selEl, color: color, from: { x: slideFrom.x, y: slideFrom.y, w: slideFrom.w, h: slideFrom.h }, at: Date.now() };
+      platSegScheduleSettle(key);
       return;
     }
     if (!prev || prev.el !== pill) {
@@ -24638,7 +24664,8 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
       pill.style.transform = 'translate(' + x + 'px,' + y + 'px)';
     }
     // 同一 pill 元素＋位置相同：什麼都不做——不能把先前換選時設的 200ms transition 洗回 'none'（殼每秒 tick 重渲染會打到這條）
-    platSegMemo[key] = { x: x, y: y, w: w, h: h, el: pill, from: prev ? prev.from : null, at: prev ? prev.at : 0 };
+    platSegMemo[key] = { x: x, y: y, w: w, h: h, el: pill, container: container, selEl: selEl, color: color, from: prev ? prev.from : null, at: prev ? prev.at : 0 };
+    platSegScheduleSettle(key);
   };
   // 玩家色 → 淡色版（泡泡底）：與白色以 22% 混色；rainbow 用紫系淡底
   function platTint(color) {

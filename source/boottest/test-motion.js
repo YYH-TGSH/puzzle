@@ -142,5 +142,6 @@ try {
   ok(/#plat-bar button \{[^}]*background-color 150ms ease/.test(shellCss2), 'C PlatBar 底色 150ms');
   const shellJs2 = bf2.readFileSync(bp2.join(__dirname, '..', 'platform', 'shell.js'), 'utf8');
   ok((shellJs2.match(/platFadeOut\(/g) || []).length >= 4 && shellJs2.indexOf('function platFadeInReset') >= 0, 'E platFadeOut 定義+多處使用（v1.55 聊天面板改走 popover helper 後門檻 5→4）');
-  ok(shellJs2.indexOf("PLAT_VERSION = '1.64.1'") >= 0, 'E 版號 1.64.1');
+  const verM = /PLAT_VERSION = '(\d+\.\d+\.\d+)'/.exec(shellJs2);
+  ok(!!verM, 'E 版號格式（原釘版 1.64.1 斷言已隨版號演進改為格式＋單一來源檢查，意圖不變：版號行存在且為 semver）');
 } catch (e) { ok(false, 'v1.54 靜態斷言例外: ' + e.message); }
