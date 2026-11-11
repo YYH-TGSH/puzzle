@@ -249,6 +249,115 @@ platSave().register('hashi_daily_streak', function (p) {
 platSave().register('hashi_solo_custom', function (p) {
   return !!p && (typeof p === 'undefined' ? 'undefined' : _typeof(p)) === 'object' && typeof p.w === 'number' && typeof p.h === 'number';
 });
+// === PlatTap/PlatZoom 接點（共用手勢判定＋縮放持有，v1.63.0）：平台模式用殼的 window.PlatTap/PlatZoom；獨立開啟用同語意本地後備（與殼同碼） ===
+function platTapFactoryLocal(opts) {
+  opts = opts || {};
+  var slop = opts.slop != null ? opts.slop : 22;
+  var tapMaxMs = opts.tapMaxMs != null ? opts.tapMaxMs : 0;
+  var lpMs = opts.longpressMs != null ? opts.longpressMs : 0;
+  var supMs = opts.suppressMs != null ? opts.suppressMs : 0;
+  var g = null;
+  var supT = -1,
+      supTag;
+  function drift(x, y) {
+    return g ? Math.hypot(x - g.x0, y - g.y0) : 0;
+  }
+  function settle(x, y, t, isCancel) {
+    if (!g) return { type: isCancel ? 'cancel' : 'none', dx: 0, dy: 0, drift: 0, dur: 0, longpress: false };
+    t = t != null ? t : Date.now();
+    var hasXY = typeof x === 'number' && typeof y === 'number';
+    var d = hasXY ? drift(x, y) : 0,
+        dur = t - g.t0,
+        lp = g.lpFired,
+        type;
+    if (isCancel) type = 'cancel';else if (lp) type = 'longpress';else if (d > slop) type = 'drag';else if (tapMaxMs > 0 && dur >= tapMaxMs) type = 'cancel';else type = 'tap';
+    var r = { type: type, dx: hasXY ? x - g.x0 : 0, dy: hasXY ? y - g.y0 : 0, drift: d, dur: dur, longpress: lp };
+    g = null;
+    return r;
+  }
+  return {
+    down: function down(x, y, t) {
+      g = { x0: x, y0: y, t0: t != null ? t : Date.now(), lpFired: false };
+    },
+    move: function move(x, y) {
+      if (!g) return { dragging: false, drift: 0 };var d = drift(x, y);return { dragging: d > slop, drift: d };
+    },
+    poll: function poll(t) {
+      if (g && lpMs > 0 && !g.lpFired && (t != null ? t : Date.now()) - g.t0 >= lpMs) {
+        g.lpFired = true;return 'longpress';
+      }return null;
+    },
+    up: function up(x, y, t) {
+      return settle(x, y, t, false);
+    },
+    cancel: function cancel(x, y, t) {
+      return settle(x, y, t, true);
+    },
+    markSuppress: function markSuppress(t, tag) {
+      supT = t != null ? t : Date.now();supTag = tag;
+    },
+    shouldSuppressClick: function shouldSuppressClick(t, tag) {
+      if (supMs <= 0 || supT < 0) return false;if ((t != null ? t : Date.now()) - supT >= supMs) return false;return supTag === undefined || tag === undefined || supTag === tag;
+    },
+    clearSuppress: function clearSuppress() {
+      supT = -1;
+    },
+    active: function active() {
+      return !!g;
+    }
+  };
+}
+function platZoomFactoryLocal(opts) {
+  opts = opts || {};
+  var _min = opts.min != null ? opts.min : 0.1;
+  var _max = opts.max != null ? opts.max : 5;
+  var val = opts.value != null ? opts.value : 1;
+  var clean2 = !!opts.cleanup2dp;
+  function clamp(v, lo, hi) {
+    return Math.min(hi, Math.max(lo, v));
+  }
+  var api = {
+    value: function value() {
+      return val;
+    },
+    set: function set(v, range) {
+      var lo = range ? range[0] : _min,
+          hi = range ? range[1] : _max;val = clamp(v, lo, hi);return val;
+    },
+    setRaw: function setRaw(v) {
+      val = v;return val;
+    },
+    add: function add(d) {
+      var v = val + d;if (clean2) v = Math.round(v * 100) / 100;return api.set(v);
+    },
+    reset: function reset() {
+      val = 1;return val;
+    },
+    min: function min() {
+      return _min;
+    }, max: function max() {
+      return _max;
+    }
+  };
+  return api;
+}
+function platTapNew(opts) {
+  return (window.PlatTap || platTapFactoryLocal)(opts);
+}
+function platZoomNew(opts) {
+  return (window.PlatZoom || platZoomFactoryLocal)(opts);
+}
+function platArmZoom(el) {
+  if (!el) return;
+  if (window.PlatZoom && window.PlatZoom.armTransition) {
+    window.PlatZoom.armTransition(el);return;
+  }
+  el.style.transition = 'width 200ms cubic-bezier(0.22, 1, 0.36, 1), height 200ms cubic-bezier(0.22, 1, 0.36, 1)';
+  if (el.__pzArmTimer) clearTimeout(el.__pzArmTimer);
+  el.__pzArmTimer = setTimeout(function () {
+    el.style.transition = '';el.__pzArmTimer = null;
+  }, 260);
+}
 
 // 每日紀錄收斂為單一 map key（稽核 G-01：原「一天一 key」無界成長）：第一次讀取時把全部舊 key 摺進 hashi_daily_map 並刪除舊 key，之後只讀寫 map（帶 schema 版本 v:1，G-02）
 var _dailyMapCache = null;
@@ -1353,6 +1462,14 @@ function HashiGame() {
   var userZoomedRef = useRef(false); // 使用者是否手動調整過縮放
   var lastBridgeTapRef = useRef({}); // 橋樑防連點時間戳
   var dragDrawRef = useRef(null); // 拖曳架橋手勢 {kind:'island'|'bridge', id, startX, startY, startT, dragging, targetId, holdTimer}
+  var tapTrkRef = useRef(null); // 共用手勢判定（PlatTap，v1.63.0）：slop 22 client／tapMax＝TAP_MAX_MS／hold 武裝＝DRAG_HOLD_MS
+  var tapTrk = function tapTrk() {
+    if (!tapTrkRef.current) tapTrkRef.current = platTapNew({ slop: 22, tapMaxMs: TAP_MAX_MS, longpressMs: DRAG_HOLD_MS });return tapTrkRef.current;
+  };
+  var pzRef = useRef(null); // 共用縮放持有（PlatZoom）：按鈕/pinch 0.4–3.5；適應模式以單次 range [0.2,3.5] 守恆
+  var pz = function pz() {
+    if (!pzRef.current) pzRef.current = platZoomNew({ min: 0.4, max: 3.5, value: 1 });return pzRef.current;
+  };
   var panRef = useRef(null); // 空白處單指拖曳捲動 {lastX, lastY}（CSS px；svg 已 touch-action:none，需手動捲動）
   var currentPathDataRef = useRef("");
   var drawingPathRef = useRef(null);
@@ -1428,7 +1545,7 @@ function HashiGame() {
   }, [engine, interactionMode]);
 
   useEffect(function () {
-    zoomLevelRef.current = zoomLevel;
+    zoomLevelRef.current = zoomLevel;pz().setRaw(zoomLevel);
   }, [zoomLevel]);
   useEffect(function () {
     zoomModeIdxRef.current = zoomModeIdx;
@@ -1468,7 +1585,7 @@ function HashiGame() {
         var dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
         if (lastPinchDist.current) {
           var delta = dist - lastPinchDist.current;
-          var newZoom = Math.min(Math.max(zoomLevelRef.current + delta * 0.005, 0.4), 3.5);
+          var newZoom = pz().set(zoomLevelRef.current + delta * 0.005);
 
           if (svgW * newZoom > MAX_SAFE_DIMENSION || svgH * newZoom > MAX_SAFE_DIMENSION) {
             newZoom = Math.min(MAX_SAFE_DIMENSION / svgW, MAX_SAFE_DIMENSION / svgH);
@@ -1754,6 +1871,7 @@ function HashiGame() {
     if (!pt) return;
     var dd = { kind: kind, id: id, startX: pt.x, startY: pt.y, startCX: e.clientX, startCY: e.clientY, startT: Date.now(), dragging: false, targetId: null, holdTimer: null };
     dragDrawRef.current = dd;
+    tapTrk().down(e.clientX, e.clientY, dd.startT);
     var pc = myCurrentColor === 'rainbow' ? '#fbbf24' : myCurrentColor;
     if (dragPreviewLineRef.current) dragPreviewLineRef.current.setAttribute('stroke', pc);
     if (dragPreviewTipRef.current) dragPreviewTipRef.current.setAttribute('fill', pc);
@@ -1764,6 +1882,7 @@ function HashiGame() {
     dd.holdTimer = setTimeout(function () {
       var cur = dragDrawRef.current;
       if (cur && cur.holdTimer === dd.holdTimer && !cur.dragging) {
+        if (tapTrk().poll(Date.now()) !== 'longpress') return; // 共用判定：到時才武裝、只武裝一次（PlatTap，v1.63.0）
         cur.dragging = true;
         var tip = dragPreviewTipRef.current;
         if (tip) {
@@ -1959,7 +2078,7 @@ function HashiGame() {
     // 雙指介入：取消拖曳架橋與空白捲動，讓 pinch 縮放接管
     if (e.isPrimary === false) {
       if (dragDrawRef.current) {
-        clearDragTimer(dragDrawRef.current);dragDrawRef.current = null;hideDragPreview();
+        clearDragTimer(dragDrawRef.current);dragDrawRef.current = null;hideDragPreview();tapTrk().cancel();
       }
       panRef.current = null;
       if (interactionMode < 2) {
@@ -2018,6 +2137,7 @@ function HashiGame() {
         clearDragTimer(dd);
         dragDrawRef.current = null;
         hideDragPreview();
+        tapTrk().cancel();
         setHoveredBridgeId(null);
       } else {
         var _pt = getSvgCoords(e.clientX, e.clientY);
@@ -2117,19 +2237,19 @@ function HashiGame() {
         var pt = getSvgCoords(e.clientX, e.clientY);
         var dx = pt ? pt.x - dd.startX : 0,
             dy = pt ? pt.y - dd.startY : 0;
-        var moved = Math.hypot(dx, dy);
-        var dt = Date.now() - (dd.startT || 0);
-        var cDrift = Math.hypot(e.clientX - (dd.startCX || 0), e.clientY - (dd.startCY || 0));
-        if (!dd.dragging && dt < TAP_MAX_MS && cDrift <= 22) {
-          // v1.56.0（F1 同類修）：容錯改 client 22px——舊制 12 SVG 單位在手機上只值約 6–12 實體 px，手指微滾就把點按橋吞掉
-          // 點擊：同點或相近位置、快速按下放開（有容錯率）→ 只有橋樑能點，島嶼不做事
+        // 判定收編 PlatTap（v1.63.0）：tap＝未武裝＋TAP_MAX_MS 內＋client 漂移 ≤22（v1.56.0 F1 守恆）；武裝後（hold DRAG_HOLD_MS）走拖曳結算、由 dragCommitInfo 門檻決定是否成橋
+        var res = tapTrk().up(e.clientX, e.clientY, Date.now());
+        if (res.type === 'tap') {
+          // 點擊：快速按下放開（有容錯）→ 只有橋樑能點，島嶼不做事
           if (dd.kind === 'bridge') handleBridgeClick(dd.id);
-        } else if (dd.dragging && dd.targetId) {
+        } else if (res.longpress && dd.targetId) {
           // 拖曳：有目標且拉超過門檻才真正架橋
           var info = dragCommitInfo(dd, dx, dy);
           if (info.len > info.threshold) handleBridgeClick(dd.targetId);
         }
-        // 其餘狀況（按住超時未動、拖曳未達門檻）→ 取消，什麼都不做
+        // 其餘狀況（按住超時未動、拖曳未達門檻、快滑未武裝）→ 取消，什麼都不做
+      } else {
+        tapTrk().cancel(); // pointercancel/已完賽等：只清 tracker 本次狀態，不污染下一次 down 基準
       }
       if (interactionMode < 2) {
         setHoveredIslandId(null);setHoveredBridgeId(null);
@@ -5075,17 +5195,12 @@ function HashiGame() {
   // 260ms 後自動卸下，雙指捏合（handleTouchMove）走另一條路、維持即時跟手。連按重掛即可 retarget。
   var zoomAnimTimerRef = useRef(null);
   var armZoomTransition = function armZoomTransition() {
-    var svg = svgRef.current;if (!svg) return;
-    svg.style.transition = 'width 200ms cubic-bezier(0.22, 1, 0.36, 1), height 200ms cubic-bezier(0.22, 1, 0.36, 1)';
-    if (zoomAnimTimerRef.current) clearTimeout(zoomAnimTimerRef.current);
-    zoomAnimTimerRef.current = setTimeout(function () {
-      if (svgRef.current) svgRef.current.style.transition = '';
-    }, 260);
-  };
+    platArmZoom(svgRef.current);
+  }; // 過渡武裝收編 PlatZoom.armTransition（v1.63.0，語意守恆）
 
   var handleZoomIn = function handleZoomIn() {
     armZoomTransition();
-    var newZoom = Math.min(zoomLevelRef.current + 0.3, 3.5);
+    var newZoom = pz().add(0.3);
     userZoomedRef.current = true;
 
     if (svgW * newZoom > MAX_SAFE_DIMENSION || svgH * newZoom > MAX_SAFE_DIMENSION) {
@@ -5104,7 +5219,7 @@ function HashiGame() {
   };
   var handleZoomOut = function handleZoomOut() {
     armZoomTransition();
-    var newZoom = Math.max(zoomLevelRef.current - 0.3, 0.4);
+    var newZoom = pz().add(-0.3);
     userZoomedRef.current = true;
     zoomLevelRef.current = newZoom;
     setZoomLevel(newZoom);
@@ -5117,6 +5232,7 @@ function HashiGame() {
   };
   var handleZoomReset = function handleZoomReset() {
     armZoomTransition();
+    pz().reset();
     zoomLevelRef.current = 1;
     userZoomedRef.current = true;
     setZoomLevel(1);
@@ -5156,7 +5272,7 @@ function HashiGame() {
     var availH = Math.max(50, ch - padY - wrapPadB);
     var paddingFactor = 0.98;
     var newZoom = Math.min(availW / sW, availH / sH) * paddingFactor;
-    newZoom = Math.min(Math.max(newZoom, 0.2), 3.5);
+    newZoom = pz().set(newZoom, [0.2, 3.5]);
     if (sW * newZoom > MAX_SAFE_DIMENSION || sH * newZoom > MAX_SAFE_DIMENSION) {
       newZoom = Math.min(MAX_SAFE_DIMENSION / sW, MAX_SAFE_DIMENSION / sH);
     }
@@ -5228,7 +5344,7 @@ function HashiGame() {
       showToast("🔲 長寬自動適應");
     }
 
-    newZoom = Math.min(Math.max(newZoom, 0.2), 3.5);
+    newZoom = pz().set(newZoom, [0.2, 3.5]);
 
     if (svgW * newZoom > MAX_SAFE_DIMENSION || svgH * newZoom > MAX_SAFE_DIMENSION) {
       newZoom = Math.min(MAX_SAFE_DIMENSION / svgW, MAX_SAFE_DIMENSION / svgH);

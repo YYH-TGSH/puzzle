@@ -178,7 +178,7 @@
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.62.0'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
+  var PLAT_VERSION = '1.63.0'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -224,6 +224,72 @@
     }
   };
   window.PlatSave.register('plat_vpos', function (p) { return !!p && typeof p === 'object' && !Array.isArray(p); });
+  // ===== PlatTap 手勢判定＋PlatZoom 縮放助手（技能對照改造第 2＋4 項，v1.63.0）=====
+  // 原則：抽判定、不抽接線——tracker 只回答「這一下算什麼」（tap/drag/longpress/cancel＋尾隨 click 抑制窗），
+  // 座標換算、動作、計時器與副作用全留在各款自己的 handler。門檻全部可由 opts 注入，預設＝三款現行共識。
+  // cancel 只清本次手勢狀態：下一次 down 全新基準——漂移永遠對「本次 down 原點」量（地雷 lpPt/downPt 分離的前車之鑑，構造上不會再犯）。
+  function platTapFactory(opts) {
+    opts = opts || {};
+    var slop = (opts.slop != null) ? opts.slop : 22;
+    var tapMaxMs = (opts.tapMaxMs != null) ? opts.tapMaxMs : 0;
+    var lpMs = (opts.longpressMs != null) ? opts.longpressMs : 0;
+    var supMs = (opts.suppressMs != null) ? opts.suppressMs : 0;
+    var g = null;
+    var supT = -1, supTag;
+    function drift(x, y) { return g ? Math.hypot(x - g.x0, y - g.y0) : 0; }
+    function settle(x, y, t, isCancel) {
+      if (!g) return { type: isCancel ? 'cancel' : 'none', dx: 0, dy: 0, drift: 0, dur: 0, longpress: false };
+      t = (t != null ? t : Date.now());
+      var hasXY = (typeof x === 'number' && typeof y === 'number');
+      var d = hasXY ? drift(x, y) : 0, dur = t - g.t0, lp = g.lpFired, type;
+      if (isCancel) type = 'cancel';
+      else if (lp) type = 'longpress';
+      else if (d > slop) type = 'drag';
+      else if (tapMaxMs > 0 && dur >= tapMaxMs) type = 'cancel';
+      else type = 'tap';
+      var r = { type: type, dx: hasXY ? x - g.x0 : 0, dy: hasXY ? y - g.y0 : 0, drift: d, dur: dur, longpress: lp };
+      g = null;
+      return r;
+    }
+    return {
+      down: function (x, y, t) { g = { x0: x, y0: y, t0: (t != null ? t : Date.now()), lpFired: false }; },
+      move: function (x, y) { if (!g) return { dragging: false, drift: 0 }; var d = drift(x, y); return { dragging: d > slop, drift: d }; },
+      poll: function (t) { if (g && lpMs > 0 && !g.lpFired && (t != null ? t : Date.now()) - g.t0 >= lpMs) { g.lpFired = true; return 'longpress'; } return null; },
+      up: function (x, y, t) { return settle(x, y, t, false); },
+      cancel: function (x, y, t) { return settle(x, y, t, true); },
+      markSuppress: function (t, tag) { supT = (t != null ? t : Date.now()); supTag = tag; },
+      shouldSuppressClick: function (t, tag) { if (supMs <= 0 || supT < 0) return false; if ((t != null ? t : Date.now()) - supT >= supMs) return false; return (supTag === undefined || tag === undefined || supTag === tag); },
+      clearSuppress: function () { supT = -1; },
+      active: function () { return !!g; }
+    };
+  }
+  window.PlatTap = platTapFactory;
+  // PlatZoom：統一持有 scale 與上下限；set 可帶單次 range（數獨 pinch 的 [0.4,3.5] 與按鈕 [0.1,5] 並存即靠此守恆）、setRaw 不夾（適應模式的計算值）。
+  function platZoomFactory(opts) {
+    opts = opts || {};
+    var min = (opts.min != null) ? opts.min : 0.1;
+    var max = (opts.max != null) ? opts.max : 5;
+    var val = (opts.value != null) ? opts.value : 1;
+    var clean2 = !!opts.cleanup2dp;
+    function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+    var api = {
+      value: function () { return val; },
+      set: function (v, range) { var lo = range ? range[0] : min, hi = range ? range[1] : max; val = clamp(v, lo, hi); return val; },
+      setRaw: function (v) { val = v; return val; },
+      add: function (d) { var v = val + d; if (clean2) v = Math.round(v * 100) / 100; return api.set(v); },
+      reset: function () { val = 1; return val; },
+      min: function () { return min; }, max: function () { return max; }
+    };
+    return api;
+  }
+  window.PlatZoom = platZoomFactory;
+  // 程式化縮放的過渡武裝（通則，收編數獨/數橋 armZoomTransition 語意）：掛 width/height 200ms 過渡、260ms 後自動卸下；連續呼叫重掛 retarget。手勢捏合不經此路、維持即時跟手。
+  window.PlatZoom.armTransition = function (el) {
+    if (!el) return;
+    el.style.transition = 'width 200ms cubic-bezier(0.22, 1, 0.36, 1), height 200ms cubic-bezier(0.22, 1, 0.36, 1)';
+    if (el.__pzArmTimer) clearTimeout(el.__pzArmTimer);
+    el.__pzArmTimer = setTimeout(function () { el.style.transition = ''; el.__pzArmTimer = null; }, 260);
+  };
   function normName(s) { return (s || '').trim().toLowerCase(); }
   function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); } // 補齊引號跳脫（稽核 B-02：esc 也用在 value="..." 屬性上下文，未跳脫的引號可突破屬性）；與 pbEsc 規格統一為五字元
   function platSafeColor(c) { // 顏色白名單（稽核 B-03）：只放行 PLAT_COLORS、rainbow 與 #rrggbb，其餘一律中性灰——防自報顏色拼進 style 字串時突破屬性/注入 CSS

@@ -79,6 +79,68 @@ platSave().register('mines_resume', function (p) { return !!p && typeof p === 'o
 platSave().register('mines_daily_records', function (p) { return !!p && typeof p === 'object' && !Array.isArray(p); });
 platSave().register('mines_daily_streak', function (p) { return !!p && typeof p === 'object' && typeof p.count === 'number'; });
 platSave().register('mines_custom_cfg', function (p) { return !!p && typeof p === 'object' && typeof p.w === 'number' && typeof p.h === 'number' && typeof p.mines === 'number'; });
+// === PlatTap/PlatZoom 接點（共用手勢判定＋縮放持有，v1.63.0）：平台模式用殼的 window.PlatTap/PlatZoom；獨立開啟用同語意本地後備（與殼同碼） ===
+function platTapFactoryLocal(opts) {
+  opts = opts || {};
+  var slop = (opts.slop != null) ? opts.slop : 22;
+  var tapMaxMs = (opts.tapMaxMs != null) ? opts.tapMaxMs : 0;
+  var lpMs = (opts.longpressMs != null) ? opts.longpressMs : 0;
+  var supMs = (opts.suppressMs != null) ? opts.suppressMs : 0;
+  var g = null;
+  var supT = -1, supTag;
+  function drift(x, y) { return g ? Math.hypot(x - g.x0, y - g.y0) : 0; }
+  function settle(x, y, t, isCancel) {
+    if (!g) return { type: isCancel ? 'cancel' : 'none', dx: 0, dy: 0, drift: 0, dur: 0, longpress: false };
+    t = (t != null ? t : Date.now());
+    var hasXY = (typeof x === 'number' && typeof y === 'number');
+    var d = hasXY ? drift(x, y) : 0, dur = t - g.t0, lp = g.lpFired, type;
+    if (isCancel) type = 'cancel';
+    else if (lp) type = 'longpress';
+    else if (d > slop) type = 'drag';
+    else if (tapMaxMs > 0 && dur >= tapMaxMs) type = 'cancel';
+    else type = 'tap';
+    var r = { type: type, dx: hasXY ? x - g.x0 : 0, dy: hasXY ? y - g.y0 : 0, drift: d, dur: dur, longpress: lp };
+    g = null;
+    return r;
+  }
+  return {
+    down: function (x, y, t) { g = { x0: x, y0: y, t0: (t != null ? t : Date.now()), lpFired: false }; },
+    move: function (x, y) { if (!g) return { dragging: false, drift: 0 }; var d = drift(x, y); return { dragging: d > slop, drift: d }; },
+    poll: function (t) { if (g && lpMs > 0 && !g.lpFired && (t != null ? t : Date.now()) - g.t0 >= lpMs) { g.lpFired = true; return 'longpress'; } return null; },
+    up: function (x, y, t) { return settle(x, y, t, false); },
+    cancel: function (x, y, t) { return settle(x, y, t, true); },
+    markSuppress: function (t, tag) { supT = (t != null ? t : Date.now()); supTag = tag; },
+    shouldSuppressClick: function (t, tag) { if (supMs <= 0 || supT < 0) return false; if ((t != null ? t : Date.now()) - supT >= supMs) return false; return (supTag === undefined || tag === undefined || supTag === tag); },
+    clearSuppress: function () { supT = -1; },
+    active: function () { return !!g; }
+  };
+}
+function platZoomFactoryLocal(opts) {
+  opts = opts || {};
+  var min = (opts.min != null) ? opts.min : 0.1;
+  var max = (opts.max != null) ? opts.max : 5;
+  var val = (opts.value != null) ? opts.value : 1;
+  var clean2 = !!opts.cleanup2dp;
+  function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+  var api = {
+    value: function () { return val; },
+    set: function (v, range) { var lo = range ? range[0] : min, hi = range ? range[1] : max; val = clamp(v, lo, hi); return val; },
+    setRaw: function (v) { val = v; return val; },
+    add: function (d) { var v = val + d; if (clean2) v = Math.round(v * 100) / 100; return api.set(v); },
+    reset: function () { val = 1; return val; },
+    min: function () { return min; }, max: function () { return max; }
+  };
+  return api;
+}
+function platTapNew(opts) { return (window.PlatTap || platTapFactoryLocal)(opts); }
+function platZoomNew(opts) { return (window.PlatZoom || platZoomFactoryLocal)(opts); }
+function platArmZoom(el) {
+  if (!el) return;
+  if (window.PlatZoom && window.PlatZoom.armTransition) { window.PlatZoom.armTransition(el); return; }
+  el.style.transition = 'width 200ms cubic-bezier(0.22, 1, 0.36, 1), height 200ms cubic-bezier(0.22, 1, 0.36, 1)';
+  if (el.__pzArmTimer) clearTimeout(el.__pzArmTimer);
+  el.__pzArmTimer = setTimeout(function () { el.style.transition = ''; el.__pzArmTimer = null; }, 260);
+}
 
 function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 function hashStr(s) { var h = 2166136261; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
@@ -261,6 +323,9 @@ function MinesGame() {
   const lpRef = useRef(null);                       // 長按計時器（長按插旗）
   const lpPtRef = useRef(null);   // 長按起點座標（移動超過容錯取消長按：滑動/捲動不是長按）
   const downPtRef = useRef(null); // v1.56.0 修：漂移判定的按下座標專用——onCellMove 取消長按時會清 lpPtRef，舊版連漂移基準一起清掉，放開時無從判漂移、滑出 40px 也照挖（test-inputfix ③ 抓到）
+  const cellTrkRef = useRef(null); // 本次按壓的 PlatTap 實例（每按新建：計時器閉包各 poll 自己那顆，跨按不互擾，v1.63.0）
+  const supTrkRef = useRef(null); // 尾隨 click 抑制（PlatTap suppress 500ms、同格 tag——舊 upGuardRef 語意收編）
+  const supTrk = () => { if (!supTrkRef.current) supTrkRef.current = platTapNew({ suppressMs: 500 }); return supTrkRef.current; };
 
   const spec = SIZES[sizeId] || SIZES[9];
   const specRef = useRef(spec); specRef.current = spec; // 事件處理器讀這份（不吃 setSizeId 的 state 更新時序；自訂盤面不能再用「格數 256 推規格」的舊推斷）
@@ -276,7 +341,9 @@ function MinesGame() {
   const itemToastTimerRef = useRef(null);
   const [mistLeft, setMistLeft] = useState(0);   // 競速容錯剩餘次數（顯示用）
   const mistakesRef = useRef(0);                // 競速已用掉的容錯次數
-  const [zoom, setZoom] = useState(1);          // 盤面縮放（比照數獨：1=適應螢幕，展開後 －/＋/適應）——卡片內 🔍 與殼 PlatBar 左下角縮放組共用這一顆 state（單一真相）
+  const [zoom, setZoom] = useState(1);
+  const pzRef = useRef(null); // 共用縮放持有（PlatZoom，v1.63.0）：1–2.5、0.25 步進（cleanup2dp 守恆舊 Math.round 淨化）；FLIP 動畫本體不動、僅狀態與上下限收編
+  const pz = () => { if (!pzRef.current) pzRef.current = platZoomNew({ min: 1, max: 2.5, value: 1, cleanup2dp: true }); return pzRef.current; };          // 盤面縮放（比照數獨：1=適應螢幕，展開後 －/＋/適應）——卡片內 🔍 與殼 PlatBar 左下角縮放組共用這一顆 state（單一真相）
   const [zoomOpen, setZoomOpen] = useState(false);
   const [custCfg, setCustCfg] = useState(() => { var c0 = platSave().read('mines_custom_cfg', { fallback: null }); if (c0) return clampCustomSpec(c0.w, c0.h, c0.mines); return { w: 16, h: 16, mines: 40 }; }); // 單機自訂盤面（寬/高/雷），持久化
   const [custOpen, setCustOpen] = useState(false);
@@ -557,34 +624,43 @@ function MinesGame() {
     lpCellRef.current = { idx: idx, t: Date.now() };
     lpPtRef.current = (e && typeof e.clientX === 'number') ? { x: e.clientX, y: e.clientY } : null;
     downPtRef.current = lpPtRef.current;
+    var cellTrk = platTapNew({ slop: TAP_DRIFT_PX, longpressMs: 500 });
+    if (lpPtRef.current) cellTrk.down(lpPtRef.current.x, lpPtRef.current.y, Date.now());
+    cellTrkRef.current = cellTrk;
     // 已定案的格（已開數字、容錯 ✗、禮物鎖定旗）不需要長按插旗計時器：不起計時器，按住數字想事情不會有任何副作用
     if (!cells || cells[idx] === 'o' || cells[idx] === 'x' || cells[idx] === 'L') return;
     // 500ms 與數獨的長按清除一致（舊 380ms 太短：稍用力、稍慢的一般點按就被誤判成長按插旗——誤觸主因之一）
-    lpRef.current = setTimeout(() => { lpRef.current = null; lpPtRef.current = null; lpFiredRef.current = true; toggleFlag(idx); }, 500);
+    lpRef.current = setTimeout(() => { if (cellTrk.poll(Date.now()) !== 'longpress') return; lpRef.current = null; lpPtRef.current = null; lpFiredRef.current = true; toggleFlag(idx); }, 500); // 共用判定：到時才算長按、只觸發一次（PlatTap，v1.63.0）
   }
   function onCellMove(e) {
     // 防誤觸：按住後移動超過 TAP_DRIFT_PX（想捲動頁面）就取消長按判定——舊版 10px 太嚴：手指自然抖動就把長按照消，
     // 放開後只剩 click 路徑、又被漂移檢查吞掉（v1.54.2 與 pointerup 容許漂移統一為 22px）。漂移基準讀 downPtRef、且不清它（放開時還要用）。
-    if (!lpRef.current || !downPtRef.current || !e || typeof e.clientX !== 'number') return;
-    if (Math.hypot(e.clientX - downPtRef.current.x, e.clientY - downPtRef.current.y) > TAP_DRIFT_PX) { clearTimeout(lpRef.current); lpRef.current = null; lpPtRef.current = null; }
+    if (!lpRef.current || !e || typeof e.clientX !== 'number') return;
+    var mvTrk = cellTrkRef.current;
+    if (!mvTrk || !mvTrk.active()) return; // 無座標起手（downPtRef 為空的舊路徑）同舊版直接返回
+    if (mvTrk.move(e.clientX, e.clientY).dragging) { clearTimeout(lpRef.current); lpRef.current = null; lpPtRef.current = null; }
   }
   function onCellUp(e, commit) {
     var fired = lpFiredRef.current; // 長按已插旗：這次放開不再挖（lpFiredRef 留給隨後的 click 做最後一道吞嚥）
     if (lpRef.current) { clearTimeout(lpRef.current); lpRef.current = null; }
-    if (!commit) { lpLeftRef.current = true; return; } // pointerleave：只停長按計時＋記下曾滑出；起點/座標紀錄留給即將到來的 pointerup
+    if (!commit) { lpLeftRef.current = true; return; } // pointerleave：只停長按計時＋記下曾滑出；tracker 不結算（等真正的 up/cancel）
     var lc = lpCellRef.current; lpCellRef.current = null;
     var leftOut = lpLeftRef.current; lpLeftRef.current = false;
-    if (leftOut && e && e.currentTarget && e.currentTarget.dataset && e.currentTarget.dataset.cell != null && Number(e.currentTarget.dataset.cell) !== (lc && lc.idx)) return; // 滑出起點格又在別格放開（滑鼠式取消）
-    var pt = downPtRef.current; downPtRef.current = null; lpPtRef.current = null;
-    if (fired || !lc) return;
-    if (pt && e && typeof e.clientX === 'number' && Math.hypot(e.clientX - pt.x, e.clientY - pt.y) > TAP_DRIFT_PX) return; // 滑太遠＝捲動意圖，整下取消
-    upGuardRef.current = { idx: lc.idx, t: Date.now() };
+    if (leftOut && e && e.currentTarget && e.currentTarget.dataset && e.currentTarget.dataset.cell != null && Number(e.currentTarget.dataset.cell) !== (lc && lc.idx)) { if (cellTrkRef.current) { cellTrkRef.current.cancel(); cellTrkRef.current = null; } return; } // 滑出起點格又在別格放開（滑鼠式取消）
+    downPtRef.current = null; lpPtRef.current = null;
+    if (fired || !lc) { if (cellTrkRef.current) { cellTrkRef.current.cancel(); cellTrkRef.current = null; } return; }
+    // 點按判定收編 PlatTap（v1.63.0，守恆 v1.54.2/v1.56.0 語意）：漂移 ≤22 對按下那格執行、超過＝捲動意圖整下取消；無座標起手（tracker 未啟動）比照舊版 pt 為空直接放行
+    var upTrk = cellTrkRef.current; cellTrkRef.current = null;
+    if (upTrk && upTrk.active() && e && typeof e.clientX === 'number') {
+      var res = upTrk.up(e.clientX, e.clientY, Date.now());
+      if (res.type !== 'tap') return;
+    } else if (upTrk) upTrk.cancel();
+    supTrk().markSuppress(Date.now(), lc.idx);
     onCellAction(lc.idx);
   }
-  function onCellCancel() { if (lpRef.current) { clearTimeout(lpRef.current); lpRef.current = null; } lpPtRef.current = null; downPtRef.current = null; lpCellRef.current = null; } // pointercancel：瀏覽器接管手勢（捲動）→ 整下作廢
+  function onCellCancel() { if (lpRef.current) { clearTimeout(lpRef.current); lpRef.current = null; } lpPtRef.current = null; downPtRef.current = null; lpCellRef.current = null; if (cellTrkRef.current) { cellTrkRef.current.cancel(); cellTrkRef.current = null; } } // pointercancel：瀏覽器接管手勢（捲動）→ 整下作廢；tracker 只清本次、不污染下次基準
   function onCellClick(idx) {
-    var g = upGuardRef.current;
-    if (g && g.idx === idx && Date.now() - g.t < 500) { upGuardRef.current = null; return; } // pointerup 已做完這一下，click 是尾巴
+    if (supTrk().shouldSuppressClick(Date.now(), idx)) { supTrk().clearSuppress(); return; } // pointerup 已做完這一下，click 是尾巴（一次性吞嚥，舊 upGuard 語意）
     onCellAction(idx);
   }
 
@@ -1210,14 +1286,15 @@ function MinesGame() {
       else if (name === 'draw-clear') { clearAllStrokes(); }
       // 殼 PlatBar 左下角縮放組（＋/－/循環）：v1.31 只做了卡片內 🔍 那組、這組沒人接線 → 按了沒反應（使用者 2026-11-04 截圖回報）。
       // 接到與卡片內 🔍 相同的 zoom state，兩組永遠同步；數獨/數橋的 PlatBar 本來就有接，只有地雷漏了。
-      else if (name === 'zoom-in') { setZoom(z => Math.min(2.5, Math.round((z + 0.25) * 100) / 100)); SFX.click(); }
-      else if (name === 'zoom-out') { setZoom(z => Math.max(1, Math.round((z - 0.25) * 100) / 100)); SFX.click(); }
-      else if (name === 'zoom-cycle') { setZoom(z => { var steps = [1, 1.5, 2, 2.5]; for (var i = 0; i < steps.length; i++) if (steps[i] > z + 0.001) return steps[i]; return 1; }); SFX.click(); }
+      else if (name === 'zoom-in') { setZoom(pz().add(0.25)); SFX.click(); }
+      else if (name === 'zoom-out') { setZoom(pz().add(-0.25)); SFX.click(); }
+      else if (name === 'zoom-cycle') { var steps = [1, 1.5, 2, 2.5]; var cur = pz().value(); var nx = 1; for (var i = 0; i < steps.length; i++) if (steps[i] > cur + 0.001) { nx = steps[i]; break; } pz().setRaw(nx); setZoom(nx); SFX.click(); }
     }
   };
   // F3（v1.56.0）：縮放過渡（FLIP 式）——版面直接跳到新尺寸，視覺先以 transform 從舊比例開始、200ms travel 曲線收回 1；
   // 不逐格動 layout、盤面與塗鴉層一起縮放；動畫中再按會以目前視覺比例為新起點 retarget；換盤面（spec 變）不播。
   useEffect(() => {
+    pz().setRaw(zoom); // PlatZoom 持有同步（狀態真源仍是 zoom state，FLIP 動畫本體不動）
     var w = boardZoomRef.current; if (!w) { prevZoomRef.current = zoom; return; }
     var specKey = spec.w + 'x' + spec.h + '/' + spec.mines;
     if (prevZoomSpecRef.current !== specKey) { prevZoomSpecRef.current = specKey; prevZoomRef.current = zoom; w.style.transition = 'none'; w.style.transform = ''; return; }
@@ -1774,9 +1851,9 @@ function MinesGame() {
             <div className="flex gap-1 items-center shrink-0">
               <button onClick={() => setZoomOpen(!zoomOpen)} className={hbtn} title="調整盤面大小（比照數獨的縮放）">🔍{zoom > 1 && (<span className="ml-0.5 text-[10px]">{Math.round(zoom * 100)}%</span>)}</button>
               <span className={"plat-collapse-x" + (zoomOpen ? " open" : "")}><span className="flex gap-1 items-center whitespace-nowrap">
-                <button onClick={() => setZoom(Math.max(1, Math.round((zoom - 0.25) * 100) / 100))} className={hbtn} title="縮小" tabIndex={zoomOpen ? 0 : -1}>－</button>
-                <button onClick={() => setZoom(Math.min(2.5, Math.round((zoom + 0.25) * 100) / 100))} className={hbtn} title="放大" tabIndex={zoomOpen ? 0 : -1}>＋</button>
-                <button onClick={() => setZoom(1)} className={hbtn} title="回到適應螢幕" tabIndex={zoomOpen ? 0 : -1}>適應</button>
+                <button onClick={() => setZoom(pz().add(-0.25))} className={hbtn} title="縮小" tabIndex={zoomOpen ? 0 : -1}>－</button>
+                <button onClick={() => setZoom(pz().add(0.25))} className={hbtn} title="放大" tabIndex={zoomOpen ? 0 : -1}>＋</button>
+                <button onClick={() => setZoom(pz().reset())} className={hbtn} title="回到適應螢幕" tabIndex={zoomOpen ? 0 : -1}>適應</button>
               </span></span>
             </div>
             <div className="flex gap-1 md:gap-2 flex-wrap items-center ml-auto">

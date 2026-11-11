@@ -262,6 +262,68 @@ function regSudokuPlatSave() {
 }
 regSudokuPlatSave();
 if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('DOMContentLoaded', regSudokuPlatSave);
+// === PlatTap/PlatZoom 接點（數獨：engine.js 與殼同為 classic 載入，app.js 直接取用）（共用手勢判定＋縮放持有，v1.63.0）：平台模式用殼的 window.PlatTap/PlatZoom；獨立開啟用同語意本地後備（與殼同碼） ===
+function platTapFactoryLocal(opts) {
+  opts = opts || {};
+  var slop = (opts.slop != null) ? opts.slop : 22;
+  var tapMaxMs = (opts.tapMaxMs != null) ? opts.tapMaxMs : 0;
+  var lpMs = (opts.longpressMs != null) ? opts.longpressMs : 0;
+  var supMs = (opts.suppressMs != null) ? opts.suppressMs : 0;
+  var g = null;
+  var supT = -1, supTag;
+  function drift(x, y) { return g ? Math.hypot(x - g.x0, y - g.y0) : 0; }
+  function settle(x, y, t, isCancel) {
+    if (!g) return { type: isCancel ? 'cancel' : 'none', dx: 0, dy: 0, drift: 0, dur: 0, longpress: false };
+    t = (t != null ? t : Date.now());
+    var hasXY = (typeof x === 'number' && typeof y === 'number');
+    var d = hasXY ? drift(x, y) : 0, dur = t - g.t0, lp = g.lpFired, type;
+    if (isCancel) type = 'cancel';
+    else if (lp) type = 'longpress';
+    else if (d > slop) type = 'drag';
+    else if (tapMaxMs > 0 && dur >= tapMaxMs) type = 'cancel';
+    else type = 'tap';
+    var r = { type: type, dx: hasXY ? x - g.x0 : 0, dy: hasXY ? y - g.y0 : 0, drift: d, dur: dur, longpress: lp };
+    g = null;
+    return r;
+  }
+  return {
+    down: function (x, y, t) { g = { x0: x, y0: y, t0: (t != null ? t : Date.now()), lpFired: false }; },
+    move: function (x, y) { if (!g) return { dragging: false, drift: 0 }; var d = drift(x, y); return { dragging: d > slop, drift: d }; },
+    poll: function (t) { if (g && lpMs > 0 && !g.lpFired && (t != null ? t : Date.now()) - g.t0 >= lpMs) { g.lpFired = true; return 'longpress'; } return null; },
+    up: function (x, y, t) { return settle(x, y, t, false); },
+    cancel: function (x, y, t) { return settle(x, y, t, true); },
+    markSuppress: function (t, tag) { supT = (t != null ? t : Date.now()); supTag = tag; },
+    shouldSuppressClick: function (t, tag) { if (supMs <= 0 || supT < 0) return false; if ((t != null ? t : Date.now()) - supT >= supMs) return false; return (supTag === undefined || tag === undefined || supTag === tag); },
+    clearSuppress: function () { supT = -1; },
+    active: function () { return !!g; }
+  };
+}
+function platZoomFactoryLocal(opts) {
+  opts = opts || {};
+  var min = (opts.min != null) ? opts.min : 0.1;
+  var max = (opts.max != null) ? opts.max : 5;
+  var val = (opts.value != null) ? opts.value : 1;
+  var clean2 = !!opts.cleanup2dp;
+  function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+  var api = {
+    value: function () { return val; },
+    set: function (v, range) { var lo = range ? range[0] : min, hi = range ? range[1] : max; val = clamp(v, lo, hi); return val; },
+    setRaw: function (v) { val = v; return val; },
+    add: function (d) { var v = val + d; if (clean2) v = Math.round(v * 100) / 100; return api.set(v); },
+    reset: function () { val = 1; return val; },
+    min: function () { return min; }, max: function () { return max; }
+  };
+  return api;
+}
+function platTapNew(opts) { return (window.PlatTap || platTapFactoryLocal)(opts); }
+function platZoomNew(opts) { return (window.PlatZoom || platZoomFactoryLocal)(opts); }
+function platArmZoom(el) {
+  if (!el) return;
+  if (window.PlatZoom && window.PlatZoom.armTransition) { window.PlatZoom.armTransition(el); return; }
+  el.style.transition = 'width 200ms cubic-bezier(0.22, 1, 0.36, 1), height 200ms cubic-bezier(0.22, 1, 0.36, 1)';
+  if (el.__pzArmTimer) clearTimeout(el.__pzArmTimer);
+  el.__pzArmTimer = setTimeout(function () { el.style.transition = ''; el.__pzArmTimer = null; }, 260);
+}
 
 // 本地進度恢復系統核心函數 (v3.8.0)
 // 存檔清掃（稽核 G-01）：讀寫時順手掃掉全部過期/損毀的 sudoku_prog_*（原本只清「下次同房號被讀到」的那筆，沒再進的房間會永久殘留無界成長）；每頁只掃一次

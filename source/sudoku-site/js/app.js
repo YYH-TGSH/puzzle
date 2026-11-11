@@ -261,7 +261,9 @@ function SudokuGame() {
     const tapSeqRef = useRef(0); // 每次 pointerdown 的點按序號：長按標記只擋同一次點按的放開，不毒到下一次
     const longPressSeqRef = useRef(-1);
     const tapInfoRef = useRef(null); // 本次點按落在哪一格（pointerup 直接處理點按用，不單靠 click）
-    const pointerTapDedupeRef = useRef(null);
+    const cellTrkRef = useRef(null); // 本次格點按的 PlatTap 實例（每按新建一顆：長按計時器閉包各 poll 自己那顆，跨按不互擾——守恆舊 seq 語意）
+    const supTrkRef = useRef(null); // 格/數字鍵共用的尾隨 click 抑制（PlatTap suppress 700ms 全擋——舊 pointerTapDedupeRef 語意，v1.63.0 收編）
+    const supTrk = () => { if (!supTrkRef.current) supTrkRef.current = platTapNew({ suppressMs: 700 }); return supTrkRef.current; };
     const padTapRef = useRef(null); // F1：數字鍵 pointer 點按追蹤（按下鍵＋client 座標） // pointerup 已處理過的點按：擋掉隨後跟來的重複 click
 
     const engineRef = useRef('none');
@@ -330,6 +332,8 @@ function SudokuGame() {
     };
 
     const zoomLevelRef = useRef(1);
+    const pzRef = useRef(null); // 共用縮放持有（PlatZoom，v1.63.0）：按鈕 0.1–5 步進 0.1；pinch 單次 range [0.4,3.5]；適應模式 setRaw（全守恆）
+    const pz = () => { if (!pzRef.current) pzRef.current = platZoomNew({ min: 0.1, max: 5, value: 1 }); return pzRef.current; };
     const zoomModeIdxRef = useRef(3);
     const currentPathDataRef = useRef("");
     const drawingPathRef = useRef(null);
@@ -564,7 +568,7 @@ function SudokuGame() {
     myNameRef.current = _mePlayer ? _mePlayer.name : "";
     myColorRef.current = myCurrentColor;
 
-    useEffect(() => { zoomLevelRef.current = zoomLevel; }, [zoomLevel]);
+    useEffect(() => { zoomLevelRef.current = zoomLevel; pz().setRaw(zoomLevel); }, [zoomLevel]);
     useEffect(() => { zoomModeIdxRef.current = zoomModeIdx; }, [zoomModeIdx]);
 
     // 同步本地觀戰狀態與伺服器列表中的身分
@@ -931,7 +935,7 @@ function SudokuGame() {
             if (e.touches.length === 2) {
                 e.preventDefault(); const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
                 if (lastPinchDist.current) {
-                    const delta = dist - lastPinchDist.current; let newZoom = Math.min(Math.max(zoomLevelRef.current + delta * 0.005, 0.4), 3.5);
+                    const delta = dist - lastPinchDist.current; let newZoom = pz().set(zoomLevelRef.current + delta * 0.005, [0.4, 3.5]);
                     if (svgW * newZoom > MAX_SAFE_DIMENSION || svgH * newZoom > MAX_SAFE_DIMENSION) newZoom = Math.min(MAX_SAFE_DIMENSION / svgW, MAX_SAFE_DIMENSION / svgH);
                     zoomLevelRef.current = newZoom; if (svgRef.current) { svgRef.current.style.width = `${svgW * newZoom}px`; svgRef.current.style.height = `${svgH * newZoom}px`; }
                     if (zoomModeIdxRef.current !== 0) { setZoomModeIdx(0); zoomModeIdxRef.current = 0; }
@@ -1749,7 +1753,9 @@ function SudokuGame() {
                 touchStartPt.current = pt;
                 const seq = ++tapSeqRef.current;
                 tapInfoRef.current = { cellId: cellId, seq: seq, x: pt.x, y: pt.y, cx: e.clientX, cy: e.clientY };
+                const cellTrk = platTapNew({ slop: 22, longpressMs: 500 }); cellTrk.down(e.clientX, e.clientY, Date.now()); cellTrkRef.current = cellTrk;
                 cellLongPressTimer.current = setTimeout(() => {
+                    if (cellTrk.poll(Date.now()) !== 'longpress') return; // 共用判定：到時才算長按、只觸發一次（PlatTap，v1.63.0）
                     clearCell(cellId);
                     isLongPressTriggered.current = true;
                     longPressSeqRef.current = seq;
@@ -1808,25 +1814,25 @@ function SudokuGame() {
         // 筆尖幾乎沒動（≤6 單位）才當點按補處理；捲動起手在被 claim 前早已移動超過這個量，不會被誤補成填數字。
         const tapInfo = tapInfoRef.current;
         tapInfoRef.current = null;
+        const cellTrk = cellTrkRef.current; cellTrkRef.current = null;
         if (tapInfo && e.type === 'pointerleave') {
             // 手勢在盤面外結束：標記已結算，擋掉放開位置（可能是數字鍵）上的尾隨 click 誤觸
-            pointerTapDedupeRef.current = { t: Date.now() };
+            supTrk().markSuppress(Date.now());
+            if (cellTrk) cellTrk.cancel();
         }
         if ((e.type === 'pointerup' || e.type === 'pointercancel') && interactionMode < 2 && tapInfo) {
-            // v1.56.0（比照地雷 F1 同類修）：點按改「client 漂移 ≤22px 就對按下那格執行」——舊制要求放開還在同一格，
-            // 手指抬起滾到鄰格時 pointerup 被丟掉、尾隨 click 反而打中鄰格（誤選/誤填）。不論命中或作廢都先標記 dedupe，
-            // 尾隨 click 一律不再觸發；只有鍵盤/程式觸發（無近期 pointer 結算）才走 click 備援。
+            // v1.63.0：點按判定收編 PlatTap（守恆 v1.56.0 語意）——client 漂移 ≤22 對按下那格執行、每次結算必標記抑制（尾隨 click 全擋）；長按以 seq 判定優先；cancel 的觸控筆救援（SVG ≤6）為有界例外、保留原判
+            const gres = cellTrk ? (e.type === 'pointercancel' ? cellTrk.cancel(e.clientX, e.clientY, Date.now()) : cellTrk.up(e.clientX, e.clientY, Date.now())) : { type: 'none' };
             if (longPressSeqRef.current === tapInfo.seq) {
-                pointerTapDedupeRef.current = { t: Date.now() };
+                supTrk().markSuppress(Date.now());
             } else if (e.type === 'pointercancel') {
                 // 觸控筆救援保留（有界例外）：cancel 且幾乎沒動（SVG ≤6 單位）視為點按補處理；捲動起手在被 claim 前早已移動超過此量。其餘 cancel 作廢。
                 const upPt = getSvgCoords(e.clientX, e.clientY);
-                pointerTapDedupeRef.current = { t: Date.now() };
+                supTrk().markSuppress(Date.now());
                 if (upPt && Math.hypot(upPt.x - tapInfo.x, upPt.y - tapInfo.y) <= 6) handleCellClick(tapInfo.cellId);
             } else {
-                const drift = Math.hypot(e.clientX - (tapInfo.cx || 0), e.clientY - (tapInfo.cy || 0));
-                pointerTapDedupeRef.current = { t: Date.now() };
-                if (drift <= 22) handleCellClick(tapInfo.cellId);
+                supTrk().markSuppress(Date.now());
+                if (gres.type === 'tap') handleCellClick(tapInfo.cellId);
             }
         }
 
@@ -2033,9 +2039,7 @@ function SudokuGame() {
     const zoomAnimTimerRef = useRef(null);
     const armZoomTransition = () => {
         const svg = svgRef.current; if (!svg) return;
-        svg.style.transition = 'width 200ms cubic-bezier(0.22, 1, 0.36, 1), height 200ms cubic-bezier(0.22, 1, 0.36, 1)';
-        if (zoomAnimTimerRef.current) clearTimeout(zoomAnimTimerRef.current);
-        zoomAnimTimerRef.current = setTimeout(() => { if (svgRef.current) svgRef.current.style.transition = ''; }, 260);
+        platArmZoom(svg); // 過渡武裝收編 PlatZoom.armTransition（v1.63.0，語意守恆）
     };
 
     const recalculateZoom = (modeIdx) => {
@@ -2059,6 +2063,7 @@ function SudokuGame() {
 
         setZoomLevel(newZoom);
         zoomLevelRef.current = newZoom;
+        pz().setRaw(newZoom);
         if (svgRef.current) {
             svgRef.current.style.width = `${svgW * newZoom}px`;
             svgRef.current.style.height = `${svgH * newZoom}px`;
@@ -2260,7 +2265,7 @@ function SudokuGame() {
         armZoomTransition();
         setZoomModeIdx(0);
         zoomModeIdxRef.current = 0;
-        const next = Math.min(5, zoomLevel + 0.1);
+        const next = pz().add(0.1);
         setZoomLevel(next);
         zoomLevelRef.current = next;
         if (svgRef.current) {
@@ -2273,7 +2278,7 @@ function SudokuGame() {
         armZoomTransition();
         setZoomModeIdx(0);
         zoomModeIdxRef.current = 0;
-        const next = Math.max(0.1, zoomLevel - 0.1);
+        const next = pz().add(-0.1);
         setZoomLevel(next);
         zoomLevelRef.current = next;
         if (svgRef.current) {
@@ -3636,10 +3641,10 @@ function SudokuGame() {
                                 return (
                                     <button
                                         key={`keybtn-${idx}`}
-                                        onPointerDown={(e) => { padTapRef.current = { c: c, x: e.clientX, y: e.clientY }; }}
-                                        onPointerUp={(e) => { const pt2 = padTapRef.current; padTapRef.current = null; if (pt2 && pt2.c === c && Math.hypot(e.clientX - pt2.x, e.clientY - pt2.y) <= 22) { pointerTapDedupeRef.current = { t: Date.now() }; onNumClick({ preventDefault: () => {} }, c); } else if (pt2) { pointerTapDedupeRef.current = { t: Date.now() }; } }}
-                                        onPointerCancel={() => { padTapRef.current = null; }}
-                                        onClick={(e) => { const d = pointerTapDedupeRef.current; if (d && Date.now() - d.t < 700) return; onNumClick(e, c); }}
+                                        onPointerDown={(e) => { const trk = platTapNew({ slop: 22 }); trk.down(e.clientX, e.clientY, Date.now()); padTapRef.current = { c: c, trk: trk }; }}
+                                        onPointerUp={(e) => { const pt2 = padTapRef.current; padTapRef.current = null; if (pt2) { const r = pt2.trk.up(e.clientX, e.clientY, Date.now()); supTrk().markSuppress(Date.now()); if (pt2.c === c && r.type === 'tap') onNumClick({ preventDefault: () => {} }, c); } }}
+                                        onPointerCancel={() => { const pt2 = padTapRef.current; padTapRef.current = null; if (pt2) pt2.trk.cancel(); }}
+                                        onClick={(e) => { if (supTrk().shouldSuppressClick(Date.now())) return; onNumClick(e, c); }}
                                         title={isCompleted ? `已經填滿 ${c}` : `點擊選取 ${c}`}
                                         className={`select-none flex-1 min-w-[24px] max-w-[48px] aspect-square rounded-md sm:rounded-lg md:rounded-xl text-sm sm:text-lg md:text-2xl font-black border-2 md:border-[3px] border-slate-800 flex items-center justify-center p-0 key-btn
                        ${isFlipping ? 'anim-key-flip' : ''}
@@ -3779,7 +3784,7 @@ function SudokuGame() {
                                             }
 
                                             return (
-                                                <g key={`cell-${cell.id}`} id={`cell-${cell.id}`} onClick={() => { const d = pointerTapDedupeRef.current; if (d && Date.now() - d.t < 700) return; handleCellClick(cell.id); }} className={interactionMode >= 2 ? 'pointer-events-none' : 'cursor-pointer group'}>
+                                                <g key={`cell-${cell.id}`} id={`cell-${cell.id}`} onClick={() => { if (supTrk().shouldSuppressClick(Date.now())) return; handleCellClick(cell.id); }} className={interactionMode >= 2 ? 'pointer-events-none' : 'cursor-pointer group'}>
                                                     <rect x={cx} y={cy} width={CELL_SIZE} height={CELL_SIZE} fill="transparent" className={interactionMode >= 2 ? '' : 'hover:fill-yellow-600/20 transition-colors'} />
 
                                                     {erasingCells[cell.id] && (
