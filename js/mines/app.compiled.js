@@ -195,29 +195,29 @@ platSave().register('mines_daily_streak', function (p) {
 platSave().register('mines_custom_cfg', function (p) {
   return !!p && _typeof(p) === 'object' && typeof p.w === 'number' && typeof p.h === 'number' && typeof p.mines === 'number';
 });
-// === PlatAudio 接點（技能對照改造第 3 項，v1.64.0）：平台模式用殼的 window.PlatAudio；獨立開啟用同配方（B 柔和）本地後備——靜音同走 plat_muted、首次讀取保守合併舊三鍵 ===
+// === PlatAudio 接點（技能對照改造第 3 項，v1.64.0）：平台模式用殼的 window.PlatAudio；獨立開啟用同配方（v1.64.2 A 清脆＋華麗版）本地後備——靜音同走 plat_muted、首次讀取保守合併舊三鍵 ===
 var __paLocal = null;
 function platAudio() {
   if (typeof window !== 'undefined' && window.PlatAudio) return window.PlatAudio;
   if (__paLocal) return __paLocal;
   var RECIPES = {
     place: {
-      notes: [[520, 0, 0.10, 1]]
+      notes: [[880, 0, 0.07, 1, 'triangle']]
     },
     error: {
-      notes: [[220, 0, 0.16, 1]]
+      notes: [[170, 0, 0.13, 1, 'triangle']]
     },
     boom: {
-      notes: [[110, 0, 0.25, 1]]
-    },
-    complete: {
-      notes: [[440, 0, 0.10, 1], [660, 0.10, 0.16, 1]]
+      notes: [[140, 0, 0.22, 1, 'triangle']]
     },
     gift: {
-      notes: [[440, 0, 0.10, 0.7], [660, 0.10, 0.16, 0.7]]
+      notes: [[523, 0, 0.14, 0.7, 'triangle'], [659, 0.07, 0.18, 0.7, 'triangle']]
+    },
+    complete: {
+      notes: [[523, 0, 0.16, 1, 'triangle'], [659, 0.07, 0.16, 1, 'triangle'], [784, 0.14, 0.16, 1, 'triangle'], [1046, 0.21, 0.30, 1, 'triangle'], [262, 0, 0.75, 0.22, 'sine'], [330, 0, 0.75, 0.22, 'sine'], [392, 0, 0.75, 0.22, 'sine']]
     },
     win: {
-      notes: [[392, 0, 0.12, 1], [523, 0.09, 0.12, 1], [659, 0.18, 0.12, 1], [784, 0.27, 0.22, 1]]
+      notes: [[523, 0, 0.16, 1, 'triangle'], [587, 0.08, 0.16, 1, 'triangle'], [659, 0.16, 0.16, 1, 'triangle'], [784, 0.24, 0.16, 1, 'triangle'], [880, 0.32, 0.16, 1, 'triangle'], [1046, 0.40, 0.24, 1, 'triangle'], [1046, 0.48, 1.0, 0.45, 'sine'], [1318, 0.48, 1.0, 0.45, 'sine'], [1568, 0.48, 1.0, 0.45, 'sine'], [262, 0, 1.2, 0.22, 'sine'], [330, 0, 1.2, 0.22, 'sine'], [392, 0, 1.2, 0.22, 'sine']]
     }
   };
   var ctx = null,
@@ -276,11 +276,11 @@ function platAudio() {
       }
     }, true);
   }
-  function tone(freq, at, dur, vol) {
+  function tone(freq, at, dur, vol, type) {
     var t = ctx.currentTime + at;
     var o = ctx.createOscillator(),
       g = ctx.createGain();
-    o.type = 'sine';
+    o.type = type || 'sine';
     o.frequency.setValueAtTime(freq, t);
     g.gain.setValueAtTime(0, t);
     g.gain.linearRampToValueAtTime(vol, t + 0.02);
@@ -314,7 +314,7 @@ function platAudio() {
         lastPlay[name] = now;
         for (var i = 0; i < r.notes.length; i++) {
           var n = r.notes[i];
-          tone(n[0], n[1], n[2], n[3]);
+          tone(n[0], n[1], n[2], n[3], n[4]);
         }
       } catch (e) {}
     },

@@ -178,7 +178,7 @@
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.64.1'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
+  var PLAT_VERSION = '1.64.2';
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -290,18 +290,18 @@
     if (el.__pzArmTimer) clearTimeout(el.__pzArmTimer);
     el.__pzArmTimer = setTimeout(function () { el.style.transition = ''; el.__pzArmTimer = null; }, 260);
   };
-  // ===== PlatAudio 音效（技能對照改造第 3 項，v1.64.0）：使用者試聽定版 B 柔和配方 =====
+  // ===== PlatAudio 音效（技能對照改造第 3 項，v1.64.0；配方 v1.64.2 改版：使用者實機否決 B 柔和 → A 清脆＋complete/win 華麗琶音版） =====
   // sine 波、attack 約 20ms 線性淡入、指數衰減、主增益 0.5 天花板；WebAudio 即時合成、不引入音檔。
   // 靜音統一為殼級 plat_muted：首次讀取時保守合併舊 sudoku/hashi/mines_muted（任一曾靜音→靜音），舊 key 保留不刪、只不再寫。
   // iOS 政策：首次 pointerdown 才建立/resume AudioContext；無手勢前 play() 靜默丟棄、不 throw。同名事件 60ms 節流。
   window.PlatAudio = (function () {
     var RECIPES = {
-      place:    { notes: [[520, 0, 0.10, 1]] },
-      error:    { notes: [[220, 0, 0.16, 1]] },
-      boom:     { notes: [[110, 0, 0.25, 1]] },
-      complete: { notes: [[440, 0, 0.10, 1], [660, 0.10, 0.16, 1]] },
-      gift:     { notes: [[440, 0, 0.10, 0.7], [660, 0.10, 0.16, 0.7]] },
-      win:      { notes: [[392, 0, 0.12, 1], [523, 0.09, 0.12, 1], [659, 0.18, 0.12, 1], [784, 0.27, 0.22, 1]] }
+      place:    { notes: [[880, 0, 0.07, 1, 'triangle']] },
+      error:    { notes: [[170, 0, 0.13, 1, 'triangle']] },
+      boom:     { notes: [[140, 0, 0.22, 1, 'triangle']] },
+      gift:     { notes: [[523, 0, 0.14, 0.7, 'triangle'], [659, 0.07, 0.18, 0.7, 'triangle']] },
+      complete: { notes: [[523, 0, 0.16, 1, 'triangle'], [659, 0.07, 0.16, 1, 'triangle'], [784, 0.14, 0.16, 1, 'triangle'], [1046, 0.21, 0.30, 1, 'triangle'], [262, 0, 0.75, 0.22, 'sine'], [330, 0, 0.75, 0.22, 'sine'], [392, 0, 0.75, 0.22, 'sine']] },
+      win:      { notes: [[523, 0, 0.16, 1, 'triangle'], [587, 0.08, 0.16, 1, 'triangle'], [659, 0.16, 0.16, 1, 'triangle'], [784, 0.24, 0.16, 1, 'triangle'], [880, 0.32, 0.16, 1, 'triangle'], [1046, 0.40, 0.24, 1, 'triangle'], [1046, 0.48, 1.0, 0.45, 'sine'], [1318, 0.48, 1.0, 0.45, 'sine'], [1568, 0.48, 1.0, 0.45, 'sine'], [262, 0, 1.2, 0.22, 'sine'], [330, 0, 1.2, 0.22, 'sine'], [392, 0, 1.2, 0.22, 'sine']] }
     };
     var ctx = null, master = null, unlocked = false, lastPlay = {}, mutedCache = null;
     function readMuted() {
@@ -329,10 +329,10 @@
         if (c && c.state === 'suspended') { try { var p = c.resume(); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
       }, true);
     }
-    function tone(freq, at, dur, vol) {
+    function tone(freq, at, dur, vol, type) {
       var t = ctx.currentTime + at;
       var o = ctx.createOscillator(), g = ctx.createGain();
-      o.type = 'sine';
+      o.type = type || 'sine';
       o.frequency.setValueAtTime(freq, t);
       g.gain.setValueAtTime(0, t);
       g.gain.linearRampToValueAtTime(vol, t + 0.02);
@@ -352,7 +352,7 @@
           var now = Date.now();
           if (lastPlay[name] && now - lastPlay[name] < 60) return; // 同名 60ms 節流
           lastPlay[name] = now;
-          for (var i = 0; i < r.notes.length; i++) { var n = r.notes[i]; tone(n[0], n[1], n[2], n[3]); }
+          for (var i = 0; i < r.notes.length; i++) { var n = r.notes[i]; tone(n[0], n[1], n[2], n[3], n[4]); }
         } catch (e) {}
       },
       isMuted: function () { return readMuted(); },

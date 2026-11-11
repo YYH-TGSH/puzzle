@@ -1,4 +1,4 @@
-// PlatAudio 單元測試（v1.64.0）：B 柔和配方參數（sine/頻率/時長/增益）、主增益 0.5、
+// PlatAudio 單元測試（v1.64.0；v1.64.2 配方改版）：A 清脆＋華麗版配方參數（triangle/頻率/琶音/和弦墊）、主增益 0.5、六事件×三款接線覆蓋、
 // 靜音零建立＋plat_muted 寫入、舊 muted 遷移矩陣（保守合併）、60ms 節流、無手勢不 throw/不建 ctx。
 const fs = require('fs');
 const { JSDOM } = require('jsdom');
@@ -46,28 +46,31 @@ function boot(seed) {
   ok(w.__AC.gains.length >= 1 && w.__AC.gains[0].gain.value === 0.5, '主增益 0.5（音量天花板）');
   const oscN = () => w.__AC.oscs.length;
   const last = n => w.__AC.oscs[w.__AC.oscs.length - n];
-  // place 配方
+  // place 配方（v1.64.2 A 清脆：triangle 880Hz 0.07s）
   PA.play('place');
   ok(oscN() === 1, 'place 產生 1 個 oscillator');
   let o = last(1);
-  ok(o.type === 'sine' && o.frequency.calls[0][1] === 520, 'place：sine 520Hz');
-  ok(Math.abs((o.stopped - o.started) - 0.15) < 0.001, 'place：時長 0.10s（+0.05 收尾 pad）');
+  ok(o.type === 'triangle' && o.frequency.calls[0][1] === 880, 'place：triangle 880Hz');
+  ok(Math.abs((o.stopped - o.started) - 0.12) < 0.001, 'place：時長 0.07s（+0.05 收尾 pad）');
   ok(o.gainNode && o.gainNode.gain.calls.some(c => c[0] === 'lin' && c[1] === 1), 'place：attack 20ms 線性淡入至 1.0');
-  // error / boom
+  // error / boom（A 家族：triangle 170Hz 0.13s / 低音 140Hz 0.22s）
   PA.play('error'); o = last(1);
-  ok(o.frequency.calls[0][1] === 220 && Math.abs((o.stopped - o.started) - 0.21) < 0.001, 'error：220Hz、0.16s');
+  ok(o.type === 'triangle' && o.frequency.calls[0][1] === 170 && Math.abs((o.stopped - o.started) - 0.18) < 0.001, 'error：triangle 170Hz、0.13s');
   PA.play('boom'); o = last(1);
-  ok(o.frequency.calls[0][1] === 110 && Math.abs((o.stopped - o.started) - 0.30) < 0.001, 'boom：110Hz、0.25s（error 降八度拉長）');
-  // complete 兩音
+  ok(o.type === 'triangle' && o.frequency.calls[0][1] === 140 && Math.abs((o.stopped - o.started) - 0.27) < 0.001, 'boom：triangle 140Hz、0.22s 低沉一擊');
+  // complete 華麗版：523→659→784→1046 四音琶音（間隔 0.07）＋262/330/392 sine 和弦墊 0.75s
   let b = oscN(); PA.play('complete');
-  ok(oscN() - b === 2 && last(2).frequency.calls[0][1] === 440 && last(1).frequency.calls[0][1] === 660 && Math.abs(last(1).started - last(2).started - 0.10) < 0.001, 'complete：440→660 兩音上行、間隔 0.10s');
-  // gift 輕版（0.7 倍）
+  const cs = w.__AC.oscs.slice(b);
+  ok(cs.length === 7 && cs.slice(0, 4).map(x => x.frequency.calls[0][1]).join(',') === '523,659,784,1046' && cs.slice(0, 4).every(x => x.type === 'triangle') && Math.abs(cs[1].started - cs[0].started - 0.07) < 0.001, 'complete：523→659→784→1046 triangle 琶音、間隔 0.07s');
+  ok(cs.slice(4).map(x => x.frequency.calls[0][1]).join(',') === '262,330,392' && cs.slice(4).every(x => x.type === 'sine') && Math.abs((cs[4].stopped - cs[4].started) - 0.80) < 0.001, 'complete：262/330/392 sine 和弦墊、總長 ≈0.75s');
+  // gift 輕版（complete 前兩音 523→659、0.7 倍）
   b = oscN(); PA.play('gift');
-  ok(oscN() - b === 2 && last(2).gainNode.gain.calls.some(c => c[0] === 'lin' && c[1] === 0.7), 'gift：complete 前兩音、增益 0.7 倍');
-  // win 四音琶音、尾音 0.22
+  ok(oscN() - b === 2 && last(2).frequency.calls[0][1] === 523 && last(1).frequency.calls[0][1] === 659 && last(2).gainNode.gain.calls.some(c => c[0] === 'lin' && c[1] === 0.7), 'gift：523→659 前兩音、增益 0.7 倍輕版');
+  // win 更華麗：六音上行琶音（間隔 0.08）＋0.48s 處 1046/1318/1568 閃耀和弦（1.0s）＋和弦墊
   b = oscN(); PA.play('win');
   const ws = w.__AC.oscs.slice(b);
-  ok(ws.length === 4 && ws.map(x => x.frequency.calls[0][1]).join(',') === '392,523,659,784' && Math.abs((ws[3].stopped - ws[3].started) - 0.27) < 0.001, 'win：392→523→659→784 琶音、尾音 0.22s');
+  ok(ws.length === 12 && ws.slice(0, 6).map(x => x.frequency.calls[0][1]).join(',') === '523,587,659,784,880,1046' && Math.abs(ws[1].started - ws[0].started - 0.08) < 0.001, 'win：523→587→659→784→880→1046 六音琶音、間隔 0.08s');
+  ok(ws.slice(6, 9).map(x => x.frequency.calls[0][1]).join(',') === '1046,1318,1568' && Math.abs(ws[6].started - ws[0].started - 0.48) < 0.001 && Math.abs((ws[6].stopped - ws[6].started) - 1.05) < 0.001, 'win：尾段 1046/1318/1568 閃耀和弦、總長 ≈1.5s');
   // 節流：同名 60ms 內只播一次；不同事件不互擋（先等配方段的節流窗過期）
   await sleep(90);
   b = oscN(); PA.play('place'); PA.play('place');
@@ -118,6 +121,22 @@ function boot(seed) {
     await waitFor(() => ww.PlatAudio, 30000, 'PlatAudio matrix');
     ok(ww.PlatAudio.isMuted() === want, '遷移矩陣：' + label);
     d.window.close();
+  }
+  // ===== 事件覆蓋（v1.64.2 覆蓋驗收）：六事件 × 三款、逐款逐事件至少一接線點（讀三款原始碼樹）=====
+  // 接線形式含三元式 play(cond ? 'error' : 'place')——以 play(...) 括號內含事件名字串判定。
+  const fsx = require('fs');
+  const coverage = [
+    ['數獨', ['../sudoku-site/js/app.js', '../sudoku-site/js/engine.js'], { place: 1, error: 1, complete: 1, win: 1, gift: 1, boom: 0 }],
+    ['數橋', ['../hashi-site/js/app.js'], { place: 1, error: 1, complete: 1, win: 1, gift: 1, boom: 0 }],
+    ['踩地雷', ['../mines-site/js/app.js'], { place: 1, error: 1, complete: 1, win: 1, gift: 1, boom: 1 }]
+  ];
+  for (const [gname, files, expect] of coverage) {
+    const src = files.map(f => fsx.readFileSync(__dirname + '/' + f, 'utf8')).join('\n');
+    for (const ev of ['place', 'error', 'boom', 'complete', 'gift', 'win']) {
+      const n = (src.match(new RegExp("\\.play\\([^)]*'" + ev + "'", 'g')) || []).length;
+      if (expect[ev] > 0) ok(n >= 1, `覆蓋：${gname} ${ev} 有接線（${n} 處）`);
+      else ok(n === 0, `覆蓋：${gname} 無 ${ev} 事件（N/A、零接線正確）`);
+    }
   }
   console.log(`\n=== plataudio: ${pass} passed, ${fail} failed ===`);
   process.exit(fail ? 1 : 0);

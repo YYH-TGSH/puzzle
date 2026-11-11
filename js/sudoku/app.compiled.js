@@ -2397,6 +2397,10 @@ function SudokuGame() {
       showToast("⚠️ 盤面已無可解鎖或錯誤的空格");
       return;
     }
+    try {
+      platAudio().play('gift');
+    } catch (e) {} // 禮物拆開落地＝gift（v1.64.2 覆蓋驗收補接：原僅數橋/地雷有接線）
+
     var giftsToOpen = myQueue.slice(0, giftsToOpenCount);
     var cellsToReveal = [];
     if (giftsToOpenCount <= emptyCells.length) {
