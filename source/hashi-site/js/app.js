@@ -228,6 +228,76 @@ function platArmZoom(el) {
   if (el.__pzArmTimer) clearTimeout(el.__pzArmTimer);
   el.__pzArmTimer = setTimeout(function () { el.style.transition = ''; el.__pzArmTimer = null; }, 260);
 }
+// === PlatAudio 接點（技能對照改造第 3 項，v1.64.0）：平台模式用殼的 window.PlatAudio；獨立開啟用同配方（B 柔和）本地後備——靜音同走 plat_muted、首次讀取保守合併舊三鍵 ===
+var __paLocal = null;
+function platAudio() {
+  if (typeof window !== 'undefined' && window.PlatAudio) return window.PlatAudio;
+  if (__paLocal) return __paLocal;
+  var RECIPES = {
+    place:    { notes: [[520, 0, 0.10, 1]] },
+    error:    { notes: [[220, 0, 0.16, 1]] },
+    boom:     { notes: [[110, 0, 0.25, 1]] },
+    complete: { notes: [[440, 0, 0.10, 1], [660, 0.10, 0.16, 1]] },
+    gift:     { notes: [[440, 0, 0.10, 0.7], [660, 0.10, 0.16, 0.7]] },
+    win:      { notes: [[392, 0, 0.12, 1], [523, 0.09, 0.12, 1], [659, 0.18, 0.12, 1], [784, 0.27, 0.22, 1]] }
+  };
+  var ctx = null, master = null, unlocked = false, lastPlay = {}, mutedCache = null;
+  function sGet(k) { try { var v = platSave().getStr(k, ''); return v === null || v === undefined ? '' : v; } catch (e) { return ''; } }
+  function sSet(k, v) { try { platSave().setStr(k, v); } catch (e) {} }
+  function readMuted() {
+    if (mutedCache !== null) return mutedCache;
+    var v = sGet('plat_muted');
+    if (!v) {
+      var legacy = sGet('sudoku_muted') === '1' || sGet('hashi_muted') === '1' || sGet('mines_muted') === '1';
+      v = legacy ? '1' : '0';
+      sSet('plat_muted', v);
+    }
+    mutedCache = (v === '1');
+    return mutedCache;
+  }
+  function ensureCtx() {
+    if (ctx) return ctx;
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    try { ctx = new AC(); master = ctx.createGain(); master.gain.value = 0.5; master.connect(ctx.destination); } catch (e) { ctx = null; return null; }
+    return ctx;
+  }
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('pointerdown', function () {
+      unlocked = true;
+      var c = ensureCtx();
+      if (c && c.state === 'suspended') { try { var p = c.resume(); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
+    }, true);
+  }
+  function tone(freq, at, dur, vol) {
+    var t = ctx.currentTime + at;
+    var o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(master);
+    o.start(t); o.stop(t + dur + 0.05);
+  }
+  __paLocal = {
+    play: function (name) {
+      try {
+        if (readMuted()) return;
+        var r = RECIPES[name]; if (!r) return;
+        if (!unlocked || !ctx || ctx.state === 'suspended') return;
+        var now = Date.now();
+        if (lastPlay[name] && now - lastPlay[name] < 60) return;
+        lastPlay[name] = now;
+        for (var i = 0; i < r.notes.length; i++) { var n = r.notes[i]; tone(n[0], n[1], n[2], n[3]); }
+      } catch (e) {}
+    },
+    isMuted: function () { return readMuted(); },
+    setMuted: function (m) { mutedCache = !!m; sSet('plat_muted', m ? '1' : '0'); },
+    toggleMuted: function () { var m = !readMuted(); mutedCache = m; sSet('plat_muted', m ? '1' : '0'); return m; }
+  };
+  return __paLocal;
+}
 
     // 每日紀錄收斂為單一 map key（稽核 G-01：原「一天一 key」無界成長）：第一次讀取時把全部舊 key 摺進 hashi_daily_map 並刪除舊 key，之後只讀寫 map（帶 schema 版本 v:1，G-02）
     let _dailyMapCache = null;
@@ -555,9 +625,7 @@ function platArmZoom(el) {
       const [tutorialStep, setTutorialStep] = useState(0);
 
       // 靜音偏好（與全域音效引擎同步）
-      const [muted, setMuted] = useState(() => {
-        return platSave().getStr('hashi_muted', '') === '1';
-      });
+      const [muted, setMuted] = useState(() => platAudio().isMuted()); // 靜音統一殼級 plat_muted（PlatAudio，v1.64.0）
 
       // 🏁 競速模式
       const [mpMode, setMpMode] = useState('coop'); // 'coop' | 'race'
@@ -578,6 +646,7 @@ function platArmZoom(el) {
       const [fxMarks, setFxMarks] = useState([]); // 短暫特效標記：[{id,gx,gy,icon,until}]（💥炸橋／✨禮物補橋，格坐標中心）
       const [fxNow, setFxNow] = useState(Date.now());
       const [raceResult, setRaceResult] = useState(null);
+      useEffect(() => { if (raceResult && raceResult.winnerUid && raceResult.winnerUid === myId) { try { platAudio().play('win'); } catch (e) {} } }, [raceResult]); // 奪冠（競速/大亂鬥冠軍是我）＝win（PlatAudio，v1.64.0）
       const [raceWaiting, setRaceWaiting] = useState(false);
       const resultsDismissRef = useRef(null); // PlatResults 關閉標記（記 raceState：同 state 內關了不再彈，state 變了——如結算——再彈）
       const [resultsDismissedUi, setResultsDismissedUi] = useState(false); // 結果卡被「看盤面」關掉後，畫面留一顆🏆結果鈕可隨時叫回
@@ -1204,7 +1273,6 @@ function platArmZoom(el) {
                             // 目標出現時輕 tick 一聲，加 150ms 遲滯避免抖動連播
                             if (t && wasNull && Date.now() - (dd.lastTick || 0) > 150) {
                                 dd.lastTick = Date.now();
-                                try { window.HASHI_SOUND.play('click'); } catch (err2) {}
                             }
                         }
                         updateDragPreview(dd, dx, dy);
@@ -1457,7 +1525,6 @@ function platArmZoom(el) {
         if (effItem === 'gift' && m.fromUid && m.fromUid !== myId) { try { if (window.PlatFly) PlatFly.fly(PlatFly.byUid('hashi', m.fromUid), PlatFly.me('hashi') || PlatFly.byUid('hashi', myId), '🎁'); } catch (e) {} } // H3 禮物 Fly（純顯示層）
         showToast('🎁 里程碑道具：你獲得 ' + meta.icon + ' ' + meta.name + '！');
         if (ni.filter(x => x === effItem).length >= 3) setTimeout(() => autoFireBrawlItem(effItem), 650); // 集滿 3 個 → 自動連續發動並歸零（禮物也同規，使用者定案）
-        try { window.HASHI_SOUND.play('star'); } catch (e) {}
       };
       // 短暫特效標記（💥炸橋／✨禮物補橋）：出現在盤面座標上、動畫播完自動消失，不進同步
       const pushFxMark = (gx, gy, icon, ms) => {
@@ -1496,7 +1563,7 @@ function platArmZoom(el) {
         const gf = islMap[pickB.from], gt = islMap[pickB.to];
         if (gf && gt) pushFxMark((gf.x + gt.x) / 2, (gf.y + gt.y) / 2, '✨', 900); // 補橋處閃光動畫（不閃現）
         showToast('🎁 禮物幫你把一對島的正確橋補滿並鎖定了！');
-        try { window.HASHI_SOUND.play('bridge'); } catch (e) {}
+        try { platAudio().play('gift'); } catch (e) {}
         return true;
       };
       const applyBrawlItem = (m) => {
@@ -1514,7 +1581,6 @@ function platArmZoom(el) {
           const bf = islMapB[victim.from], bt = islMapB[victim.to];
           if (bf && bt) pushFxMark((bf.x + bt.x) / 2, (bf.y + bt.y) / 2, '💥', 750); // 爆炸動畫蓋在被炸的橋上（不閃現消失）
           showToast('💣 ' + (m.fromName || '對手') + ' 炸掉了你一條橋！');
-          try { window.HASHI_SOUND.play('remove'); } catch (e) {}
         } else if (m.item === 'fog') {
           const isls = (stateRef.current.randomLevelData || {}).islands || [];
           if (!isls.length) return;
@@ -1580,7 +1646,6 @@ function platArmZoom(el) {
         myItemsRef.current = ni; setMyItems(ni); // 先歸零，效果再逐發送出——期間新獲得的同種從 0 重新累積
         const meta = BRAWL_ITEMS.find(x => x.key === key);
         showToast('🎒 集滿 3 個 ' + (meta ? meta.icon + ' ' + meta.name : key) + '，自動連續發動！');
-        try { window.HASHI_SOUND.play('star'); } catch (e) {}
         let fired = 0;
         const step = () => {
           if (fired >= 3) { brawlAutoRef.current[key] = false; return; }
@@ -1879,12 +1944,11 @@ function platArmZoom(el) {
         const cur = bridges || [];
         const target = cur.find(b => b.id === bId);
         if (!target) return;
-        if (target.locked) { showToast('🎁 這是禮物補上的橋，已鎖定，不會被改掉'); try { window.HASHI_SOUND.play('error'); } catch (e) {} return; } // 禮物橋：誤觸不刪（點按/拖曳共用此入口）
+        if (target.locked) { showToast('🎁 這是禮物補上的橋，已鎖定，不會被改掉'); return; } // 新規格數橋無 error 音（v1.64.0） // 禮物橋：誤觸不刪（點按/拖曳共用此入口）
 
         if (target.count + (target.draftCount || 0) === 0) {
           if (crossedBridgeIds.has(bId)) {
-             window.HASHI_SOUND.play('error');
-             return showToast("🚫 橋樑不能交叉喔！請先移除阻擋的橋。");
+             return showToast("🚫 橋樑不能交叉喔！請先移除阻擋的橋。"); // 交叉拒絕：新規格數橋無 error 音（v1.64.0，回報中申報待裁）
           }
         }
 
@@ -1925,10 +1989,8 @@ function platArmZoom(el) {
 
         const newB = nextBridges.find(b => b.id === bId);
         const newTotal = newB.count + (newB.draftCount || 0);
-        if (newTotal > oldTotal) {
-            window.HASHI_SOUND.play('bridge');
-        } else if (newTotal < oldTotal) {
-            window.HASHI_SOUND.play('remove');
+        if (newTotal !== oldTotal) {
+            try { platAudio().play('place'); } catch (e) {} // 架橋 commit（新增/增減）＝place；草稿轉實線總數不變不播（守恆舊行為）（PlatAudio，v1.64.0）
         }
 
         raceAwareSync({ bridges: nextBridges });
@@ -2310,7 +2372,6 @@ function platArmZoom(el) {
             setSlotFinalName(finalName); slotFinalNameRef.current = finalName;
             setSlotSpinning(false);
             slotTimerRef.current = null;
-            try { window.HASHI_SOUND.play('star'); } catch (e) {}
             return;
           }
           delay = Math.min(delay * 1.18, 420);
@@ -2371,7 +2432,6 @@ function platArmZoom(el) {
       const confirmSlotName = () => {
         const name = slotFinalNameRef.current;
         if (!name || slotSpinning) return;
-        try { window.HASHI_SOUND.play('click'); } catch (e) {}
         if (slotTimerRef.current) { clearTimeout(slotTimerRef.current); slotTimerRef.current = null; }
         setShowSlotMachine(false);
         setTempPlayerName(name);
@@ -3227,13 +3287,11 @@ function platArmZoom(el) {
           setTimeout(() => {
             if (raceSeqRef.current !== seq || raceStateRef.current !== 'countdown') return;
             setRaceCountdown(n);
-            window.HASHI_SOUND.play('countdown');
           }, delay);
         });
         setTimeout(() => {
           if (raceSeqRef.current !== seq || raceStateRef.current !== 'countdown') return;
           setRaceCountdown(0);
-          window.HASHI_SOUND.play('go');
           setRaceState('racing'); raceStateRef.current = 'racing';
           setTimeout(() => { if (raceSeqRef.current === seq) setRaceCountdown(null); }, 900);
         }, Math.max(0, startAt - now));
@@ -3305,7 +3363,6 @@ function platArmZoom(el) {
           const islCount = ((stateRef.current.randomLevelData && stateRef.current.randomLevelData.islands) || []).length || 1;
           const s = computeStars(Math.floor(myFinishTimeRef.current / 1000), islCount, false);
           setStars(s);
-          for (let si = 0; si < s; si++) setTimeout(() => window.HASHI_SOUND.play('star'), 200 + si * 320);
         } else setStars(0);
         setRaceResult({ winnerUid: all.length ? all[0].uid : null, entries: all });
         setRaceWaiting(false);
@@ -3392,14 +3449,12 @@ function platArmZoom(el) {
                     // 🏁 競速完賽：記錄個人成績並通知對手，不播標準勝利音效
                     const timeMs = Math.max(0, Date.now() + platTimeOffset() - raceStartAtRef.current); // 以房主時鐘校正後計算（D-05：各裝置時鐘差不再系統性偏袒時鐘慢的一方）
                     recordBest(Math.max(0, Math.floor(timeMs / 1000)));
+                    try { platAudio().play('complete'); } catch (e) {} // 競速個人完賽＝complete（新規格；舊制此處刻意不播勝利音，complete 為柔和兩音、非舊勝利 jingle）
                     onRaceSelfFinish(timeMs);
                 } else {
-                    window.HASHI_SOUND.play('win');
+                    try { platAudio().play('complete'); } catch (e) {} // 單機/合作個人完賽＝complete（PlatAudio，v1.64.0）
                     const s = computeStars(secs, islands.length, showSolution);
                     setStars(s);
-                    for (let si = 0; si < s; si++) {
-                        setTimeout(() => window.HASHI_SOUND.play('star'), 200 + si * 320);
-                    }
                     recordBest(secs);
                     if (isDailyModeRef.current) {
                         recordDailyWin(secs);
@@ -3680,7 +3735,6 @@ function platArmZoom(el) {
       );
 
       const openTutorial = () => {
-        window.HASHI_SOUND.play('click');
         setTutorialStep(0);
         setShowTutorial(true);
       };
@@ -3707,11 +3761,11 @@ function platArmZoom(el) {
             </div>
             <div className="flex gap-3">
               {tutorialStep > 0 ? (
-                <button onClick={() => { window.HASHI_SOUND.play('click'); setTutorialStep(tutorialStep - 1); }} className="flex-1 py-4 bg-white border-4 border-slate-800 rounded-xl font-black text-xl text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)]">上一步</button>
+                <button onClick={() => { setTutorialStep(tutorialStep - 1); }} className="flex-1 py-4 bg-white border-4 border-slate-800 rounded-xl font-black text-xl text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)]">上一步</button>
               ) : (<div className="flex-1"></div>)}
               <button onClick={closeTutorial} className="flex-1 py-4 bg-white border-4 border-slate-800 rounded-xl font-black text-xl text-slate-400 shadow-[4px_4px_0px_rgba(30,41,59,1)]">跳過</button>
               {tutorialStep < TUTORIAL_STEPS.length - 1 ? (
-                <button onClick={() => { window.HASHI_SOUND.play('click'); setTutorialStep(tutorialStep + 1); }} className="flex-1 py-4 bg-[#4ade80] border-4 border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[4px_4px_0px_rgba(30,41,59,1)]">下一步</button>
+                <button onClick={() => { setTutorialStep(tutorialStep + 1); }} className="flex-1 py-4 bg-[#4ade80] border-4 border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[4px_4px_0px_rgba(30,41,59,1)]">下一步</button>
               ) : (
                 <button onClick={closeTutorial} className="flex-1 py-4 bg-[#34d399] border-4 border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[4px_4px_0px_rgba(30,41,59,1)]">開始遊戲 🎮</button>
               )}
@@ -3860,7 +3914,7 @@ function platArmZoom(el) {
                      {!isMultiplayer && ( <button onClick={handleUndo} disabled={history.length === 0 || isWon} className="plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)] disabled:opacity-50 disabled:shadow-none flex items-center gap-1 text-[#1e293b]" title="復原">↩️<span className="hidden sm:inline">復原</span></button> )}
                      <button onClick={handleReset} className="plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-red-500 text-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1" title="重置">🔄<span className="hidden sm:inline">重置</span></button>
                      <button onClick={() => setShowSaveModal(true)} className="plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-blue-500 text-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1" title="存檔/讀檔">💾<span className="hidden sm:inline">存檔</span></button>
-                     <button onClick={() => { const m = window.HASHI_SOUND.toggleMute(); setMuted(m); if (!m) window.HASHI_SOUND.play('click'); }} className="plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1 text-[#1e293b]" title={muted ? "取消靜音" : "靜音"}>{muted ? '🔇' : '🔊'}</button>
+                     <button onClick={() => { const m = platAudio().toggleMuted(); setMuted(m); }} className="plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1 text-[#1e293b]" title={muted ? "取消靜音" : "靜音"}>{muted ? '🔇' : '🔊'}</button>
                      <button onClick={() => { const N = typeof window !== 'undefined' ? window.__PLAT_NET : null; if ((N && N.inMatch === 'hashi') || (typeof window !== 'undefined' && window.__PLAT_TOURN_CAN_FORCEEND && window.__PLAT_TOURN_CAN_FORCEEND())) setShowExitMenu(true); else handleGoHome(); }} className="plat-btn-hard plat-btn-hard-2 bg-white text-[#1e293b] border-2 border-[#1e293b] px-2 py-1 md:px-3 md:py-1.5 rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1" title="回首頁/斷線">{!isMultiplayer ? '🏠' : '🔌'}<span className="hidden sm:inline ml-1">{!isMultiplayer ? '回首頁' : '退出'}</span></button>
                   </div>
                </div>

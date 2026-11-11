@@ -79,6 +79,76 @@ platSave().register('mines_resume', function (p) { return !!p && typeof p === 'o
 platSave().register('mines_daily_records', function (p) { return !!p && typeof p === 'object' && !Array.isArray(p); });
 platSave().register('mines_daily_streak', function (p) { return !!p && typeof p === 'object' && typeof p.count === 'number'; });
 platSave().register('mines_custom_cfg', function (p) { return !!p && typeof p === 'object' && typeof p.w === 'number' && typeof p.h === 'number' && typeof p.mines === 'number'; });
+// === PlatAudio 接點（技能對照改造第 3 項，v1.64.0）：平台模式用殼的 window.PlatAudio；獨立開啟用同配方（B 柔和）本地後備——靜音同走 plat_muted、首次讀取保守合併舊三鍵 ===
+var __paLocal = null;
+function platAudio() {
+  if (typeof window !== 'undefined' && window.PlatAudio) return window.PlatAudio;
+  if (__paLocal) return __paLocal;
+  var RECIPES = {
+    place:    { notes: [[520, 0, 0.10, 1]] },
+    error:    { notes: [[220, 0, 0.16, 1]] },
+    boom:     { notes: [[110, 0, 0.25, 1]] },
+    complete: { notes: [[440, 0, 0.10, 1], [660, 0.10, 0.16, 1]] },
+    gift:     { notes: [[440, 0, 0.10, 0.7], [660, 0.10, 0.16, 0.7]] },
+    win:      { notes: [[392, 0, 0.12, 1], [523, 0.09, 0.12, 1], [659, 0.18, 0.12, 1], [784, 0.27, 0.22, 1]] }
+  };
+  var ctx = null, master = null, unlocked = false, lastPlay = {}, mutedCache = null;
+  function sGet(k) { try { var v = platSave().getStr(k, ''); return v === null || v === undefined ? '' : v; } catch (e) { return ''; } }
+  function sSet(k, v) { try { platSave().setStr(k, v); } catch (e) {} }
+  function readMuted() {
+    if (mutedCache !== null) return mutedCache;
+    var v = sGet('plat_muted');
+    if (!v) {
+      var legacy = sGet('sudoku_muted') === '1' || sGet('hashi_muted') === '1' || sGet('mines_muted') === '1';
+      v = legacy ? '1' : '0';
+      sSet('plat_muted', v);
+    }
+    mutedCache = (v === '1');
+    return mutedCache;
+  }
+  function ensureCtx() {
+    if (ctx) return ctx;
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    try { ctx = new AC(); master = ctx.createGain(); master.gain.value = 0.5; master.connect(ctx.destination); } catch (e) { ctx = null; return null; }
+    return ctx;
+  }
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('pointerdown', function () {
+      unlocked = true;
+      var c = ensureCtx();
+      if (c && c.state === 'suspended') { try { var p = c.resume(); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
+    }, true);
+  }
+  function tone(freq, at, dur, vol) {
+    var t = ctx.currentTime + at;
+    var o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(master);
+    o.start(t); o.stop(t + dur + 0.05);
+  }
+  __paLocal = {
+    play: function (name) {
+      try {
+        if (readMuted()) return;
+        var r = RECIPES[name]; if (!r) return;
+        if (!unlocked || !ctx || ctx.state === 'suspended') return;
+        var now = Date.now();
+        if (lastPlay[name] && now - lastPlay[name] < 60) return;
+        lastPlay[name] = now;
+        for (var i = 0; i < r.notes.length; i++) { var n = r.notes[i]; tone(n[0], n[1], n[2], n[3]); }
+      } catch (e) {}
+    },
+    isMuted: function () { return readMuted(); },
+    setMuted: function (m) { mutedCache = !!m; sSet('plat_muted', m ? '1' : '0'); },
+    toggleMuted: function () { var m = !readMuted(); mutedCache = m; sSet('plat_muted', m ? '1' : '0'); return m; }
+  };
+  return __paLocal;
+}
 // === PlatTap/PlatZoom 接點（共用手勢判定＋縮放持有，v1.63.0）：平台模式用殼的 window.PlatTap/PlatZoom；獨立開啟用同語意本地後備（與殼同碼） ===
 function platTapFactoryLocal(opts) {
   opts = opts || {};
@@ -258,7 +328,7 @@ function countFlags(cells) { var c = 0; for (var i = 0; i < cells.length; i++) i
 // ---------- 極簡音效（WebAudio，靜音鍵 mines_muted） ----------
 var _ac = null;
 function beep(freq, dur, type, vol, slideTo) {
-  if (platSave().getStr('mines_muted', '') === '1') return;
+  if (platAudio().isMuted()) return; // 靜音統一殼級 plat_muted（PlatAudio，v1.64.0；未遷移自有音效同受其管轄）
   try {
     _ac = _ac || new (window.AudioContext || window.webkitAudioContext)();
     if (_ac.state === 'suspended') _ac.resume();
@@ -294,7 +364,7 @@ function MinesGame() {
   const [tutStep, setTutStep] = useState(0); // 玩法教學步進（美學稽核 V-09：三款教學統一為數橋的步進骨架）
   const [tutDemoOpen, setTutDemoOpen] = useState(() => new Array(9).fill(false)); // 教學互動 demo（v1.46 Q6）：3×3 已挖開格
   const [tutDemoBoom, setTutDemoBoom] = useState(false); // 教學互動 demo：踩到雷了
-  const [muted, setMuted] = useState(platSave().getStr('mines_muted', '') === '1');
+  const [muted, setMuted] = useState(platAudio().isMuted());
   const [sizeId, setSizeId] = useState(9);
   const [layout, setLayout] = useState(null);       // bool[] 雷位（目前這一局）
   const [nums, setNums] = useState(null);           // int[] 鄰雷數（-1=雷）
@@ -431,18 +501,18 @@ function MinesGame() {
       if (allow > 0 && !outcomeRef.current && mistakesRef.current < allow) {
         mistakesRef.current += 1;
         var xc = r.cells.slice(); xc[r.hit] = 'x';
-        setCells(xc); setMistLeft(allow - mistakesRef.current); SFX.boom();
+        setCells(xc); setMistLeft(allow - mistakesRef.current); platAudio().play('boom');
         itemSay('💥 踩到雷！這格記 ✗——愛心還剩 ' + (allow - mistakesRef.current + 1) + ' 顆');
         return { hit: -1, cells: xc, layout: L, nums: N, forgiven: r.hit };
       }
-      setCells(r.cells); setHitIdx(r.hit); setStatus('lost'); statusRef.current = 'lost'; SFX.boom();
+      setCells(r.cells); setHitIdx(r.hit); setStatus('lost'); statusRef.current = 'lost'; platAudio().play('boom');
       return { hit: r.hit, cells: r.cells, layout: L, nums: N };
     }
-    if (r.opened > 0) SFX.dig();
+    if (r.opened > 0) platAudio().play('place'); // 挖開＝place
     setCells(r.cells);
     var opened = 0; for (var i = 0; i < r.cells.length; i++) if (r.cells[i] === 'o' && !L[i]) opened++;
     if (opened >= sp.w * sp.h - sp.mines) {
-      setStatus('won'); statusRef.current = 'won'; SFX.win();
+      setStatus('won'); statusRef.current = 'won'; platAudio().play('complete'); // 個人完賽＝complete
       if (!mpRef.current.on) onSoloWin(); // 多人場不寫單機最佳紀錄（競速由 afterRaceAction 處理）
     }
     return { hit: -1, cells: r.cells, layout: L, nums: N };
@@ -563,7 +633,7 @@ function MinesGame() {
       var NC2 = cells.slice();
       NC2[idx] = NC2[idx] === 'f' ? 'h' : 'f';
       if (NC2[idx] === 'f' && layout && layout[idx] && mpRef.current.itemsAllow && !creditedMinesRef.current[idx]) { creditedMinesRef.current[idx] = 1; giftCreditRef.current += 0.5; trySendGift(); } // 正確插旗 +0.5 禮物額度（同一顆雷只計一次）
-      setCells(NC2); SFX.flag();
+      setCells(NC2); // 插旗/拔旗不播（規格明定，v1.64.0）
       raceSendState(NC2, nums, layout, false);
       return;
     }
@@ -571,7 +641,7 @@ function MinesGame() {
     if (cells[idx] === 'o') return;
     var NC = cells.slice();
     NC[idx] = NC[idx] === 'f' ? 'h' : 'f';
-    setCells(NC); SFX.flag();
+    setCells(NC); // 插旗/拔旗不播（規格明定，v1.64.0）
   }
 
   function onCellAction(idx) {
@@ -673,6 +743,7 @@ function MinesGame() {
   const [godBoards, setGodBoards] = useState({});
   const [godUid, setGodUid] = useState(null);
   const [raceFinal, setRaceFinal] = useState(null);
+  useEffect(() => { if (raceFinal && raceFinal.winnerUid && raceFinal.winnerUid === myId) { try { platAudio().play('win'); } catch (e) {} } }, [raceFinal]); // 競速奪冠＝win（PlatAudio，v1.64.0）
   const [myOutcome, setMyOutcome] = useState(null); // 'finished'|'boom'
   const [leaveArm, setLeaveArm] = useState(false);
   const [showExitMenu, setShowExitMenu] = useState(false); // 離開選單（比照數獨/數橋：退出鈕開選單，內含結束本局/回等待室/退出回大廳）
@@ -879,7 +950,7 @@ function MinesGame() {
     var cand = giftCandidates();
     if (!cand.length) { itemSay('🎁 禮物：所有地雷都已標記，禮物落空'); return; }
     var idx = cand[Math.floor(Math.random() * cand.length)];
-    var NC = B.cells.slice(); NC[idx] = 'L'; setCells(NC); SFX.flag();
+    var NC = B.cells.slice(); NC[idx] = 'L'; setCells(NC); platAudio().play('gift'); // 禮物效果落地（收到禮物）＝gift
     raceSendState(NC, B.nums, B.layout, true);
     itemSay('🎁 ' + (fromName ? fromName + ' 送的禮物' : '禮物') + '：一顆地雷已被標記並鎖定！');
   }
@@ -1036,17 +1107,17 @@ function MinesGame() {
     setCells(arr);
     var xCnt2 = 0; for (var xj2 = 0; xj2 < arr.length; xj2++) if (arr[xj2] === 'x') xCnt2++; // 合作愛心＝盤面 ✗ 數推導，全員一致
     mistakesRef.current = xCnt2; setMistLeft(Math.max(0, mistakeAllowance() - xCnt2));
-    if (m.forgivenAt != null && m.forgivenAt >= 0) { SFX.boom(); itemSay('💥 ' + (m.byName || '有人') + ' 踩到雷！這格記 ✗——愛心還剩 ' + (mistakeAllowance() - xCnt2 + 1) + ' 顆'); }
+    if (m.forgivenAt != null && m.forgivenAt >= 0) { platAudio().play('boom'); itemSay('💥 ' + (m.byName || '有人') + ' 踩到雷！這格記 ✗——愛心還剩 ' + (mistakeAllowance() - xCnt2 + 1) + ' 顆'); }
     setNums(prev => { var N = prev ? prev.slice() : new Array(arr.length).fill(0); for (var k in m.sparse) N[+k] = m.sparse[k]; return N; });
     if (m.hit >= 0) setHitIdx(m.hit);
     if (m.statusAfter === 'lost') {
       if (m.mines) { var L = new Array(arr.length).fill(false); m.mines.forEach(i => { L[i] = true; }); setLayout(L); }
-      setStatus('lost'); statusRef.current = 'lost'; setCoopBoomBy(m.byName || ''); SFX.boom();
+      setStatus('lost'); statusRef.current = 'lost'; setCoopBoomBy(m.byName || ''); platAudio().play('boom');
       mpRef.current.phase = 'done'; setMpPhase('done');
     } else if (m.statusAfter === 'won') {
-      setStatus('won'); statusRef.current = 'won'; SFX.win();
+      setStatus('won'); statusRef.current = 'won'; platAudio().play('complete');
       mpRef.current.phase = 'done'; setMpPhase('done');
-    } else { setStatus('playing'); statusRef.current = 'playing'; if (m.forgivenAt != null && m.forgivenAt >= 0) { /* 引爆音效已在上方播 */ } else if (m.kind === 'reveal') SFX.dig(); else SFX.flag(); }
+    } else { setStatus('playing'); statusRef.current = 'playing'; if (m.forgivenAt != null && m.forgivenAt >= 0) { /* 引爆音效已在上方播 */ } else if (m.kind === 'reveal') platAudio().play('place'); }
   }
 
   // ----- 開局 -----
@@ -1859,7 +1930,7 @@ function MinesGame() {
             <div className="flex gap-1 md:gap-2 flex-wrap items-center ml-auto">
               {!mpOn && (<button onClick={() => { if (dailyDate) startDaily(dailyDate); else newGame(sizeId); }} className={hbtn} title="重開一局">🔄<span className="hidden sm:inline ml-1">重開</span></button>)}
               {!mpOn && (<button onClick={() => { setSaveCode(''); setShowSaveModal(true); }} className={hbtn} title="存檔/讀檔（進度代碼）">💾<span className="hidden sm:inline ml-1">存檔</span></button>)}
-              <button onClick={() => { var m = !muted; setMuted(m); platSave().setStr('mines_muted', m ? '1' : '0'); }} title={muted ? '取消靜音' : '靜音'} className={hbtn}>{muted ? '🔇' : '🔊'}</button>
+              <button onClick={() => { var m = platAudio().toggleMuted(); setMuted(m); }} title={muted ? '取消靜音' : '靜音'} className={hbtn}>{muted ? '🔇' : '🔊'}</button>
               {mpOn ? (<button onClick={() => setShowExitMenu(true)} className={hbtn} title="離開對局">🔌<span className="hidden sm:inline ml-1">退出</span></button>)
                     : (<button onClick={() => setScreen('home')} className={hbtn} title="回主選單">🏠<span className="hidden sm:inline ml-1">主選單</span></button>)}
             </div>

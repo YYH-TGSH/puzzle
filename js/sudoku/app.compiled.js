@@ -357,11 +357,11 @@ function SudokuGame() {
   }, [diffId, screen]);
   // 靜音偏好（與全域音效引擎同步，同數橋）
   var _useState83 = useState(function () {
-      return platSave().getStr('sudoku_muted', '') === '1';
+      return platAudio().isMuted();
     }),
     _useState84 = _slicedToArray(_useState83, 2),
     muted = _useState84[0],
-    setMuted = _useState84[1];
+    setMuted = _useState84[1]; // 靜音統一殼級 plat_muted（PlatAudio，v1.64.0）
 
   // 平台 dock 按鈕（💬/🎥/🎤/🔈）：平台模式＋連線中時畫進自己的底部列，與遊戲按鈕同排同款
   var _useState85 = useState(0),
@@ -851,9 +851,6 @@ function SudokuGame() {
         } else {
           setCountdownValue(null);
           if (stateRef.current.matchPhase !== 'playing') {
-            try {
-              window.SUDOKU_SOUND.play('go');
-            } catch (e) {}
             var localStart = countdownTarget - platTimeOffset(); // 換算回本地時鐘：下游計時/完賽/武器延遲全用本地版
             setMatchPhase('playing');
             setStartTime(localStart);
@@ -1642,18 +1639,19 @@ function SudokuGame() {
   useEffect(function () {
     if (isWon) {
       try {
-        window.SUDOKU_SOUND.play('win');
+        platAudio().play('complete');
       } catch (e) {}
     }
-  }, [isWon]);
-  // 音效：倒數每秒嗶聲（GO 在倒數 effect 轉 playing 時播）
+  }, [isWon]); // 個人完賽＝complete（PlatAudio，v1.64.0）
   useEffect(function () {
-    if (countdownValue !== null && countdownValue > 0) {
+    if (winner && winner.id === myId) {
       try {
-        window.SUDOKU_SOUND.play('countdown');
+        platAudio().play('win');
       } catch (e) {}
     }
-  }, [countdownValue]);
+  }, [winner]); // 奪冠（大亂鬥/合作勝者是我）＝win
+  // 音效：倒數每秒嗶聲（GO 在倒數 effect 轉 playing 時播）
+  // 倒數音效：新規格不播（寧缺勿濫，v1.64.0 起移除）
 
   // 觸控縮放
   useEffect(function () {
@@ -4060,12 +4058,10 @@ function SudokuGame() {
     var target = cur[targetIdx];
     if (target.isGiven || target.isSystemRevealed) return;
     if (isCellFrozen(cellId)) {
-      try {
-        window.SUDOKU_SOUND.play('error');
-      } catch (e) {}
       frozenToast('填');
       return;
-    }
+    } // 凍結拒填：新規格不播（error 僅給數字衝突標示，v1.64.0）
+
     if (engineRef.current === 'none') setHistory(function (past) {
       return [].concat(_toConsumableArray(past.slice(past.length > 25 ? 1 : 0)), [cur]);
     });
@@ -4080,18 +4076,37 @@ function SudokuGame() {
       } else {
         nextCell.drafts = [].concat(_toConsumableArray(nextCell.drafts), [_char6]);
       }
-      try {
-        window.SUDOKU_SOUND.play('click');
-      } catch (e) {}
     } else {
       // 一般填答模式
       var nextValue = target.value === _char6 ? null : _char6;
       nextCell.value = nextValue;
       nextCell.owner = nextValue !== null ? myId : null;
       nextCell.drafts = [];
-      try {
-        window.SUDOKU_SOUND.play(nextValue !== null ? 'place' : 'remove');
-      } catch (e) {}
+      if (nextValue !== null) {
+        // 衝突偵測（與 conflictCellIds 同規則：列/欄/宮同值）→ error 取代 place；無衝突 → place；擦除不播（PlatAudio 接線，v1.64.0）
+        var bx0 = Math.floor(target.x / cSizeDef.boxW) * cSizeDef.boxW,
+          by0 = Math.floor(target.y / cSizeDef.boxH) * cSizeDef.boxH;
+        var clash = false;
+        var _iterator7 = _createForOfIteratorHelper(cur),
+          _step7;
+        try {
+          for (_iterator7.s(); !(_step7 = _iterator7.n()).done;) {
+            var c = _step7.value;
+            if (c.id === cellId || c.value !== nextValue) continue;
+            if (c.x === target.x || c.y === target.y || c.x >= bx0 && c.x < bx0 + cSizeDef.boxW && c.y >= by0 && c.y < by0 + cSizeDef.boxH) {
+              clash = true;
+              break;
+            }
+          }
+        } catch (err) {
+          _iterator7.e(err);
+        } finally {
+          _iterator7.f();
+        }
+        try {
+          platAudio().play(clash ? 'error' : 'place');
+        } catch (e) {}
+      }
 
       // 幽靈競速/亂鬥模式：廣播玩家填答狀況（包含擦除，讓上帝模式與進度條能正確反映）
       if (isBrawlMode && isMultiplayer) {
@@ -4118,10 +4133,10 @@ function SudokuGame() {
       var placed = nextCell.value;
       for (var i = 0; i < nextCells.length; i++) {
         if (i === targetIdx) continue;
-        var c = nextCells[i];
-        if ((c.x === target.x || c.y === target.y || c.boxId === target.boxId) && c.drafts && c.drafts.includes(placed)) {
-          nextCells[i] = _objectSpread(_objectSpread({}, c), {}, {
-            drafts: c.drafts.filter(function (d) {
+        var _c = nextCells[i];
+        if ((_c.x === target.x || _c.y === target.y || _c.boxId === target.boxId) && _c.drafts && _c.drafts.includes(placed)) {
+          nextCells[i] = _objectSpread(_objectSpread({}, _c), {}, {
+            drafts: _c.drafts.filter(function (d) {
               return d !== placed;
             })
           });
@@ -5053,20 +5068,20 @@ function SudokuGame() {
         return s.id === stateRef.current.sizeId;
       }) || SIZES[1]).size;
       var maxDim = 0;
-      var _iterator7 = _createForOfIteratorHelper(savedProg.d),
-        _step7;
+      var _iterator8 = _createForOfIteratorHelper(savedProg.d),
+        _step8;
       try {
-        for (_iterator7.s(); !(_step7 = _iterator7.n()).done;) {
-          var c = _step7.value;
+        for (_iterator8.s(); !(_step8 = _iterator8.n()).done;) {
+          var c = _step8.value;
           if (c && typeof c.x === 'number' && typeof c.y === 'number') {
             if (c.x + 1 > maxDim) maxDim = c.x + 1;
             if (c.y + 1 > maxDim) maxDim = c.y + 1;
           }
         }
       } catch (err) {
-        _iterator7.e(err);
+        _iterator8.e(err);
       } finally {
-        _iterator7.f();
+        _iterator8.f();
       }
       if (maxDim !== targetSize) {
         platSave().remove("sudoku_prog_".concat(rId, "_").concat(myId));
@@ -6448,9 +6463,8 @@ function SudokuGame() {
     className: "hidden sm:inline"
   }, "\u5B58\u6A94")), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
-      var m = window.SUDOKU_SOUND.toggleMute();
+      var m = platAudio().toggleMuted();
       setMuted(m);
-      if (!m) window.SUDOKU_SOUND.play('click');
     },
     className: "plat-btn-hard plat-btn-hard-2 px-1.5 py-1 md:px-3 md:py-1.5 bg-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1 text-[#1e293b] shrink-0",
     title: muted ? "取消靜音" : "靜音"

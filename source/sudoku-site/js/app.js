@@ -139,7 +139,7 @@ function SudokuGame() {
     // v1.61.0 K1：單機難度段位滑動指示片（殼 PlatSeg 共用；量測在 effect 內、選取變化才滑）
     useEffect(() => { if (window.PlatSeg) { var c = document.querySelector('#view-sudoku [data-seg="sudoku-diff"]'); var b = c && c.querySelector('[data-seg-on="1"]'); if (c && b) window.PlatSeg(c, 'sudoku-diff', b, '#ffcc00'); } }, [diffId, screen]);
     // 靜音偏好（與全域音效引擎同步，同數橋）
-    const [muted, setMuted] = useState(() => platSave().getStr('sudoku_muted', '') === '1');
+    const [muted, setMuted] = useState(() => platAudio().isMuted()); // 靜音統一殼級 plat_muted（PlatAudio，v1.64.0）
 
     // 平台 dock 按鈕（💬/🎥/🎤/🔈）：平台模式＋連線中時畫進自己的底部列，與遊戲按鈕同排同款
     const [dockTick, setDockTick] = useState(0);
@@ -373,7 +373,6 @@ function SudokuGame() {
                 } else {
                     setCountdownValue(null);
                     if (stateRef.current.matchPhase !== 'playing') {
-                        try { window.SUDOKU_SOUND.play('go'); } catch (e) {}
                         const localStart = countdownTarget - platTimeOffset(); // 換算回本地時鐘：下游計時/完賽/武器延遲全用本地版
                         setMatchPhase('playing');
                         setStartTime(localStart);
@@ -922,9 +921,10 @@ function SudokuGame() {
     }, [activeCells, conflictCellIds.size, isWon, isGenerating, winner, matchStartTime, startTime, playersList, myId, matchPhase, isSpectator]);
 
     // 音效：完成題目（與數橋同款引擎/音色）
-    useEffect(() => { if (isWon) { try { window.SUDOKU_SOUND.play('win'); } catch (e) {} } }, [isWon]);
+    useEffect(() => { if (isWon) { try { platAudio().play('complete'); } catch (e) {} } }, [isWon]); // 個人完賽＝complete（PlatAudio，v1.64.0）
+    useEffect(() => { if (winner && winner.id === myId) { try { platAudio().play('win'); } catch (e) {} } }, [winner]); // 奪冠（大亂鬥/合作勝者是我）＝win
     // 音效：倒數每秒嗶聲（GO 在倒數 effect 轉 playing 時播）
-    useEffect(() => { if (countdownValue !== null && countdownValue > 0) { try { window.SUDOKU_SOUND.play('countdown'); } catch (e) {} } }, [countdownValue]);
+    // 倒數音效：新規格不播（寧缺勿濫，v1.64.0 起移除）
 
     // 觸控縮放
     useEffect(function () {
@@ -2133,7 +2133,7 @@ function SudokuGame() {
         const targetIdx = cur.findIndex(c => c.id === cellId);
         if (targetIdx === -1) return; const target = cur[targetIdx];
         if (target.isGiven || target.isSystemRevealed) return;
-        if (isCellFrozen(cellId)) { try { window.SUDOKU_SOUND.play('error'); } catch (e) {} frozenToast('填'); return; }
+        if (isCellFrozen(cellId)) { frozenToast('填'); return; } // 凍結拒填：新規格不播（error 僅給數字衝突標示，v1.64.0）
 
         if (engineRef.current === 'none') setHistory(past => [...past.slice(past.length > 25 ? 1 : 0), cur]);
 
@@ -2145,13 +2145,18 @@ function SudokuGame() {
             } else {
                 nextCell.drafts = [...nextCell.drafts, char];
             }
-            try { window.SUDOKU_SOUND.play('click'); } catch (e) {}
         } else { // 一般填答模式
             const nextValue = (target.value === char) ? null : char;
             nextCell.value = nextValue;
             nextCell.owner = (nextValue !== null) ? myId : null;
             nextCell.drafts = [];
-            try { window.SUDOKU_SOUND.play(nextValue !== null ? 'place' : 'remove'); } catch (e) {}
+            if (nextValue !== null) {
+                // 衝突偵測（與 conflictCellIds 同規則：列/欄/宮同值）→ error 取代 place；無衝突 → place；擦除不播（PlatAudio 接線，v1.64.0）
+                const bx0 = Math.floor(target.x / cSizeDef.boxW) * cSizeDef.boxW, by0 = Math.floor(target.y / cSizeDef.boxH) * cSizeDef.boxH;
+                let clash = false;
+                for (const c of cur) { if (c.id === cellId || c.value !== nextValue) continue; if (c.x === target.x || c.y === target.y || (c.x >= bx0 && c.x < bx0 + cSizeDef.boxW && c.y >= by0 && c.y < by0 + cSizeDef.boxH)) { clash = true; break; } }
+                try { platAudio().play(clash ? 'error' : 'place'); } catch (e) {}
+            }
 
             // 幽靈競速/亂鬥模式：廣播玩家填答狀況（包含擦除，讓上帝模式與進度條能正確反映）
             if (isBrawlMode && isMultiplayer) {
@@ -3540,7 +3545,7 @@ function SudokuGame() {
                             {(true) && (<button onClick={handleUndo} disabled={history.length === 0 || isWon || (isMultiplayer && !isBrawlMode)} className="plat-btn-hard plat-btn-hard-2 px-1.5 py-1 md:px-3 md:py-1.5 bg-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[2px_2px_0px_#1e293b] disabled:opacity-50 disabled:shadow-none flex items-center gap-1 text-[#1e293b] shrink-0" title="復原">↩️<span className="hidden sm:inline">復原</span></button>)}
                             <button onClick={handleReset} className="plat-btn-hard plat-btn-hard-2 px-1.5 py-1 md:px-3 md:py-1.5 bg-red-500 text-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1 shrink-0" title="重置">🔄<span className="hidden sm:inline">重置</span></button>
                             <button onClick={() => setShowSaveModal(true)} className="plat-btn-hard plat-btn-hard-2 px-1.5 py-1 md:px-3 md:py-1.5 bg-blue-500 text-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1 shrink-0" title="存檔/讀檔">💾<span className="hidden sm:inline">存檔</span></button>
-                            <button onClick={() => { const m = window.SUDOKU_SOUND.toggleMute(); setMuted(m); if (!m) window.SUDOKU_SOUND.play('click'); }} className="plat-btn-hard plat-btn-hard-2 px-1.5 py-1 md:px-3 md:py-1.5 bg-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1 text-[#1e293b] shrink-0" title={muted ? "取消靜音" : "靜音"}>{muted ? '🔇' : '🔊'}</button>
+                            <button onClick={() => { const m = platAudio().toggleMuted(); setMuted(m); }} className="plat-btn-hard plat-btn-hard-2 px-1.5 py-1 md:px-3 md:py-1.5 bg-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1 text-[#1e293b] shrink-0" title={muted ? "取消靜音" : "靜音"}>{muted ? '🔇' : '🔊'}</button>
                             <button onClick={() => { const N = typeof window !== 'undefined' ? window.__PLAT_NET : null; if ((N && N.inMatch === 'sudoku') || (typeof window !== 'undefined' && window.__PLAT_TOURN_CAN_FORCEEND && window.__PLAT_TOURN_CAN_FORCEEND())) setShowExitMenu(true); else handleGoHome(); }} className="plat-btn-hard plat-btn-hard-2 bg-white text-[#1e293b] border-2 border-[#1e293b] px-1.5 py-1 md:px-3 md:py-1.5 rounded font-bold text-[10px] md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1 shrink-0" title="回首頁/斷線">{!isMultiplayer ? '🏠' : '🔌'}<span className="hidden sm:inline ml-1">{!isMultiplayer ? '回首頁' : '退出'}</span></button>
                         </div>
                     </div>

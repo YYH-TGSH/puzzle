@@ -358,6 +358,107 @@ function platArmZoom(el) {
     el.style.transition = '';el.__pzArmTimer = null;
   }, 260);
 }
+// === PlatAudio 接點（技能對照改造第 3 項，v1.64.0）：平台模式用殼的 window.PlatAudio；獨立開啟用同配方（B 柔和）本地後備——靜音同走 plat_muted、首次讀取保守合併舊三鍵 ===
+var __paLocal = null;
+function platAudio() {
+  if (typeof window !== 'undefined' && window.PlatAudio) return window.PlatAudio;
+  if (__paLocal) return __paLocal;
+  var RECIPES = {
+    place: { notes: [[520, 0, 0.10, 1]] },
+    error: { notes: [[220, 0, 0.16, 1]] },
+    boom: { notes: [[110, 0, 0.25, 1]] },
+    complete: { notes: [[440, 0, 0.10, 1], [660, 0.10, 0.16, 1]] },
+    gift: { notes: [[440, 0, 0.10, 0.7], [660, 0.10, 0.16, 0.7]] },
+    win: { notes: [[392, 0, 0.12, 1], [523, 0.09, 0.12, 1], [659, 0.18, 0.12, 1], [784, 0.27, 0.22, 1]] }
+  };
+  var ctx = null,
+      master = null,
+      unlocked = false,
+      lastPlay = {},
+      mutedCache = null;
+  function sGet(k) {
+    try {
+      var v = platSave().getStr(k, '');return v === null || v === undefined ? '' : v;
+    } catch (e) {
+      return '';
+    }
+  }
+  function sSet(k, v) {
+    try {
+      platSave().setStr(k, v);
+    } catch (e) {}
+  }
+  function readMuted() {
+    if (mutedCache !== null) return mutedCache;
+    var v = sGet('plat_muted');
+    if (!v) {
+      var legacy = sGet('sudoku_muted') === '1' || sGet('hashi_muted') === '1' || sGet('mines_muted') === '1';
+      v = legacy ? '1' : '0';
+      sSet('plat_muted', v);
+    }
+    mutedCache = v === '1';
+    return mutedCache;
+  }
+  function ensureCtx() {
+    if (ctx) return ctx;
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    try {
+      ctx = new AC();master = ctx.createGain();master.gain.value = 0.5;master.connect(ctx.destination);
+    } catch (e) {
+      ctx = null;return null;
+    }
+    return ctx;
+  }
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('pointerdown', function () {
+      unlocked = true;
+      var c = ensureCtx();
+      if (c && c.state === 'suspended') {
+        try {
+          var p = c.resume();if (p && p.catch) p.catch(function () {});
+        } catch (e) {}
+      }
+    }, true);
+  }
+  function tone(freq, at, dur, vol) {
+    var t = ctx.currentTime + at;
+    var o = ctx.createOscillator(),
+        g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g);g.connect(master);
+    o.start(t);o.stop(t + dur + 0.05);
+  }
+  __paLocal = {
+    play: function play(name) {
+      try {
+        if (readMuted()) return;
+        var r = RECIPES[name];if (!r) return;
+        if (!unlocked || !ctx || ctx.state === 'suspended') return;
+        var now = Date.now();
+        if (lastPlay[name] && now - lastPlay[name] < 60) return;
+        lastPlay[name] = now;
+        for (var i = 0; i < r.notes.length; i++) {
+          var n = r.notes[i];tone(n[0], n[1], n[2], n[3]);
+        }
+      } catch (e) {}
+    },
+    isMuted: function isMuted() {
+      return readMuted();
+    },
+    setMuted: function setMuted(m) {
+      mutedCache = !!m;sSet('plat_muted', m ? '1' : '0');
+    },
+    toggleMuted: function toggleMuted() {
+      var m = !readMuted();mutedCache = m;sSet('plat_muted', m ? '1' : '0');return m;
+    }
+  };
+  return __paLocal;
+}
 
 // 每日紀錄收斂為單一 map key（稽核 G-01：原「一天一 key」無界成長）：第一次讀取時把全部舊 key 摺進 hashi_daily_map 並刪除舊 key，之後只讀寫 map（帶 schema 版本 v:1，G-02）
 var _dailyMapCache = null;
@@ -1152,11 +1253,11 @@ function HashiGame() {
 
 
   var _useState141 = useState(function () {
-    return platSave().getStr('hashi_muted', '') === '1';
+    return platAudio().isMuted();
   }),
       _useState142 = _slicedToArray(_useState141, 2),
       muted = _useState142[0],
-      setMuted = _useState142[1];
+      setMuted = _useState142[1]; // 靜音統一殼級 plat_muted（PlatAudio，v1.64.0）
 
   // 🏁 競速模式
 
@@ -1242,6 +1343,14 @@ function HashiGame() {
       _useState170 = _slicedToArray(_useState169, 2),
       raceResult = _useState170[0],
       setRaceResult = _useState170[1];
+
+  useEffect(function () {
+    if (raceResult && raceResult.winnerUid && raceResult.winnerUid === myId) {
+      try {
+        platAudio().play('win');
+      } catch (e) {}
+    }
+  }, [raceResult]); // 奪冠（競速/大亂鬥冠軍是我）＝win（PlatAudio，v1.64.0）
 
   var _useState171 = useState(false),
       _useState172 = _slicedToArray(_useState171, 2),
@@ -2158,9 +2267,6 @@ function HashiGame() {
               // 目標出現時輕 tick 一聲，加 150ms 遲滯避免抖動連播
               if (t && wasNull && Date.now() - (dd.lastTick || 0) > 150) {
                 dd.lastTick = Date.now();
-                try {
-                  window.HASHI_SOUND.play('click');
-                } catch (err2) {}
               }
             }
             updateDragPreview(dd, dx, dy);
@@ -2475,9 +2581,6 @@ function HashiGame() {
     }).length >= 3) setTimeout(function () {
       return autoFireBrawlItem(effItem);
     }, 650); // 集滿 3 個 → 自動連續發動並歸零（禮物也同規，使用者定案）
-    try {
-      window.HASHI_SOUND.play('star');
-    } catch (e) {}
   };
   // 短暫特效標記（💥炸橋／✨禮物補橋）：出現在盤面座標上、動畫播完自動消失，不進同步
   var pushFxMark = function pushFxMark(gx, gy, icon, ms) {
@@ -2536,7 +2639,7 @@ function HashiGame() {
     if (gf && gt) pushFxMark((gf.x + gt.x) / 2, (gf.y + gt.y) / 2, '✨', 900); // 補橋處閃光動畫（不閃現）
     showToast('🎁 禮物幫你把一對島的正確橋補滿並鎖定了！');
     try {
-      window.HASHI_SOUND.play('bridge');
+      platAudio().play('gift');
     } catch (e) {}
     return true;
   };
@@ -2566,9 +2669,6 @@ function HashiGame() {
           bt = islMapB[victim.to];
       if (bf && bt) pushFxMark((bf.x + bt.x) / 2, (bf.y + bt.y) / 2, '💥', 750); // 爆炸動畫蓋在被炸的橋上（不閃現消失）
       showToast('💣 ' + (m.fromName || '對手') + ' 炸掉了你一條橋！');
-      try {
-        window.HASHI_SOUND.play('remove');
-      } catch (e) {}
     } else if (m.item === 'fog') {
       var isls = (stateRef.current.randomLevelData || {}).islands || [];
       if (!isls.length) return;
@@ -2665,9 +2765,6 @@ function HashiGame() {
       return x.key === key;
     });
     showToast('🎒 集滿 3 個 ' + (meta ? meta.icon + ' ' + meta.name : key) + '，自動連續發動！');
-    try {
-      window.HASHI_SOUND.play('star');
-    } catch (e) {}
     var fired = 0;
     var step = function step() {
       if (fired >= 3) {
@@ -3090,15 +3187,12 @@ function HashiGame() {
     });
     if (!target) return;
     if (target.locked) {
-      showToast('🎁 這是禮物補上的橋，已鎖定，不會被改掉');try {
-        window.HASHI_SOUND.play('error');
-      } catch (e) {}return;
-    } // 禮物橋：誤觸不刪（點按/拖曳共用此入口）
+      showToast('🎁 這是禮物補上的橋，已鎖定，不會被改掉');return;
+    } // 新規格數橋無 error 音（v1.64.0） // 禮物橋：誤觸不刪（點按/拖曳共用此入口）
 
     if (target.count + (target.draftCount || 0) === 0) {
       if (crossedBridgeIds.has(bId)) {
-        window.HASHI_SOUND.play('error');
-        return showToast("🚫 橋樑不能交叉喔！請先移除阻擋的橋。");
+        return showToast("🚫 橋樑不能交叉喔！請先移除阻擋的橋。"); // 交叉拒絕：新規格數橋無 error 音（v1.64.0，回報中申報待裁）
       }
     }
 
@@ -3143,10 +3237,10 @@ function HashiGame() {
       return b.id === bId;
     });
     var newTotal = newB.count + (newB.draftCount || 0);
-    if (newTotal > oldTotal) {
-      window.HASHI_SOUND.play('bridge');
-    } else if (newTotal < oldTotal) {
-      window.HASHI_SOUND.play('remove');
+    if (newTotal !== oldTotal) {
+      try {
+        platAudio().play('place');
+      } catch (e) {} // 架橋 commit（新增/增減）＝place；草稿轉實線總數不變不播（守恆舊行為）（PlatAudio，v1.64.0）
     }
 
     raceAwareSync({ bridges: nextBridges });
@@ -3572,9 +3666,6 @@ function HashiGame() {
         setSlotFinalName(finalName);slotFinalNameRef.current = finalName;
         setSlotSpinning(false);
         slotTimerRef.current = null;
-        try {
-          window.HASHI_SOUND.play('star');
-        } catch (e) {}
         return;
       }
       delay = Math.min(delay * 1.18, 420);
@@ -3655,9 +3746,6 @@ function HashiGame() {
   var confirmSlotName = function confirmSlotName() {
     var name = slotFinalNameRef.current;
     if (!name || slotSpinning) return;
-    try {
-      window.HASHI_SOUND.play('click');
-    } catch (e) {}
     if (slotTimerRef.current) {
       clearTimeout(slotTimerRef.current);slotTimerRef.current = null;
     }
@@ -4839,13 +4927,11 @@ function HashiGame() {
       setTimeout(function () {
         if (raceSeqRef.current !== seq || raceStateRef.current !== 'countdown') return;
         setRaceCountdown(n);
-        window.HASHI_SOUND.play('countdown');
       }, delay);
     });
     setTimeout(function () {
       if (raceSeqRef.current !== seq || raceStateRef.current !== 'countdown') return;
       setRaceCountdown(0);
-      window.HASHI_SOUND.play('go');
       setRaceState('racing');raceStateRef.current = 'racing';
       setTimeout(function () {
         if (raceSeqRef.current === seq) setRaceCountdown(null);
@@ -4948,11 +5034,6 @@ function HashiGame() {
       var islCount = (stateRef.current.randomLevelData && stateRef.current.randomLevelData.islands || []).length || 1;
       var s = computeStars(Math.floor(myFinishTimeRef.current / 1000), islCount, false);
       setStars(s);
-      for (var si = 0; si < s; si++) {
-        setTimeout(function () {
-          return window.HASHI_SOUND.play('star');
-        }, 200 + si * 320);
-      }
     } else setStars(0);
     setRaceResult({ winnerUid: all.length ? all[0].uid : null, entries: all });
     setRaceWaiting(false);
@@ -5063,16 +5144,16 @@ function HashiGame() {
           // 🏁 競速完賽：記錄個人成績並通知對手，不播標準勝利音效
           var timeMs = Math.max(0, Date.now() + platTimeOffset() - raceStartAtRef.current); // 以房主時鐘校正後計算（D-05：各裝置時鐘差不再系統性偏袒時鐘慢的一方）
           recordBest(Math.max(0, Math.floor(timeMs / 1000)));
+          try {
+            platAudio().play('complete');
+          } catch (e) {} // 競速個人完賽＝complete（新規格；舊制此處刻意不播勝利音，complete 為柔和兩音、非舊勝利 jingle）
           onRaceSelfFinish(timeMs);
         } else {
-          window.HASHI_SOUND.play('win');
+          try {
+            platAudio().play('complete');
+          } catch (e) {} // 單機/合作個人完賽＝complete（PlatAudio，v1.64.0）
           var s = computeStars(secs, islands.length, showSolution);
           setStars(s);
-          for (var si = 0; si < s; si++) {
-            setTimeout(function () {
-              return window.HASHI_SOUND.play('star');
-            }, 200 + si * 320);
-          }
           recordBest(secs);
           if (isDailyModeRef.current) {
             recordDailyWin(secs);
@@ -5593,7 +5674,6 @@ function HashiGame() {
   };
 
   var openTutorial = function openTutorial() {
-    window.HASHI_SOUND.play('click');
     setTutorialStep(0);
     setShowTutorial(true);
   };
@@ -5667,7 +5747,7 @@ function HashiGame() {
         tutorialStep > 0 ? React.createElement(
           'button',
           { onClick: function onClick() {
-              window.HASHI_SOUND.play('click');setTutorialStep(tutorialStep - 1);
+              setTutorialStep(tutorialStep - 1);
             }, className: 'flex-1 py-4 bg-white border-4 border-slate-800 rounded-xl font-black text-xl text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)]' },
           '\u4E0A\u4E00\u6B65'
         ) : React.createElement('div', { className: 'flex-1' }),
@@ -5679,7 +5759,7 @@ function HashiGame() {
         tutorialStep < TUTORIAL_STEPS.length - 1 ? React.createElement(
           'button',
           { onClick: function onClick() {
-              window.HASHI_SOUND.play('click');setTutorialStep(tutorialStep + 1);
+              setTutorialStep(tutorialStep + 1);
             }, className: 'flex-1 py-4 bg-[#4ade80] border-4 border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[4px_4px_0px_rgba(30,41,59,1)]' },
           '\u4E0B\u4E00\u6B65'
         ) : React.createElement(
@@ -6091,7 +6171,7 @@ function HashiGame() {
             React.createElement(
               'button',
               { onClick: function onClick() {
-                  var m = window.HASHI_SOUND.toggleMute();setMuted(m);if (!m) window.HASHI_SOUND.play('click');
+                  var m = platAudio().toggleMuted();setMuted(m);
                 }, className: 'plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1 text-[#1e293b]', title: muted ? "取消靜音" : "靜音" },
               muted ? '🔇' : '🔊'
             ),

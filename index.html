@@ -3499,6 +3499,76 @@ function platArmZoom(el) {
   if (el.__pzArmTimer) clearTimeout(el.__pzArmTimer);
   el.__pzArmTimer = setTimeout(function () { el.style.transition = ''; el.__pzArmTimer = null; }, 260);
 }
+// === PlatAudio 接點（技能對照改造第 3 項，v1.64.0）：平台模式用殼的 window.PlatAudio；獨立開啟用同配方（B 柔和）本地後備——靜音同走 plat_muted、首次讀取保守合併舊三鍵 ===
+var __paLocal = null;
+function platAudio() {
+  if (typeof window !== 'undefined' && window.PlatAudio) return window.PlatAudio;
+  if (__paLocal) return __paLocal;
+  var RECIPES = {
+    place:    { notes: [[520, 0, 0.10, 1]] },
+    error:    { notes: [[220, 0, 0.16, 1]] },
+    boom:     { notes: [[110, 0, 0.25, 1]] },
+    complete: { notes: [[440, 0, 0.10, 1], [660, 0.10, 0.16, 1]] },
+    gift:     { notes: [[440, 0, 0.10, 0.7], [660, 0.10, 0.16, 0.7]] },
+    win:      { notes: [[392, 0, 0.12, 1], [523, 0.09, 0.12, 1], [659, 0.18, 0.12, 1], [784, 0.27, 0.22, 1]] }
+  };
+  var ctx = null, master = null, unlocked = false, lastPlay = {}, mutedCache = null;
+  function sGet(k) { try { var v = platSave().getStr(k, ''); return v === null || v === undefined ? '' : v; } catch (e) { return ''; } }
+  function sSet(k, v) { try { platSave().setStr(k, v); } catch (e) {} }
+  function readMuted() {
+    if (mutedCache !== null) return mutedCache;
+    var v = sGet('plat_muted');
+    if (!v) {
+      var legacy = sGet('sudoku_muted') === '1' || sGet('hashi_muted') === '1' || sGet('mines_muted') === '1';
+      v = legacy ? '1' : '0';
+      sSet('plat_muted', v);
+    }
+    mutedCache = (v === '1');
+    return mutedCache;
+  }
+  function ensureCtx() {
+    if (ctx) return ctx;
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    try { ctx = new AC(); master = ctx.createGain(); master.gain.value = 0.5; master.connect(ctx.destination); } catch (e) { ctx = null; return null; }
+    return ctx;
+  }
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('pointerdown', function () {
+      unlocked = true;
+      var c = ensureCtx();
+      if (c && c.state === 'suspended') { try { var p = c.resume(); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
+    }, true);
+  }
+  function tone(freq, at, dur, vol) {
+    var t = ctx.currentTime + at;
+    var o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(master);
+    o.start(t); o.stop(t + dur + 0.05);
+  }
+  __paLocal = {
+    play: function (name) {
+      try {
+        if (readMuted()) return;
+        var r = RECIPES[name]; if (!r) return;
+        if (!unlocked || !ctx || ctx.state === 'suspended') return;
+        var now = Date.now();
+        if (lastPlay[name] && now - lastPlay[name] < 60) return;
+        lastPlay[name] = now;
+        for (var i = 0; i < r.notes.length; i++) { var n = r.notes[i]; tone(n[0], n[1], n[2], n[3]); }
+      } catch (e) {}
+    },
+    isMuted: function () { return readMuted(); },
+    setMuted: function (m) { mutedCache = !!m; sSet('plat_muted', m ? '1' : '0'); },
+    toggleMuted: function () { var m = !readMuted(); mutedCache = m; sSet('plat_muted', m ? '1' : '0'); return m; }
+  };
+  return __paLocal;
+}
 
 // 本地進度恢復系統核心函數 (v3.8.0)
 // 存檔清掃（稽核 G-01）：讀寫時順手掃掉全部過期/損毀的 sudoku_prog_*（原本只清「下次同房號被讀到」的那筆，沒再進的房間會永久殘留無界成長）；每頁只掃一次
@@ -3885,11 +3955,11 @@ function SudokuGame() {
   }, [diffId, screen]);
   // 靜音偏好（與全域音效引擎同步，同數橋）
   var _useState83 = useState(function () {
-      return platSave().getStr('sudoku_muted', '') === '1';
+      return platAudio().isMuted();
     }),
     _useState84 = _slicedToArray(_useState83, 2),
     muted = _useState84[0],
-    setMuted = _useState84[1];
+    setMuted = _useState84[1]; // 靜音統一殼級 plat_muted（PlatAudio，v1.64.0）
 
   // 平台 dock 按鈕（💬/🎥/🎤/🔈）：平台模式＋連線中時畫進自己的底部列，與遊戲按鈕同排同款
   var _useState85 = useState(0),
@@ -4379,9 +4449,6 @@ function SudokuGame() {
         } else {
           setCountdownValue(null);
           if (stateRef.current.matchPhase !== 'playing') {
-            try {
-              window.SUDOKU_SOUND.play('go');
-            } catch (e) {}
             var localStart = countdownTarget - platTimeOffset(); // 換算回本地時鐘：下游計時/完賽/武器延遲全用本地版
             setMatchPhase('playing');
             setStartTime(localStart);
@@ -5170,18 +5237,19 @@ function SudokuGame() {
   useEffect(function () {
     if (isWon) {
       try {
-        window.SUDOKU_SOUND.play('win');
+        platAudio().play('complete');
       } catch (e) {}
     }
-  }, [isWon]);
-  // 音效：倒數每秒嗶聲（GO 在倒數 effect 轉 playing 時播）
+  }, [isWon]); // 個人完賽＝complete（PlatAudio，v1.64.0）
   useEffect(function () {
-    if (countdownValue !== null && countdownValue > 0) {
+    if (winner && winner.id === myId) {
       try {
-        window.SUDOKU_SOUND.play('countdown');
+        platAudio().play('win');
       } catch (e) {}
     }
-  }, [countdownValue]);
+  }, [winner]); // 奪冠（大亂鬥/合作勝者是我）＝win
+  // 音效：倒數每秒嗶聲（GO 在倒數 effect 轉 playing 時播）
+  // 倒數音效：新規格不播（寧缺勿濫，v1.64.0 起移除）
 
   // 觸控縮放
   useEffect(function () {
@@ -7588,12 +7656,10 @@ function SudokuGame() {
     var target = cur[targetIdx];
     if (target.isGiven || target.isSystemRevealed) return;
     if (isCellFrozen(cellId)) {
-      try {
-        window.SUDOKU_SOUND.play('error');
-      } catch (e) {}
       frozenToast('填');
       return;
-    }
+    } // 凍結拒填：新規格不播（error 僅給數字衝突標示，v1.64.0）
+
     if (engineRef.current === 'none') setHistory(function (past) {
       return [].concat(_toConsumableArray(past.slice(past.length > 25 ? 1 : 0)), [cur]);
     });
@@ -7608,18 +7674,37 @@ function SudokuGame() {
       } else {
         nextCell.drafts = [].concat(_toConsumableArray(nextCell.drafts), [_char6]);
       }
-      try {
-        window.SUDOKU_SOUND.play('click');
-      } catch (e) {}
     } else {
       // 一般填答模式
       var nextValue = target.value === _char6 ? null : _char6;
       nextCell.value = nextValue;
       nextCell.owner = nextValue !== null ? myId : null;
       nextCell.drafts = [];
-      try {
-        window.SUDOKU_SOUND.play(nextValue !== null ? 'place' : 'remove');
-      } catch (e) {}
+      if (nextValue !== null) {
+        // 衝突偵測（與 conflictCellIds 同規則：列/欄/宮同值）→ error 取代 place；無衝突 → place；擦除不播（PlatAudio 接線，v1.64.0）
+        var bx0 = Math.floor(target.x / cSizeDef.boxW) * cSizeDef.boxW,
+          by0 = Math.floor(target.y / cSizeDef.boxH) * cSizeDef.boxH;
+        var clash = false;
+        var _iterator7 = _createForOfIteratorHelper(cur),
+          _step7;
+        try {
+          for (_iterator7.s(); !(_step7 = _iterator7.n()).done;) {
+            var c = _step7.value;
+            if (c.id === cellId || c.value !== nextValue) continue;
+            if (c.x === target.x || c.y === target.y || c.x >= bx0 && c.x < bx0 + cSizeDef.boxW && c.y >= by0 && c.y < by0 + cSizeDef.boxH) {
+              clash = true;
+              break;
+            }
+          }
+        } catch (err) {
+          _iterator7.e(err);
+        } finally {
+          _iterator7.f();
+        }
+        try {
+          platAudio().play(clash ? 'error' : 'place');
+        } catch (e) {}
+      }
 
       // 幽靈競速/亂鬥模式：廣播玩家填答狀況（包含擦除，讓上帝模式與進度條能正確反映）
       if (isBrawlMode && isMultiplayer) {
@@ -7646,10 +7731,10 @@ function SudokuGame() {
       var placed = nextCell.value;
       for (var i = 0; i < nextCells.length; i++) {
         if (i === targetIdx) continue;
-        var c = nextCells[i];
-        if ((c.x === target.x || c.y === target.y || c.boxId === target.boxId) && c.drafts && c.drafts.includes(placed)) {
-          nextCells[i] = _objectSpread(_objectSpread({}, c), {}, {
-            drafts: c.drafts.filter(function (d) {
+        var _c = nextCells[i];
+        if ((_c.x === target.x || _c.y === target.y || _c.boxId === target.boxId) && _c.drafts && _c.drafts.includes(placed)) {
+          nextCells[i] = _objectSpread(_objectSpread({}, _c), {}, {
+            drafts: _c.drafts.filter(function (d) {
               return d !== placed;
             })
           });
@@ -8581,20 +8666,20 @@ function SudokuGame() {
         return s.id === stateRef.current.sizeId;
       }) || SIZES[1]).size;
       var maxDim = 0;
-      var _iterator7 = _createForOfIteratorHelper(savedProg.d),
-        _step7;
+      var _iterator8 = _createForOfIteratorHelper(savedProg.d),
+        _step8;
       try {
-        for (_iterator7.s(); !(_step7 = _iterator7.n()).done;) {
-          var c = _step7.value;
+        for (_iterator8.s(); !(_step8 = _iterator8.n()).done;) {
+          var c = _step8.value;
           if (c && typeof c.x === 'number' && typeof c.y === 'number') {
             if (c.x + 1 > maxDim) maxDim = c.x + 1;
             if (c.y + 1 > maxDim) maxDim = c.y + 1;
           }
         }
       } catch (err) {
-        _iterator7.e(err);
+        _iterator8.e(err);
       } finally {
-        _iterator7.f();
+        _iterator8.f();
       }
       if (maxDim !== targetSize) {
         platSave().remove("sudoku_prog_".concat(rId, "_").concat(myId));
@@ -9976,9 +10061,8 @@ function SudokuGame() {
     className: "hidden sm:inline"
   }, "\u5B58\u6A94")), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
-      var m = window.SUDOKU_SOUND.toggleMute();
+      var m = platAudio().toggleMuted();
       setMuted(m);
-      if (!m) window.SUDOKU_SOUND.play('click');
     },
     className: "plat-btn-hard plat-btn-hard-2 px-1.5 py-1 md:px-3 md:py-1.5 bg-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1 text-[#1e293b] shrink-0",
     title: muted ? "取消靜音" : "靜音"
@@ -11396,6 +11480,107 @@ function platArmZoom(el) {
     el.style.transition = '';el.__pzArmTimer = null;
   }, 260);
 }
+// === PlatAudio 接點（技能對照改造第 3 項，v1.64.0）：平台模式用殼的 window.PlatAudio；獨立開啟用同配方（B 柔和）本地後備——靜音同走 plat_muted、首次讀取保守合併舊三鍵 ===
+var __paLocal = null;
+function platAudio() {
+  if (typeof window !== 'undefined' && window.PlatAudio) return window.PlatAudio;
+  if (__paLocal) return __paLocal;
+  var RECIPES = {
+    place: { notes: [[520, 0, 0.10, 1]] },
+    error: { notes: [[220, 0, 0.16, 1]] },
+    boom: { notes: [[110, 0, 0.25, 1]] },
+    complete: { notes: [[440, 0, 0.10, 1], [660, 0.10, 0.16, 1]] },
+    gift: { notes: [[440, 0, 0.10, 0.7], [660, 0.10, 0.16, 0.7]] },
+    win: { notes: [[392, 0, 0.12, 1], [523, 0.09, 0.12, 1], [659, 0.18, 0.12, 1], [784, 0.27, 0.22, 1]] }
+  };
+  var ctx = null,
+      master = null,
+      unlocked = false,
+      lastPlay = {},
+      mutedCache = null;
+  function sGet(k) {
+    try {
+      var v = platSave().getStr(k, '');return v === null || v === undefined ? '' : v;
+    } catch (e) {
+      return '';
+    }
+  }
+  function sSet(k, v) {
+    try {
+      platSave().setStr(k, v);
+    } catch (e) {}
+  }
+  function readMuted() {
+    if (mutedCache !== null) return mutedCache;
+    var v = sGet('plat_muted');
+    if (!v) {
+      var legacy = sGet('sudoku_muted') === '1' || sGet('hashi_muted') === '1' || sGet('mines_muted') === '1';
+      v = legacy ? '1' : '0';
+      sSet('plat_muted', v);
+    }
+    mutedCache = v === '1';
+    return mutedCache;
+  }
+  function ensureCtx() {
+    if (ctx) return ctx;
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    try {
+      ctx = new AC();master = ctx.createGain();master.gain.value = 0.5;master.connect(ctx.destination);
+    } catch (e) {
+      ctx = null;return null;
+    }
+    return ctx;
+  }
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('pointerdown', function () {
+      unlocked = true;
+      var c = ensureCtx();
+      if (c && c.state === 'suspended') {
+        try {
+          var p = c.resume();if (p && p.catch) p.catch(function () {});
+        } catch (e) {}
+      }
+    }, true);
+  }
+  function tone(freq, at, dur, vol) {
+    var t = ctx.currentTime + at;
+    var o = ctx.createOscillator(),
+        g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g);g.connect(master);
+    o.start(t);o.stop(t + dur + 0.05);
+  }
+  __paLocal = {
+    play: function play(name) {
+      try {
+        if (readMuted()) return;
+        var r = RECIPES[name];if (!r) return;
+        if (!unlocked || !ctx || ctx.state === 'suspended') return;
+        var now = Date.now();
+        if (lastPlay[name] && now - lastPlay[name] < 60) return;
+        lastPlay[name] = now;
+        for (var i = 0; i < r.notes.length; i++) {
+          var n = r.notes[i];tone(n[0], n[1], n[2], n[3]);
+        }
+      } catch (e) {}
+    },
+    isMuted: function isMuted() {
+      return readMuted();
+    },
+    setMuted: function setMuted(m) {
+      mutedCache = !!m;sSet('plat_muted', m ? '1' : '0');
+    },
+    toggleMuted: function toggleMuted() {
+      var m = !readMuted();mutedCache = m;sSet('plat_muted', m ? '1' : '0');return m;
+    }
+  };
+  return __paLocal;
+}
 
 // 每日紀錄收斂為單一 map key（稽核 G-01：原「一天一 key」無界成長）：第一次讀取時把全部舊 key 摺進 hashi_daily_map 並刪除舊 key，之後只讀寫 map（帶 schema 版本 v:1，G-02）
 var _dailyMapCache = null;
@@ -12190,11 +12375,11 @@ function HashiGame() {
 
 
   var _useState141 = useState(function () {
-    return platSave().getStr('hashi_muted', '') === '1';
+    return platAudio().isMuted();
   }),
       _useState142 = _slicedToArray(_useState141, 2),
       muted = _useState142[0],
-      setMuted = _useState142[1];
+      setMuted = _useState142[1]; // 靜音統一殼級 plat_muted（PlatAudio，v1.64.0）
 
   // 🏁 競速模式
 
@@ -12280,6 +12465,14 @@ function HashiGame() {
       _useState170 = _slicedToArray(_useState169, 2),
       raceResult = _useState170[0],
       setRaceResult = _useState170[1];
+
+  useEffect(function () {
+    if (raceResult && raceResult.winnerUid && raceResult.winnerUid === myId) {
+      try {
+        platAudio().play('win');
+      } catch (e) {}
+    }
+  }, [raceResult]); // 奪冠（競速/大亂鬥冠軍是我）＝win（PlatAudio，v1.64.0）
 
   var _useState171 = useState(false),
       _useState172 = _slicedToArray(_useState171, 2),
@@ -13196,9 +13389,6 @@ function HashiGame() {
               // 目標出現時輕 tick 一聲，加 150ms 遲滯避免抖動連播
               if (t && wasNull && Date.now() - (dd.lastTick || 0) > 150) {
                 dd.lastTick = Date.now();
-                try {
-                  window.HASHI_SOUND.play('click');
-                } catch (err2) {}
               }
             }
             updateDragPreview(dd, dx, dy);
@@ -13513,9 +13703,6 @@ function HashiGame() {
     }).length >= 3) setTimeout(function () {
       return autoFireBrawlItem(effItem);
     }, 650); // 集滿 3 個 → 自動連續發動並歸零（禮物也同規，使用者定案）
-    try {
-      window.HASHI_SOUND.play('star');
-    } catch (e) {}
   };
   // 短暫特效標記（💥炸橋／✨禮物補橋）：出現在盤面座標上、動畫播完自動消失，不進同步
   var pushFxMark = function pushFxMark(gx, gy, icon, ms) {
@@ -13574,7 +13761,7 @@ function HashiGame() {
     if (gf && gt) pushFxMark((gf.x + gt.x) / 2, (gf.y + gt.y) / 2, '✨', 900); // 補橋處閃光動畫（不閃現）
     showToast('🎁 禮物幫你把一對島的正確橋補滿並鎖定了！');
     try {
-      window.HASHI_SOUND.play('bridge');
+      platAudio().play('gift');
     } catch (e) {}
     return true;
   };
@@ -13604,9 +13791,6 @@ function HashiGame() {
           bt = islMapB[victim.to];
       if (bf && bt) pushFxMark((bf.x + bt.x) / 2, (bf.y + bt.y) / 2, '💥', 750); // 爆炸動畫蓋在被炸的橋上（不閃現消失）
       showToast('💣 ' + (m.fromName || '對手') + ' 炸掉了你一條橋！');
-      try {
-        window.HASHI_SOUND.play('remove');
-      } catch (e) {}
     } else if (m.item === 'fog') {
       var isls = (stateRef.current.randomLevelData || {}).islands || [];
       if (!isls.length) return;
@@ -13703,9 +13887,6 @@ function HashiGame() {
       return x.key === key;
     });
     showToast('🎒 集滿 3 個 ' + (meta ? meta.icon + ' ' + meta.name : key) + '，自動連續發動！');
-    try {
-      window.HASHI_SOUND.play('star');
-    } catch (e) {}
     var fired = 0;
     var step = function step() {
       if (fired >= 3) {
@@ -14128,15 +14309,12 @@ function HashiGame() {
     });
     if (!target) return;
     if (target.locked) {
-      showToast('🎁 這是禮物補上的橋，已鎖定，不會被改掉');try {
-        window.HASHI_SOUND.play('error');
-      } catch (e) {}return;
-    } // 禮物橋：誤觸不刪（點按/拖曳共用此入口）
+      showToast('🎁 這是禮物補上的橋，已鎖定，不會被改掉');return;
+    } // 新規格數橋無 error 音（v1.64.0） // 禮物橋：誤觸不刪（點按/拖曳共用此入口）
 
     if (target.count + (target.draftCount || 0) === 0) {
       if (crossedBridgeIds.has(bId)) {
-        window.HASHI_SOUND.play('error');
-        return showToast("🚫 橋樑不能交叉喔！請先移除阻擋的橋。");
+        return showToast("🚫 橋樑不能交叉喔！請先移除阻擋的橋。"); // 交叉拒絕：新規格數橋無 error 音（v1.64.0，回報中申報待裁）
       }
     }
 
@@ -14181,10 +14359,10 @@ function HashiGame() {
       return b.id === bId;
     });
     var newTotal = newB.count + (newB.draftCount || 0);
-    if (newTotal > oldTotal) {
-      window.HASHI_SOUND.play('bridge');
-    } else if (newTotal < oldTotal) {
-      window.HASHI_SOUND.play('remove');
+    if (newTotal !== oldTotal) {
+      try {
+        platAudio().play('place');
+      } catch (e) {} // 架橋 commit（新增/增減）＝place；草稿轉實線總數不變不播（守恆舊行為）（PlatAudio，v1.64.0）
     }
 
     raceAwareSync({ bridges: nextBridges });
@@ -14610,9 +14788,6 @@ function HashiGame() {
         setSlotFinalName(finalName);slotFinalNameRef.current = finalName;
         setSlotSpinning(false);
         slotTimerRef.current = null;
-        try {
-          window.HASHI_SOUND.play('star');
-        } catch (e) {}
         return;
       }
       delay = Math.min(delay * 1.18, 420);
@@ -14693,9 +14868,6 @@ function HashiGame() {
   var confirmSlotName = function confirmSlotName() {
     var name = slotFinalNameRef.current;
     if (!name || slotSpinning) return;
-    try {
-      window.HASHI_SOUND.play('click');
-    } catch (e) {}
     if (slotTimerRef.current) {
       clearTimeout(slotTimerRef.current);slotTimerRef.current = null;
     }
@@ -15877,13 +16049,11 @@ function HashiGame() {
       setTimeout(function () {
         if (raceSeqRef.current !== seq || raceStateRef.current !== 'countdown') return;
         setRaceCountdown(n);
-        window.HASHI_SOUND.play('countdown');
       }, delay);
     });
     setTimeout(function () {
       if (raceSeqRef.current !== seq || raceStateRef.current !== 'countdown') return;
       setRaceCountdown(0);
-      window.HASHI_SOUND.play('go');
       setRaceState('racing');raceStateRef.current = 'racing';
       setTimeout(function () {
         if (raceSeqRef.current === seq) setRaceCountdown(null);
@@ -15986,11 +16156,6 @@ function HashiGame() {
       var islCount = (stateRef.current.randomLevelData && stateRef.current.randomLevelData.islands || []).length || 1;
       var s = computeStars(Math.floor(myFinishTimeRef.current / 1000), islCount, false);
       setStars(s);
-      for (var si = 0; si < s; si++) {
-        setTimeout(function () {
-          return window.HASHI_SOUND.play('star');
-        }, 200 + si * 320);
-      }
     } else setStars(0);
     setRaceResult({ winnerUid: all.length ? all[0].uid : null, entries: all });
     setRaceWaiting(false);
@@ -16101,16 +16266,16 @@ function HashiGame() {
           // 🏁 競速完賽：記錄個人成績並通知對手，不播標準勝利音效
           var timeMs = Math.max(0, Date.now() + platTimeOffset() - raceStartAtRef.current); // 以房主時鐘校正後計算（D-05：各裝置時鐘差不再系統性偏袒時鐘慢的一方）
           recordBest(Math.max(0, Math.floor(timeMs / 1000)));
+          try {
+            platAudio().play('complete');
+          } catch (e) {} // 競速個人完賽＝complete（新規格；舊制此處刻意不播勝利音，complete 為柔和兩音、非舊勝利 jingle）
           onRaceSelfFinish(timeMs);
         } else {
-          window.HASHI_SOUND.play('win');
+          try {
+            platAudio().play('complete');
+          } catch (e) {} // 單機/合作個人完賽＝complete（PlatAudio，v1.64.0）
           var s = computeStars(secs, islands.length, showSolution);
           setStars(s);
-          for (var si = 0; si < s; si++) {
-            setTimeout(function () {
-              return window.HASHI_SOUND.play('star');
-            }, 200 + si * 320);
-          }
           recordBest(secs);
           if (isDailyModeRef.current) {
             recordDailyWin(secs);
@@ -16631,7 +16796,6 @@ function HashiGame() {
   };
 
   var openTutorial = function openTutorial() {
-    window.HASHI_SOUND.play('click');
     setTutorialStep(0);
     setShowTutorial(true);
   };
@@ -16705,7 +16869,7 @@ function HashiGame() {
         tutorialStep > 0 ? React.createElement(
           'button',
           { onClick: function onClick() {
-              window.HASHI_SOUND.play('click');setTutorialStep(tutorialStep - 1);
+              setTutorialStep(tutorialStep - 1);
             }, className: 'flex-1 py-4 bg-white border-4 border-slate-800 rounded-xl font-black text-xl text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)]' },
           '\u4E0A\u4E00\u6B65'
         ) : React.createElement('div', { className: 'flex-1' }),
@@ -16717,7 +16881,7 @@ function HashiGame() {
         tutorialStep < TUTORIAL_STEPS.length - 1 ? React.createElement(
           'button',
           { onClick: function onClick() {
-              window.HASHI_SOUND.play('click');setTutorialStep(tutorialStep + 1);
+              setTutorialStep(tutorialStep + 1);
             }, className: 'flex-1 py-4 bg-[#4ade80] border-4 border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[4px_4px_0px_rgba(30,41,59,1)]' },
           '\u4E0B\u4E00\u6B65'
         ) : React.createElement(
@@ -17129,7 +17293,7 @@ function HashiGame() {
             React.createElement(
               'button',
               { onClick: function onClick() {
-                  var m = window.HASHI_SOUND.toggleMute();setMuted(m);if (!m) window.HASHI_SOUND.play('click');
+                  var m = platAudio().toggleMuted();setMuted(m);
                 }, className: 'plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1 text-[#1e293b]', title: muted ? "取消靜音" : "靜音" },
               muted ? '🔇' : '🔊'
             ),
@@ -18954,6 +19118,133 @@ platSave().register('mines_daily_streak', function (p) {
 platSave().register('mines_custom_cfg', function (p) {
   return !!p && _typeof(p) === 'object' && typeof p.w === 'number' && typeof p.h === 'number' && typeof p.mines === 'number';
 });
+// === PlatAudio 接點（技能對照改造第 3 項，v1.64.0）：平台模式用殼的 window.PlatAudio；獨立開啟用同配方（B 柔和）本地後備——靜音同走 plat_muted、首次讀取保守合併舊三鍵 ===
+var __paLocal = null;
+function platAudio() {
+  if (typeof window !== 'undefined' && window.PlatAudio) return window.PlatAudio;
+  if (__paLocal) return __paLocal;
+  var RECIPES = {
+    place: {
+      notes: [[520, 0, 0.10, 1]]
+    },
+    error: {
+      notes: [[220, 0, 0.16, 1]]
+    },
+    boom: {
+      notes: [[110, 0, 0.25, 1]]
+    },
+    complete: {
+      notes: [[440, 0, 0.10, 1], [660, 0.10, 0.16, 1]]
+    },
+    gift: {
+      notes: [[440, 0, 0.10, 0.7], [660, 0.10, 0.16, 0.7]]
+    },
+    win: {
+      notes: [[392, 0, 0.12, 1], [523, 0.09, 0.12, 1], [659, 0.18, 0.12, 1], [784, 0.27, 0.22, 1]]
+    }
+  };
+  var ctx = null,
+    master = null,
+    unlocked = false,
+    lastPlay = {},
+    mutedCache = null;
+  function sGet(k) {
+    try {
+      var v = platSave().getStr(k, '');
+      return v === null || v === undefined ? '' : v;
+    } catch (e) {
+      return '';
+    }
+  }
+  function sSet(k, v) {
+    try {
+      platSave().setStr(k, v);
+    } catch (e) {}
+  }
+  function readMuted() {
+    if (mutedCache !== null) return mutedCache;
+    var v = sGet('plat_muted');
+    if (!v) {
+      var legacy = sGet('sudoku_muted') === '1' || sGet('hashi_muted') === '1' || sGet('mines_muted') === '1';
+      v = legacy ? '1' : '0';
+      sSet('plat_muted', v);
+    }
+    mutedCache = v === '1';
+    return mutedCache;
+  }
+  function ensureCtx() {
+    if (ctx) return ctx;
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    try {
+      ctx = new AC();
+      master = ctx.createGain();
+      master.gain.value = 0.5;
+      master.connect(ctx.destination);
+    } catch (e) {
+      ctx = null;
+      return null;
+    }
+    return ctx;
+  }
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('pointerdown', function () {
+      unlocked = true;
+      var c = ensureCtx();
+      if (c && c.state === 'suspended') {
+        try {
+          var p = c.resume();
+          if (p && p["catch"]) p["catch"](function () {});
+        } catch (e) {}
+      }
+    }, true);
+  }
+  function tone(freq, at, dur, vol) {
+    var t = ctx.currentTime + at;
+    var o = ctx.createOscillator(),
+      g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g);
+    g.connect(master);
+    o.start(t);
+    o.stop(t + dur + 0.05);
+  }
+  __paLocal = {
+    play: function play(name) {
+      try {
+        if (readMuted()) return;
+        var r = RECIPES[name];
+        if (!r) return;
+        if (!unlocked || !ctx || ctx.state === 'suspended') return;
+        var now = Date.now();
+        if (lastPlay[name] && now - lastPlay[name] < 60) return;
+        lastPlay[name] = now;
+        for (var i = 0; i < r.notes.length; i++) {
+          var n = r.notes[i];
+          tone(n[0], n[1], n[2], n[3]);
+        }
+      } catch (e) {}
+    },
+    isMuted: function isMuted() {
+      return readMuted();
+    },
+    setMuted: function setMuted(m) {
+      mutedCache = !!m;
+      sSet('plat_muted', m ? '1' : '0');
+    },
+    toggleMuted: function toggleMuted() {
+      var m = !readMuted();
+      mutedCache = m;
+      sSet('plat_muted', m ? '1' : '0');
+      return m;
+    }
+  };
+  return __paLocal;
+}
 // === PlatTap/PlatZoom 接點（共用手勢判定＋縮放持有，v1.63.0）：平台模式用殼的 window.PlatTap/PlatZoom；獨立開啟用同語意本地後備（與殼同碼） ===
 function platTapFactoryLocal(opts) {
   opts = opts || {};
@@ -19377,7 +19668,7 @@ function countFlags(cells) {
 // ---------- 極簡音效（WebAudio，靜音鍵 mines_muted） ----------
 var _ac = null;
 function beep(freq, dur, type, vol, slideTo) {
-  if (platSave().getStr('mines_muted', '') === '1') return;
+  if (platAudio().isMuted()) return; // 靜音統一殼級 plat_muted（PlatAudio，v1.64.0；未遷移自有音效同受其管轄）
   try {
     _ac = _ac || new (window.AudioContext || window.webkitAudioContext)();
     if (_ac.state === 'suspended') _ac.resume();
@@ -19476,7 +19767,7 @@ function MinesGame() {
     _useState16 = _slicedToArray(_useState15, 2),
     tutDemoBoom = _useState16[0],
     setTutDemoBoom = _useState16[1]; // 教學互動 demo：踩到雷了
-  var _useState17 = useState(platSave().getStr('mines_muted', '') === '1'),
+  var _useState17 = useState(platAudio().isMuted()),
     _useState18 = _slicedToArray(_useState17, 2),
     muted = _useState18[0],
     setMuted = _useState18[1];
@@ -19971,7 +20262,7 @@ function MinesGame() {
         xc[r.hit] = 'x';
         setCells(xc);
         setMistLeft(allow - mistakesRef.current);
-        SFX.boom();
+        platAudio().play('boom');
         itemSay('💥 踩到雷！這格記 ✗——愛心還剩 ' + (allow - mistakesRef.current + 1) + ' 顆');
         return {
           hit: -1,
@@ -19985,7 +20276,7 @@ function MinesGame() {
       setHitIdx(r.hit);
       setStatus('lost');
       statusRef.current = 'lost';
-      SFX.boom();
+      platAudio().play('boom');
       return {
         hit: r.hit,
         cells: r.cells,
@@ -19993,14 +20284,14 @@ function MinesGame() {
         nums: N
       };
     }
-    if (r.opened > 0) SFX.dig();
+    if (r.opened > 0) platAudio().play('place'); // 挖開＝place
     setCells(r.cells);
     var opened = 0;
     for (var i = 0; i < r.cells.length; i++) if (r.cells[i] === 'o' && !L[i]) opened++;
     if (opened >= sp.w * sp.h - sp.mines) {
       setStatus('won');
       statusRef.current = 'won';
-      SFX.win();
+      platAudio().play('complete'); // 個人完賽＝complete
       if (!mpRef.current.on) onSoloWin(); // 多人場不寫單機最佳紀錄（競速由 afterRaceAction 處理）
     }
     return {
@@ -20223,8 +20514,7 @@ function MinesGame() {
         giftCreditRef.current += 0.5;
         trySendGift();
       } // 正確插旗 +0.5 禮物額度（同一顆雷只計一次）
-      setCells(NC2);
-      SFX.flag();
+      setCells(NC2); // 插旗/拔旗不播（規格明定，v1.64.0）
       raceSendState(NC2, nums, layout, false);
       return;
     }
@@ -20232,8 +20522,7 @@ function MinesGame() {
     if (cells[idx] === 'o') return;
     var NC = cells.slice();
     NC[idx] = NC[idx] === 'f' ? 'h' : 'f';
-    setCells(NC);
-    SFX.flag();
+    setCells(NC); // 插旗/拔旗不播（規格明定，v1.64.0）
   }
   function onCellAction(idx) {
     if (lpFiredRef.current) {
@@ -20432,6 +20721,13 @@ function MinesGame() {
     _useState84 = _slicedToArray(_useState83, 2),
     raceFinal = _useState84[0],
     setRaceFinal = _useState84[1];
+  useEffect(function () {
+    if (raceFinal && raceFinal.winnerUid && raceFinal.winnerUid === myId) {
+      try {
+        platAudio().play('win');
+      } catch (e) {}
+    }
+  }, [raceFinal]); // 競速奪冠＝win（PlatAudio，v1.64.0）
   var _useState85 = useState(null),
     _useState86 = _slicedToArray(_useState85, 2),
     myOutcome = _useState86[0],
@@ -21005,7 +21301,7 @@ function MinesGame() {
     var NC = B.cells.slice();
     NC[idx] = 'L';
     setCells(NC);
-    SFX.flag();
+    platAudio().play('gift'); // 禮物效果落地（收到禮物）＝gift
     raceSendState(NC, B.nums, B.layout, true);
     itemSay('🎁 ' + (fromName ? fromName + ' 送的禮物' : '禮物') + '：一顆地雷已被標記並鎖定！');
   }
@@ -21405,7 +21701,7 @@ function MinesGame() {
     mistakesRef.current = xCnt2;
     setMistLeft(Math.max(0, mistakeAllowance() - xCnt2));
     if (m.forgivenAt != null && m.forgivenAt >= 0) {
-      SFX.boom();
+      platAudio().play('boom');
       itemSay('💥 ' + (m.byName || '有人') + ' 踩到雷！這格記 ✗——愛心還剩 ' + (mistakeAllowance() - xCnt2 + 1) + ' 顆');
     }
     setNums(function (prev) {
@@ -21425,19 +21721,19 @@ function MinesGame() {
       setStatus('lost');
       statusRef.current = 'lost';
       setCoopBoomBy(m.byName || '');
-      SFX.boom();
+      platAudio().play('boom');
       mpRef.current.phase = 'done';
       setMpPhase('done');
     } else if (m.statusAfter === 'won') {
       setStatus('won');
       statusRef.current = 'won';
-      SFX.win();
+      platAudio().play('complete');
       mpRef.current.phase = 'done';
       setMpPhase('done');
     } else {
       setStatus('playing');
       statusRef.current = 'playing';
-      if (m.forgivenAt != null && m.forgivenAt >= 0) {/* 引爆音效已在上方播 */} else if (m.kind === 'reveal') SFX.dig();else SFX.flag();
+      if (m.forgivenAt != null && m.forgivenAt >= 0) {/* 引爆音效已在上方播 */} else if (m.kind === 'reveal') platAudio().play('place');
     }
   }
 
@@ -23392,9 +23688,8 @@ function MinesGame() {
     className: "hidden sm:inline ml-1"
   }, "\u5B58\u6A94")), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
-      var m = !muted;
+      var m = platAudio().toggleMuted();
       setMuted(m);
-      platSave().setStr('mines_muted', m ? '1' : '0');
     },
     title: muted ? '取消靜音' : '靜音',
     className: hbtn
@@ -24131,7 +24426,7 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.63.0'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
+  var PLAT_VERSION = '1.64.0'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -24243,6 +24538,73 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
     if (el.__pzArmTimer) clearTimeout(el.__pzArmTimer);
     el.__pzArmTimer = setTimeout(function () { el.style.transition = ''; el.__pzArmTimer = null; }, 260);
   };
+  // ===== PlatAudio 音效（技能對照改造第 3 項，v1.64.0）：使用者試聽定版 B 柔和配方 =====
+  // sine 波、attack 約 20ms 線性淡入、指數衰減、主增益 0.5 天花板；WebAudio 即時合成、不引入音檔。
+  // 靜音統一為殼級 plat_muted：首次讀取時保守合併舊 sudoku/hashi/mines_muted（任一曾靜音→靜音），舊 key 保留不刪、只不再寫。
+  // iOS 政策：首次 pointerdown 才建立/resume AudioContext；無手勢前 play() 靜默丟棄、不 throw。同名事件 60ms 節流。
+  window.PlatAudio = (function () {
+    var RECIPES = {
+      place:    { notes: [[520, 0, 0.10, 1]] },
+      error:    { notes: [[220, 0, 0.16, 1]] },
+      boom:     { notes: [[110, 0, 0.25, 1]] },
+      complete: { notes: [[440, 0, 0.10, 1], [660, 0.10, 0.16, 1]] },
+      gift:     { notes: [[440, 0, 0.10, 0.7], [660, 0.10, 0.16, 0.7]] },
+      win:      { notes: [[392, 0, 0.12, 1], [523, 0.09, 0.12, 1], [659, 0.18, 0.12, 1], [784, 0.27, 0.22, 1]] }
+    };
+    var ctx = null, master = null, unlocked = false, lastPlay = {}, mutedCache = null;
+    function readMuted() {
+      if (mutedCache !== null) return mutedCache;
+      var v = storeGet('plat_muted');
+      if (v === null || v === undefined || v === '') {
+        var legacy = storeGet('sudoku_muted') === '1' || storeGet('hashi_muted') === '1' || storeGet('mines_muted') === '1';
+        v = legacy ? '1' : '0';
+        storeSet('plat_muted', v);
+      }
+      mutedCache = (v === '1');
+      return mutedCache;
+    }
+    function ensureCtx() {
+      if (ctx) return ctx;
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      try { ctx = new AC(); master = ctx.createGain(); master.gain.value = 0.5; master.connect(ctx.destination); } catch (e) { ctx = null; return null; }
+      return ctx;
+    }
+    if (typeof document !== 'undefined' && document.addEventListener) {
+      document.addEventListener('pointerdown', function () {
+        unlocked = true;
+        var c = ensureCtx();
+        if (c && c.state === 'suspended') { try { var p = c.resume(); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
+      }, true);
+    }
+    function tone(freq, at, dur, vol) {
+      var t = ctx.currentTime + at;
+      var o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(freq, t);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(vol, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g); g.connect(master);
+      o.start(t); o.stop(t + dur + 0.05);
+    }
+    return {
+      play: function (name) {
+        try {
+          if (readMuted()) return;
+          var r = RECIPES[name]; if (!r) return;
+          if (!unlocked || !ctx || ctx.state === 'suspended') return; // 無手勢/未解鎖：靜默丟棄
+          var now = Date.now();
+          if (lastPlay[name] && now - lastPlay[name] < 60) return; // 同名 60ms 節流
+          lastPlay[name] = now;
+          for (var i = 0; i < r.notes.length; i++) { var n = r.notes[i]; tone(n[0], n[1], n[2], n[3]); }
+        } catch (e) {}
+      },
+      isMuted: function () { return readMuted(); },
+      setMuted: function (m) { mutedCache = !!m; storeSet('plat_muted', m ? '1' : '0'); },
+      toggleMuted: function () { var m = !readMuted(); mutedCache = m; storeSet('plat_muted', m ? '1' : '0'); return m; }
+    };
+  })();
   function normName(s) { return (s || '').trim().toLowerCase(); }
   function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); } // 補齊引號跳脫（稽核 B-02：esc 也用在 value="..." 屬性上下文，未跳脫的引號可突破屬性）；與 pbEsc 規格統一為五字元
   function platSafeColor(c) { // 顏色白名單（稽核 B-03）：只放行 PLAT_COLORS、rainbow 與 #rrggbb，其餘一律中性灰——防自報顏色拼進 style 字串時突破屬性/注入 CSS

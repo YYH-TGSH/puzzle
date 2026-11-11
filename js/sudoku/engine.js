@@ -324,6 +324,76 @@ function platArmZoom(el) {
   if (el.__pzArmTimer) clearTimeout(el.__pzArmTimer);
   el.__pzArmTimer = setTimeout(function () { el.style.transition = ''; el.__pzArmTimer = null; }, 260);
 }
+// === PlatAudio 接點（技能對照改造第 3 項，v1.64.0）：平台模式用殼的 window.PlatAudio；獨立開啟用同配方（B 柔和）本地後備——靜音同走 plat_muted、首次讀取保守合併舊三鍵 ===
+var __paLocal = null;
+function platAudio() {
+  if (typeof window !== 'undefined' && window.PlatAudio) return window.PlatAudio;
+  if (__paLocal) return __paLocal;
+  var RECIPES = {
+    place:    { notes: [[520, 0, 0.10, 1]] },
+    error:    { notes: [[220, 0, 0.16, 1]] },
+    boom:     { notes: [[110, 0, 0.25, 1]] },
+    complete: { notes: [[440, 0, 0.10, 1], [660, 0.10, 0.16, 1]] },
+    gift:     { notes: [[440, 0, 0.10, 0.7], [660, 0.10, 0.16, 0.7]] },
+    win:      { notes: [[392, 0, 0.12, 1], [523, 0.09, 0.12, 1], [659, 0.18, 0.12, 1], [784, 0.27, 0.22, 1]] }
+  };
+  var ctx = null, master = null, unlocked = false, lastPlay = {}, mutedCache = null;
+  function sGet(k) { try { var v = platSave().getStr(k, ''); return v === null || v === undefined ? '' : v; } catch (e) { return ''; } }
+  function sSet(k, v) { try { platSave().setStr(k, v); } catch (e) {} }
+  function readMuted() {
+    if (mutedCache !== null) return mutedCache;
+    var v = sGet('plat_muted');
+    if (!v) {
+      var legacy = sGet('sudoku_muted') === '1' || sGet('hashi_muted') === '1' || sGet('mines_muted') === '1';
+      v = legacy ? '1' : '0';
+      sSet('plat_muted', v);
+    }
+    mutedCache = (v === '1');
+    return mutedCache;
+  }
+  function ensureCtx() {
+    if (ctx) return ctx;
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    try { ctx = new AC(); master = ctx.createGain(); master.gain.value = 0.5; master.connect(ctx.destination); } catch (e) { ctx = null; return null; }
+    return ctx;
+  }
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('pointerdown', function () {
+      unlocked = true;
+      var c = ensureCtx();
+      if (c && c.state === 'suspended') { try { var p = c.resume(); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
+    }, true);
+  }
+  function tone(freq, at, dur, vol) {
+    var t = ctx.currentTime + at;
+    var o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(master);
+    o.start(t); o.stop(t + dur + 0.05);
+  }
+  __paLocal = {
+    play: function (name) {
+      try {
+        if (readMuted()) return;
+        var r = RECIPES[name]; if (!r) return;
+        if (!unlocked || !ctx || ctx.state === 'suspended') return;
+        var now = Date.now();
+        if (lastPlay[name] && now - lastPlay[name] < 60) return;
+        lastPlay[name] = now;
+        for (var i = 0; i < r.notes.length; i++) { var n = r.notes[i]; tone(n[0], n[1], n[2], n[3]); }
+      } catch (e) {}
+    },
+    isMuted: function () { return readMuted(); },
+    setMuted: function (m) { mutedCache = !!m; sSet('plat_muted', m ? '1' : '0'); },
+    toggleMuted: function () { var m = !readMuted(); mutedCache = m; sSet('plat_muted', m ? '1' : '0'); return m; }
+  };
+  return __paLocal;
+}
 
 // 本地進度恢復系統核心函數 (v3.8.0)
 // 存檔清掃（稽核 G-01）：讀寫時順手掃掉全部過期/損毀的 sudoku_prog_*（原本只清「下次同房號被讀到」的那筆，沒再進的房間會永久殘留無界成長）；每頁只掃一次

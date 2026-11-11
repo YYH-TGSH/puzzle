@@ -178,7 +178,7 @@
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.63.0'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
+  var PLAT_VERSION = '1.64.0'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -290,6 +290,73 @@
     if (el.__pzArmTimer) clearTimeout(el.__pzArmTimer);
     el.__pzArmTimer = setTimeout(function () { el.style.transition = ''; el.__pzArmTimer = null; }, 260);
   };
+  // ===== PlatAudio 音效（技能對照改造第 3 項，v1.64.0）：使用者試聽定版 B 柔和配方 =====
+  // sine 波、attack 約 20ms 線性淡入、指數衰減、主增益 0.5 天花板；WebAudio 即時合成、不引入音檔。
+  // 靜音統一為殼級 plat_muted：首次讀取時保守合併舊 sudoku/hashi/mines_muted（任一曾靜音→靜音），舊 key 保留不刪、只不再寫。
+  // iOS 政策：首次 pointerdown 才建立/resume AudioContext；無手勢前 play() 靜默丟棄、不 throw。同名事件 60ms 節流。
+  window.PlatAudio = (function () {
+    var RECIPES = {
+      place:    { notes: [[520, 0, 0.10, 1]] },
+      error:    { notes: [[220, 0, 0.16, 1]] },
+      boom:     { notes: [[110, 0, 0.25, 1]] },
+      complete: { notes: [[440, 0, 0.10, 1], [660, 0.10, 0.16, 1]] },
+      gift:     { notes: [[440, 0, 0.10, 0.7], [660, 0.10, 0.16, 0.7]] },
+      win:      { notes: [[392, 0, 0.12, 1], [523, 0.09, 0.12, 1], [659, 0.18, 0.12, 1], [784, 0.27, 0.22, 1]] }
+    };
+    var ctx = null, master = null, unlocked = false, lastPlay = {}, mutedCache = null;
+    function readMuted() {
+      if (mutedCache !== null) return mutedCache;
+      var v = storeGet('plat_muted');
+      if (v === null || v === undefined || v === '') {
+        var legacy = storeGet('sudoku_muted') === '1' || storeGet('hashi_muted') === '1' || storeGet('mines_muted') === '1';
+        v = legacy ? '1' : '0';
+        storeSet('plat_muted', v);
+      }
+      mutedCache = (v === '1');
+      return mutedCache;
+    }
+    function ensureCtx() {
+      if (ctx) return ctx;
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      try { ctx = new AC(); master = ctx.createGain(); master.gain.value = 0.5; master.connect(ctx.destination); } catch (e) { ctx = null; return null; }
+      return ctx;
+    }
+    if (typeof document !== 'undefined' && document.addEventListener) {
+      document.addEventListener('pointerdown', function () {
+        unlocked = true;
+        var c = ensureCtx();
+        if (c && c.state === 'suspended') { try { var p = c.resume(); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
+      }, true);
+    }
+    function tone(freq, at, dur, vol) {
+      var t = ctx.currentTime + at;
+      var o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(freq, t);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(vol, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g); g.connect(master);
+      o.start(t); o.stop(t + dur + 0.05);
+    }
+    return {
+      play: function (name) {
+        try {
+          if (readMuted()) return;
+          var r = RECIPES[name]; if (!r) return;
+          if (!unlocked || !ctx || ctx.state === 'suspended') return; // 無手勢/未解鎖：靜默丟棄
+          var now = Date.now();
+          if (lastPlay[name] && now - lastPlay[name] < 60) return; // 同名 60ms 節流
+          lastPlay[name] = now;
+          for (var i = 0; i < r.notes.length; i++) { var n = r.notes[i]; tone(n[0], n[1], n[2], n[3]); }
+        } catch (e) {}
+      },
+      isMuted: function () { return readMuted(); },
+      setMuted: function (m) { mutedCache = !!m; storeSet('plat_muted', m ? '1' : '0'); },
+      toggleMuted: function () { var m = !readMuted(); mutedCache = m; storeSet('plat_muted', m ? '1' : '0'); return m; }
+    };
+  })();
   function normName(s) { return (s || '').trim().toLowerCase(); }
   function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); } // 補齊引號跳脫（稽核 B-02：esc 也用在 value="..." 屬性上下文，未跳脫的引號可突破屬性）；與 pbEsc 規格統一為五字元
   function platSafeColor(c) { // 顏色白名單（稽核 B-03）：只放行 PLAT_COLORS、rainbow 與 #rrggbb，其餘一律中性灰——防自報顏色拼進 style 字串時突破屬性/注入 CSS
