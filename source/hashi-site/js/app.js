@@ -235,9 +235,8 @@ function platAudio() {
   if (__paLocal) return __paLocal;
   var RECIPES = {
     place:    { notes: [[880, 0, 0.07, 1, 'triangle']] },
-    count:    { notes: [[880, 0, 0.09, 0.5, 'square']] },
-    go:       { notes: [[1320, 0, 0.25, 0.55, 'square']] },
-    star:     { notes: [[1568, 0, 0.18, 0.35, 'sine']] },
+    count:    { notes: [[660, 0, 0.07, 0.8, 'triangle']] },
+    go:       { notes: [[523, 0, 0.16, 0.42], [659, 0.11, 0.22, 0.42]] },
     error:    { notes: [[170, 0, 0.13, 1, 'triangle']] },
     boom:     { notes: [[140, 0, 0.22, 1, 'triangle']] },
     gift:     { notes: [[523, 0, 0.14, 0.7, 'triangle'], [659, 0.07, 0.18, 0.7, 'triangle']] },
@@ -1541,7 +1540,7 @@ function platAudio() {
         myItemsRef.current = ni; setMyItems(ni);
         if (effItem === 'gift' && m.fromUid && m.fromUid !== myId) { try { if (window.PlatFly) PlatFly.fly(PlatFly.byUid('hashi', m.fromUid), PlatFly.me('hashi') || PlatFly.byUid('hashi', myId), '🎁'); } catch (e) {} } // H3 禮物 Fly（純顯示層）
         showToast('🎁 里程碑道具：你獲得 ' + meta.icon + ' ' + meta.name + '！');
-        try { platAudio().play('star'); } catch (e) {} // 獲得道具（孤兒裁示定版：三款統一 star 舊制叮聲、v1.65.7 稽核驗收定案）
+        try { platAudio().play('gift'); } catch (e) {} // 獲得道具（孤兒裁示最終定版：三款統一 gift、v1.65.8 定案不再翻動）
         if (ni.filter(x => x === effItem).length >= 3) setTimeout(() => autoFireBrawlItem(effItem), 650); // 集滿 3 個 → 自動連續發動並歸零（禮物也同規，使用者定案）
       };
       // 短暫特效標記（💥炸橋／✨禮物補橋）：出現在盤面座標上、動畫播完自動消失，不進同步
@@ -1664,7 +1663,7 @@ function platAudio() {
         myItemsRef.current = ni; setMyItems(ni); // 先歸零，效果再逐發送出——期間新獲得的同種從 0 重新累積
         const meta = BRAWL_ITEMS.find(x => x.key === key);
         showToast('🎒 集滿 3 個 ' + (meta ? meta.icon + ' ' + meta.name : key) + '，自動連續發動！');
-        try { platAudio().play('star'); } catch (e) {} // 集滿自動發動（star、v1.65.7 定案）
+        try { platAudio().play('gift'); } catch (e) {} // 集滿自動發動（gift、v1.65.8 定案）
         let fired = 0;
         const step = () => {
           if (fired >= 3) { brawlAutoRef.current[key] = false; return; }

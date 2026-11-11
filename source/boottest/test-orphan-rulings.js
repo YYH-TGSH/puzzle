@@ -59,18 +59,18 @@ function sendGameMsg(H, msg) { const cs = Object.values(H.window.__PLAT_NET.conn
     const CD = p.window.PlatCountdown;
     // 逐秒間隔（PlatAudio 同名 60ms 節流是真實引擎行為；真倒數本來就 1 秒一跳）
     CD.show(3); await sleep(120); CD.show(3); await sleep(120); CD.show(2); await sleep(120); CD.show(1); await sleep(120);
-    check('① 倒數 3/2/1 → count×3（880 square 舊制原音、重複 show 同值不重播）', countF(p, 880) === 3, 'count880=' + countF(p, 880));
+    check('① 倒數 3/2/1 → count×3（660 triangle 定版、重複 show 同值不重播）', countF(p, 660) === 3, 'count660=' + countF(p, 660));
     CD.hide();
-    check('① 數獨式收尾（1 之後 hide）→ go×1（1320 舊制原音）', countF(p, 1320) === 1, 'go1320=' + countF(p, 1320));
+    check('① 數獨式收尾（1 之後 hide）→ go×1（complete 前兩音 523→659）', countF(p, 523) === 1 && countF(p, 659) === 1, 'go523=' + countF(p, 523));
     await sleep(120); CD.show(2); await sleep(120); CD.hide();
-    check('① 中途 hide（未到 1）→ 不補 go', countF(p, 1320) === 1);
+    check('① 中途 hide（未到 1）→ 不補 go', countF(p, 523) === 1);
     await sleep(120); CD.show('GO!');
-    check('① 明示 GO! → go 再 +1', countF(p, 1320) === 2);
+    check('① 明示 GO! → go 再 +1', countF(p, 523) === 2 && countF(p, 659) === 2);
     // ② 星星 cascade
-    const g1568 = countF(p, 1568);
+    const g523 = countF(p, 523);
     p.window.PlatResults.show({ title: '測試結算', accent: '#ffcc00', entries: [], stars: 2, buttons: [] });
     await sleep(1300);
-    check('② PlatResults 2 星 → star×2 逐顆（1568）', countF(p, 1568) === g1568 + 2, 'star ' + g1568 + '->' + countF(p, 1568));
+    check('② PlatResults 2 星 → gift×2 逐顆（523 各 +2）', countF(p, 523) === g523 + 2, 'gift523 ' + g523 + '->' + countF(p, 523));
     p.window.PlatResults.hide();
   }
   // ③ 數橋獲得道具 star
@@ -81,10 +81,10 @@ function sendGameMsg(H, msg) { const cs = Object.values(H.window.__PLAT_NET.conn
     check('③ 前置：數橋競速房間開局', okRoom);
     if (okRoom) {
       const gUid = G.window.localStorage.getItem('plat_uid_hashi');
-      const before = countF(G, 1568);
+      const before = countF(G, 523);
       sendGameMsg(H, { type: 'BRAWL_GRANT', toUid: gUid, item: 'bomb', fromUid: H.window.localStorage.getItem('plat_uid_hashi') });
       await sleep(900);
-      check('③ 來賓收到道具 → star +1（1568）', countF(G, 1568) === before + 1, 'star ' + before + '->' + countF(G, 1568));
+      check('③ 來賓收到道具 → gift +1（523）', countF(G, 523) === before + 1, 'gift523 ' + before + '->' + countF(G, 523));
     }
   }
   // ④ 數獨收到武器 star
@@ -95,11 +95,11 @@ function sendGameMsg(H, msg) { const cs = Object.values(H.window.__PLAT_NET.conn
     check('④ 前置：數獨大亂鬥房間開局', okRoom);
     if (okRoom) {
       const gUid = G.window.localStorage.getItem('plat_uid_sudoku');
-      const before = countF(G, 1568);
+      const before = countF(G, 523);
       // 來賓可能還在倒數/生成（matchPhase 未 playing 時守衛會擋）→ 重送直到進包（比照 plataudio-path H 的重試模式）
       let got = false;
-      for (let t = 0; t < 10 && !got; t++) { sendGameMsg(H, { type: 'RECEIVE_WEAPON', targetUid: gUid, weaponType: 'balloon', id: 'wtest' + t, timestamp: Date.now() }); await sleep(1500); got = countF(G, 1568) > before; }
-      check('④ 來賓收到武器 → star +1（1568）', got, 'star ' + before + '->' + countF(G, 1568));
+      for (let t = 0; t < 10 && !got; t++) { sendGameMsg(H, { type: 'RECEIVE_WEAPON', targetUid: gUid, weaponType: 'balloon', id: 'wtest' + t, timestamp: Date.now() }); await sleep(1500); got = countF(G, 523) > before; }
+      check('④ 來賓收到武器 → gift +1（523）', got, 'gift523 ' + before + '->' + countF(G, 523));
     }
   }
   console.log(`\n=== orphan-rulings: ${pass} passed, ${fail} failed ===`);

@@ -205,13 +205,10 @@ function platAudio() {
       notes: [[880, 0, 0.07, 1, 'triangle']]
     },
     count: {
-      notes: [[880, 0, 0.09, 0.5, 'square']]
+      notes: [[660, 0, 0.07, 0.8, 'triangle']]
     },
     go: {
-      notes: [[1320, 0, 0.25, 0.55, 'square']]
-    },
-    star: {
-      notes: [[1568, 0, 0.18, 0.35, 'sine']]
+      notes: [[523, 0, 0.16, 0.42], [659, 0.11, 0.22, 0.42]]
     },
     error: {
       notes: [[170, 0, 0.13, 1, 'triangle']]
@@ -2352,8 +2349,8 @@ function MinesGame() {
     setMyItems(ni);
     itemSay(item === 'question' ? '🎁 里程碑道具：❓ 問號干擾 ×' + ni[item] : '🎁 里程碑道具：⏪ 回填 ×' + ni[item]);
     try {
-      platAudio().play('star');
-    } catch (e) {} // 獲得道具（孤兒裁示定版：三款統一 star 舊制叮聲、v1.65.7 稽核驗收定案）
+      platAudio().play('gift');
+    } catch (e) {} // 獲得道具（孤兒裁示最終定版：三款統一 gift、v1.65.8 定案不再翻動）
     maybeAutoFire();
   }
   function giftCandidates() {
@@ -2366,8 +2363,8 @@ function MinesGame() {
   function holdGift(fromName) {
     // 禮物持有制：進禮物鈕、玩家自己按才發動（使用者 2026-11-02 指示，比照數獨禮物鈕）
     try {
-      platAudio().play('star');
-    } catch (e) {} // 收到禮物（star、v1.65.7 定案）
+      platAudio().play('gift');
+    } catch (e) {} // 收到禮物（gift、v1.65.8 定案）
     var ni = Object.assign({}, itemsRef.current);
     ni.gift = (ni.gift || 0) + 1;
     itemsRef.current = ni;
@@ -2481,8 +2478,8 @@ function MinesGame() {
     var startKind = itemsRef.current.question >= 3 ? 'question' : itemsRef.current.backfill >= 3 ? 'backfill' : null;
     if (!startKind) return;
     try {
-      platAudio().play('star');
-    } catch (e) {} // 集滿自動發動（star、v1.65.7 定案）
+      platAudio().play('gift');
+    } catch (e) {} // 集滿自動發動（gift、v1.65.8 定案）
     autoItemIvRef.current = setInterval(function () {
       var kind = (itemsRef.current[startKind] || 0) > 0 ? startKind : itemsRef.current.question >= 3 ? 'question' : itemsRef.current.backfill >= 3 ? 'backfill' : null;
       var hasTgt = unfinishedRacers().some(function (p) {
