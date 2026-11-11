@@ -2978,6 +2978,20 @@ window.HASHI_PUZZLE = (function () {
     return pb;
   }
 
+  // 驗收帶（v1.65.0 D3，規格 platform-generator-tuning-spec-2026-11-11；帶值＝題目量測實測分布裁剪）：
+  // L1–L3 的出貨題除唯一解外還須島數/總橋數（Σreq/2）落帶，帶外視同一次失敗 attempt 續抽（沿用 300 上限、另計帶外次數）。
+  // L4/L5、自訂（id 'custom'）與每日（id 'daily'，改演算法會追溯改變歷史每日題）不套帶。
+  var GEN_BANDS = { 1: { isl: [3, 8], br: [3, 10] }, 2: { isl: [10, 28], br: [16, 40] }, 3: { isl: [25, 52], br: [38, 82] } };
+  function puzzleInBand(puzzle, levelDef) {
+    var b = GEN_BANDS[levelDef && levelDef.id];
+    if (!b) return true;
+    var isl = puzzle.islands.length, br = 0;
+    for (var i = 0; i < puzzle.islands.length; i++) br += puzzle.islands[i].req;
+    br = br / 2;
+    return isl >= b.isl[0] && isl <= b.isl[1] && br >= b.br[0] && br <= b.br[1];
+  }
+  var lastGenStats = null; // 最近一次 generateUniqueHashi 的 { attempts, outOfBand, capped }（量測/守衛測試讀取）
+
   // 產生「唯一解」題目：每一題都先經 solver 確認只有一組解才回傳。
   // rng 可傳 seeded（每日一題）— 同一個 seed 的重抽序列完全確定，所以每日題目不會亂跳。
   // 上限 300 次只是安全網：實測每題毫秒級、一次抽中唯一的機率高，正常 1~3 次就中。
@@ -2985,18 +2999,27 @@ window.HASHI_PUZZLE = (function () {
     rng = rng || Math.random;
     const cap = maxAttempts || 300;
     let puzzle = null;
+    let outOfBand = 0;
     for (let attempts = 0; attempts < cap; attempts++) {
       puzzle = generateRandomHashi(levelDef, rng);
       let unique = false;
       try {
         unique = window.HASHI_SOLVER.countSolutions(puzzle, 2).count === 1;
       } catch (e) { break; }
-      if (unique) return puzzle;
+      if (unique) {
+        if (!puzzleInBand(puzzle, levelDef)) { outOfBand++; continue; }
+        lastGenStats = { attempts: attempts + 1, outOfBand: outOfBand, capped: false };
+        return puzzle;
+      }
     }
+    lastGenStats = { attempts: cap, outOfBand: outOfBand, capped: true };
     return puzzle; // 理論上的最後防線（實務上到不了這裡）
   }
 
   return {
+    get lastGenStats() { return lastGenStats; },
+    GEN_BANDS: GEN_BANDS,
+    puzzleInBand: puzzleInBand,
     mulberry32: mulberry32,
     hashDateStr: hashDateStr,
     getDailyDateStr: getDailyDateStr,
@@ -3025,7 +3048,7 @@ const DIFFICULTIES = [
     { id: 'easy', name: "🟢 簡單", targets: { 4: [9, 12], 9: [40, 45], 16: [140, 150] } },
     { id: 'medium', name: "🟡 普通", targets: { 4: [6, 7], 9: [27, 32], 16: [105, 120] } },
     // 16×16 困難原訂 70–85 格：隨機挖洞＋唯一解驗證在 30 秒內不可達（實測高原 ~104 格），每局必磨滿 30 秒；校準到 98–108（仍有 148+ 洞）
-    { id: 'hard', name: "🔴 困難", targets: { 4: [3, 4], 9: [20, 22], 16: [98, 108] } }
+    { id: 'hard', name: "🔴 困難", targets: { 4: [3, 4], 9: [22, 25], 16: [98, 108] } }
 ];
 
 const BASE_4 = [[0, 1, 2, 3], [2, 3, 0, 1], [1, 0, 3, 2], [3, 2, 1, 0]];
@@ -19524,6 +19547,36 @@ function effProgressOf(cellsArr, weights, bv) {
   var e = sm / bv;
   return e > 1 ? 1 : e;
 }
+// 3BV 驗收帶（v1.65.0 D4，規格 platform-generator-tuning-spec-2026-11-11；帶值＝題目量測實測 P10–P90）：
+// 出貨盤以「首擊安全處理後的最終盤面」3BV 驗收；帶外換 seed（seed+k）重生、上限 40 次、達上限取最接近帶的一張（dist 最小）。
+// 套用範圍：預設 9×9 與 16×16（每日固定 9×9 比照）；自訂盤面不套（玩家自定參數）。全程確定性：同 seed＋同首點 → 同結果。
+var BV_BANDS = {
+  9: [10, 22],
+  16: [52, 81]
+};
+function bv3OfLayout(w, h, L) {
+  return computeBVWeights(w, h, L, computeNums(w, h, L)).bv;
+}
+function finalizeFirstClick(w, h, mines, sizeId, seed, L0, clickIdx, cells) {
+  var band = BV_BANDS[sizeId] || null;
+  var best = null;
+  for (var k = 0; k < 40; k++) {
+    var cand = k === 0 ? L0 : makeLayout(w, h, mines, seed + k >>> 0);
+    var fs = makeFirstSafe(cand, w, h, clickIdx, cells);
+    var bv = bv3OfLayout(w, h, fs.layout);
+    var dist = !band ? 0 : bv < band[0] ? band[0] - bv : bv > band[1] ? bv - band[1] : 0;
+    if (!best || dist < best.dist) best = {
+      layout: fs.layout,
+      moves: fs.moves,
+      seedUsed: seed + k >>> 0,
+      bv: bv,
+      dist: dist,
+      tries: k + 1
+    };
+    if (dist === 0) break;
+  }
+  return best;
+}
 function countFlags(cells) {
   var c = 0;
   for (var i = 0; i < cells.length; i++) if (cells[i] === 'f' || cells[i] === 'L' || cells[i] === 'x') c++;
@@ -20060,12 +20113,14 @@ function MinesGame() {
       N = baseNums,
       C = baseCells;
     if (firstRef.current) {
-      var fs = makeFirstSafe(L, sp.w, sp.h, from, baseCells);
-      if (fs.moves.length) {
-        L = fs.layout;
+      var seedBase = mpRef.current.on ? mpRef.current.seed || 0 : curSeed;
+      var fin = finalizeFirstClick(sp.w, sp.h, sp.mines, sp.id, seedBase, L, from, baseCells);
+      if (fin.tries > 1 || fin.moves.length) {
+        L = fin.layout;
         N = computeNums(sp.w, sp.h, L);
         setLayout(L);
         setNums(N);
+        if (!mpRef.current.on && fin.seedUsed !== curSeed >>> 0) setCurSeed(fin.seedUsed);
       }
       firstRef.current = false;
       if (!mpRef.current.on) {
@@ -21421,13 +21476,18 @@ function MinesGame() {
       if (C[idx] === 'h') C[idx] = 'f';else if (C[idx] === 'f') C[idx] = 'h';else return;
     } else {
       if (C[idx] !== 'h') return;
-      var reloc = null;
+      var reloc = null,
+        layoutFull = null;
       if (firstRef.current) {
-        var fs2 = makeFirstSafe(L, sp.w, sp.h, idx);
-        if (fs2.moves.length) {
-          L = fs2.layout;
+        var fin2 = finalizeFirstClick(sp.w, sp.h, sp.mines, mpRef.current.sizeId, mpRef.current.seed || 0, L, idx, null);
+        if (fin2.tries > 1) {
+          L = fin2.layout;
           N = computeNums(sp.w, sp.h, L);
-          reloc = fs2.moves;
+          layoutFull = L;
+        } else if (fin2.moves.length) {
+          L = fin2.layout;
+          N = computeNums(sp.w, sp.h, L);
+          reloc = fin2.moves;
         }
         firstRef.current = false;
       }
@@ -21472,6 +21532,9 @@ function MinesGame() {
       statusAfter: stAfter,
       forgivenAt: forgivenAt >= 0 ? forgivenAt : undefined,
       reloc: reloc || undefined,
+      layoutFull: layoutFull ? layoutFull.map(function (v) {
+        return v ? '1' : '0';
+      }).join('') : undefined,
       own: kind === 'flag' ? undefined : encOwners(OWN),
       mines: stAfter === 'lost' ? L.map(function (v, i) {
         return v ? i : -1;
@@ -21487,7 +21550,20 @@ function MinesGame() {
     // boardRef 必須跟著 MINE_DO 同步：來賓的 boardRef 原本整場停在開局快照，房主中途離開、來賓接任後 processCoopAct 會拿舊盤面定序、把全場進度洗掉（稽核修・高）
     var bL = boardRef.current.layout,
       bN = boardRef.current.nums;
-    if (m.reloc && bL) {
+    if (m.layoutFull) {
+      var LF = m.layoutFull.split('').map(function (ch) {
+        return ch === '1';
+      });
+      if (!bL || LF.length === bL.length) {
+        bL = LF;
+        var spF = SIZES[mpRef.current.sizeId] || SIZES[9];
+        bN = computeNums(spF.w, spF.h, bL);
+        if (mpRef.current.isHost) {
+          setLayout(bL);
+          setNums(bN);
+        }
+      }
+    } else if (m.reloc && bL) {
       var NL2 = bL.slice();
       var pairs = typeof m.reloc[0] === 'number' ? [m.reloc] : m.reloc;
       pairs.forEach(function (pr) {
@@ -24238,7 +24314,7 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.64.2';
+  var PLAT_VERSION = '1.65.0';
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。

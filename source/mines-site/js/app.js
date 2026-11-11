@@ -325,6 +325,24 @@ function computeBVWeights(w, h, L, N) {
   return { weights: weights, bv: sizes.length };
 }
 function effProgressOf(cellsArr, weights, bv) { if (!bv || !weights) return 0; var sm = 0; for (var i = 0; i < cellsArr.length; i++) if (cellsArr[i] === 'o') sm += weights[i]; var e = sm / bv; return e > 1 ? 1 : e; }
+// 3BV 驗收帶（v1.65.0 D4，規格 platform-generator-tuning-spec-2026-11-11；帶值＝題目量測實測 P10–P90）：
+// 出貨盤以「首擊安全處理後的最終盤面」3BV 驗收；帶外換 seed（seed+k）重生、上限 40 次、達上限取最接近帶的一張（dist 最小）。
+// 套用範圍：預設 9×9 與 16×16（每日固定 9×9 比照）；自訂盤面不套（玩家自定參數）。全程確定性：同 seed＋同首點 → 同結果。
+var BV_BANDS = { 9: [10, 22], 16: [52, 81] };
+function bv3OfLayout(w, h, L) { return computeBVWeights(w, h, L, computeNums(w, h, L)).bv; }
+function finalizeFirstClick(w, h, mines, sizeId, seed, L0, clickIdx, cells) {
+  var band = BV_BANDS[sizeId] || null;
+  var best = null;
+  for (var k = 0; k < 40; k++) {
+    var cand = k === 0 ? L0 : makeLayout(w, h, mines, (seed + k) >>> 0);
+    var fs = makeFirstSafe(cand, w, h, clickIdx, cells);
+    var bv = bv3OfLayout(w, h, fs.layout);
+    var dist = !band ? 0 : (bv < band[0] ? band[0] - bv : (bv > band[1] ? bv - band[1] : 0));
+    if (!best || dist < best.dist) best = { layout: fs.layout, moves: fs.moves, seedUsed: (seed + k) >>> 0, bv: bv, dist: dist, tries: k + 1 };
+    if (dist === 0) break;
+  }
+  return best;
+}
 function countFlags(cells) { var c = 0; for (var i = 0; i < cells.length; i++) if (cells[i] === 'f' || cells[i] === 'L' || cells[i] === 'x') c++; return c; } // 'L'＝禮物鎖定旗、'x'＝容錯踩雷格（皆計入旗數/剩餘雷數扣減）
 
 // ---------- 音效已全面收編 PlatAudio（v1.64.1：自有 beep/SFX 引擎刪除；未遷移音效經稽核裁示全數處理完畢） ----------
@@ -468,8 +486,9 @@ function MinesGame() {
     var sp = specRef.current; // 目前盤面規格（含自訂）：舊版用格數 256/81 推斷，自訂尺寸會推錯，改讀 render 期同步的 specRef
     var L = baseLayout, N = baseNums, C = baseCells;
     if (firstRef.current) {
-      var fs = makeFirstSafe(L, sp.w, sp.h, from, baseCells);
-      if (fs.moves.length) { L = fs.layout; N = computeNums(sp.w, sp.h, L); setLayout(L); setNums(N); }
+      var seedBase = mpRef.current.on ? (mpRef.current.seed || 0) : curSeed;
+      var fin = finalizeFirstClick(sp.w, sp.h, sp.mines, sp.id, seedBase, L, from, baseCells);
+      if (fin.tries > 1 || fin.moves.length) { L = fin.layout; N = computeNums(sp.w, sp.h, L); setLayout(L); setNums(N); if (!mpRef.current.on && fin.seedUsed !== (curSeed >>> 0)) setCurSeed(fin.seedUsed); }
       firstRef.current = false;
       if (!mpRef.current.on) { setStartedAt(Date.now()); startedAtRef.current = Date.now(); } // 多人：計時起點是 MINE_START 的 startAt（setupBoardFromSeed 已設定）
       setStatus('playing'); statusRef.current = 'playing';
@@ -1050,10 +1069,11 @@ function MinesGame() {
       if (C[idx] === 'h') C[idx] = 'f'; else if (C[idx] === 'f') C[idx] = 'h'; else return;
     } else {
       if (C[idx] !== 'h') return;
-      var reloc = null;
+      var reloc = null, layoutFull = null;
       if (firstRef.current) {
-        var fs2 = makeFirstSafe(L, sp.w, sp.h, idx);
-        if (fs2.moves.length) { L = fs2.layout; N = computeNums(sp.w, sp.h, L); reloc = fs2.moves; }
+        var fin2 = finalizeFirstClick(sp.w, sp.h, sp.mines, mpRef.current.sizeId, mpRef.current.seed || 0, L, idx, null);
+        if (fin2.tries > 1) { L = fin2.layout; N = computeNums(sp.w, sp.h, L); layoutFull = L; }
+        else if (fin2.moves.length) { L = fin2.layout; N = computeNums(sp.w, sp.h, L); reloc = fin2.moves; }
         firstRef.current = false;
       }
       var r = revealFrom(sp.w, sp.h, L, N, C, idx);
@@ -1069,7 +1089,7 @@ function MinesGame() {
       if (aIdx >= 0) { for (var oi = 0; oi < C.length; oi++) if (prevC[oi] !== 'o' && C[oi] === 'o') OWN[oi] = aIdx; }
     }
     boardRef.current = { layout: L, nums: N, cells: C, owners: OWN };
-    var msg = { type: 'MINE_DO', kind: kind, idx: idx, uid: byUid, byName: byName || '', cells: C.join(''), sparse: coopSparse(C, N), hit: hit, statusAfter: stAfter, forgivenAt: forgivenAt >= 0 ? forgivenAt : undefined, reloc: reloc || undefined, own: kind === 'flag' ? undefined : encOwners(OWN),
+    var msg = { type: 'MINE_DO', kind: kind, idx: idx, uid: byUid, byName: byName || '', cells: C.join(''), sparse: coopSparse(C, N), hit: hit, statusAfter: stAfter, forgivenAt: forgivenAt >= 0 ? forgivenAt : undefined, reloc: reloc || undefined, layoutFull: layoutFull ? layoutFull.map(function (v) { return v ? '1' : '0'; }).join('') : undefined, own: kind === 'flag' ? undefined : encOwners(OWN),
       mines: stAfter === 'lost' ? L.map((v, i) => v ? i : -1).filter(v => v >= 0) : undefined };
     hostBroadcast(msg);
     adoptCoopDo(msg);
@@ -1078,7 +1098,8 @@ function MinesGame() {
     var arr = (m.cells || '').split('');
     // boardRef 必須跟著 MINE_DO 同步：來賓的 boardRef 原本整場停在開局快照，房主中途離開、來賓接任後 processCoopAct 會拿舊盤面定序、把全場進度洗掉（稽核修・高）
     var bL = boardRef.current.layout, bN = boardRef.current.nums;
-    if (m.reloc && bL) { var NL2 = bL.slice(); var pairs = (typeof m.reloc[0] === 'number') ? [m.reloc] : m.reloc; pairs.forEach(function (pr) { NL2[pr[0]] = false; NL2[pr[1]] = true; }); bL = NL2; var spR = SIZES[mpRef.current.sizeId] || SIZES[9]; bN = computeNums(spR.w, spR.h, bL); if (mpRef.current.isHost) { setLayout(bL); setNums(bN); } }
+    if (m.layoutFull) { var LF = m.layoutFull.split('').map(function (ch) { return ch === '1'; }); if (!bL || LF.length === bL.length) { bL = LF; var spF = SIZES[mpRef.current.sizeId] || SIZES[9]; bN = computeNums(spF.w, spF.h, bL); if (mpRef.current.isHost) { setLayout(bL); setNums(bN); } } }
+    else if (m.reloc && bL) { var NL2 = bL.slice(); var pairs = (typeof m.reloc[0] === 'number') ? [m.reloc] : m.reloc; pairs.forEach(function (pr) { NL2[pr[0]] = false; NL2[pr[1]] = true; }); bL = NL2; var spR = SIZES[mpRef.current.sizeId] || SIZES[9]; bN = computeNums(spR.w, spR.h, bL); if (mpRef.current.isHost) { setLayout(bL); setNums(bN); } }
     if (m.statusAfter === 'lost' && m.mines) { var LL = new Array(arr.length).fill(false); m.mines.forEach(i => { LL[i] = true; }); bL = LL; }
     var OA = m.own ? decOwners(m.own) : boardRef.current.owners;
     boardRef.current = { layout: bL, nums: bN, cells: arr.slice(), owners: OA };

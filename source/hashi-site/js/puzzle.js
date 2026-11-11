@@ -227,6 +227,20 @@ window.HASHI_PUZZLE = (function () {
     return pb;
   }
 
+  // 驗收帶（v1.65.0 D3，規格 platform-generator-tuning-spec-2026-11-11；帶值＝題目量測實測分布裁剪）：
+  // L1–L3 的出貨題除唯一解外還須島數/總橋數（Σreq/2）落帶，帶外視同一次失敗 attempt 續抽（沿用 300 上限、另計帶外次數）。
+  // L4/L5、自訂（id 'custom'）與每日（id 'daily'，改演算法會追溯改變歷史每日題）不套帶。
+  var GEN_BANDS = { 1: { isl: [3, 8], br: [3, 10] }, 2: { isl: [10, 28], br: [16, 40] }, 3: { isl: [25, 52], br: [38, 82] } };
+  function puzzleInBand(puzzle, levelDef) {
+    var b = GEN_BANDS[levelDef && levelDef.id];
+    if (!b) return true;
+    var isl = puzzle.islands.length, br = 0;
+    for (var i = 0; i < puzzle.islands.length; i++) br += puzzle.islands[i].req;
+    br = br / 2;
+    return isl >= b.isl[0] && isl <= b.isl[1] && br >= b.br[0] && br <= b.br[1];
+  }
+  var lastGenStats = null; // 最近一次 generateUniqueHashi 的 { attempts, outOfBand, capped }（量測/守衛測試讀取）
+
   // 產生「唯一解」題目：每一題都先經 solver 確認只有一組解才回傳。
   // rng 可傳 seeded（每日一題）— 同一個 seed 的重抽序列完全確定，所以每日題目不會亂跳。
   // 上限 300 次只是安全網：實測每題毫秒級、一次抽中唯一的機率高，正常 1~3 次就中。
@@ -234,18 +248,27 @@ window.HASHI_PUZZLE = (function () {
     rng = rng || Math.random;
     const cap = maxAttempts || 300;
     let puzzle = null;
+    let outOfBand = 0;
     for (let attempts = 0; attempts < cap; attempts++) {
       puzzle = generateRandomHashi(levelDef, rng);
       let unique = false;
       try {
         unique = window.HASHI_SOLVER.countSolutions(puzzle, 2).count === 1;
       } catch (e) { break; }
-      if (unique) return puzzle;
+      if (unique) {
+        if (!puzzleInBand(puzzle, levelDef)) { outOfBand++; continue; }
+        lastGenStats = { attempts: attempts + 1, outOfBand: outOfBand, capped: false };
+        return puzzle;
+      }
     }
+    lastGenStats = { attempts: cap, outOfBand: outOfBand, capped: true };
     return puzzle; // 理論上的最後防線（實務上到不了這裡）
   }
 
   return {
+    get lastGenStats() { return lastGenStats; },
+    GEN_BANDS: GEN_BANDS,
+    puzzleInBand: puzzleInBand,
     mulberry32: mulberry32,
     hashDateStr: hashDateStr,
     getDailyDateStr: getDailyDateStr,

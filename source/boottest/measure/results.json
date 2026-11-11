@@ -1,0 +1,572 @@
+{
+ "meta": {
+  "n": 300,
+  "seedBase": 20261111,
+  "startedAt": "2026-11-11T11:58:42.338Z",
+  "updatedAt": "2026-11-11T12:41:45.063Z"
+ },
+ "sudoku": {
+  "4-easy": {
+   "size": 4,
+   "diff": "easy",
+   "label": "🟢 簡單",
+   "targetGivens": [
+    9,
+    12
+   ],
+   "n": 300,
+   "givens": {
+    "mean": 10.03,
+    "std": 1.36,
+    "p10": 8,
+    "p50": 10,
+    "p90": 12,
+    "min": 8,
+    "max": 12
+   },
+   "givensInTargetRangePct": 77.7,
+   "singlesOnlySolvedPct": 100,
+   "needsAdvancedPct": 0,
+   "uniqueSanity": {
+    "checked": 300,
+    "uniquePct": 100,
+    "unknownBudgetPct": 0
+   },
+   "genMs": {
+    "mean": 1.18,
+    "std": 0.4,
+    "p10": 1,
+    "p50": 1,
+    "p90": 2,
+    "min": 0,
+    "max": 2
+   }
+  },
+  "4-medium": {
+   "size": 4,
+   "diff": "medium",
+   "label": "🟡 普通",
+   "targetGivens": [
+    6,
+    7
+   ],
+   "n": 300,
+   "givens": {
+    "mean": 6,
+    "std": 0,
+    "p10": 6,
+    "p50": 6,
+    "p90": 6,
+    "min": 6,
+    "max": 6
+   },
+   "givensInTargetRangePct": 100,
+   "singlesOnlySolvedPct": 100,
+   "needsAdvancedPct": 0,
+   "uniqueSanity": {
+    "checked": 300,
+    "uniquePct": 100,
+    "unknownBudgetPct": 0
+   },
+   "genMs": {
+    "mean": 1.17,
+    "std": 0.4,
+    "p10": 1,
+    "p50": 1,
+    "p90": 2,
+    "min": 0,
+    "max": 2
+   }
+  },
+  "4-hard": {
+   "size": 4,
+   "diff": "hard",
+   "label": "🔴 困難",
+   "targetGivens": [
+    3,
+    4
+   ],
+   "n": 300,
+   "givens": {
+    "mean": 4,
+    "std": 0,
+    "p10": 4,
+    "p50": 4,
+    "p90": 4,
+    "min": 4,
+    "max": 4
+   },
+   "givensInTargetRangePct": 100,
+   "singlesOnlySolvedPct": 100,
+   "needsAdvancedPct": 0,
+   "uniqueSanity": {
+    "checked": 300,
+    "uniquePct": 100,
+    "unknownBudgetPct": 0
+   },
+   "genMs": {
+    "mean": 4.18,
+    "std": 3.53,
+    "p10": 1,
+    "p50": 3,
+    "p90": 9,
+    "min": 0,
+    "max": 27
+   }
+  },
+  "9-easy": {
+   "size": 9,
+   "diff": "easy",
+   "label": "🟢 簡單",
+   "targetGivens": [
+    40,
+    45
+   ],
+   "n": 300,
+   "givens": {
+    "mean": 41.91,
+    "std": 1.75,
+    "p10": 39,
+    "p50": 42,
+    "p90": 45,
+    "min": 39,
+    "max": 45
+   },
+   "givensInTargetRangePct": 89.3,
+   "singlesOnlySolvedPct": 100,
+   "needsAdvancedPct": 0,
+   "uniqueSanity": {
+    "checked": 300,
+    "uniquePct": 100,
+    "unknownBudgetPct": 0
+   },
+   "genMs": {
+    "mean": 2.38,
+    "std": 0.56,
+    "p10": 2,
+    "p50": 2,
+    "p90": 3,
+    "min": 1,
+    "max": 4
+   }
+  },
+  "9-medium": {
+   "size": 9,
+   "diff": "medium",
+   "label": "🟡 普通",
+   "targetGivens": [
+    27,
+    32
+   ],
+   "n": 300,
+   "givens": {
+    "mean": 29.35,
+    "std": 1.62,
+    "p10": 27,
+    "p50": 29,
+    "p90": 31,
+    "min": 26,
+    "max": 32
+   },
+   "givensInTargetRangePct": 96,
+   "singlesOnlySolvedPct": 83,
+   "needsAdvancedPct": 17,
+   "uniqueSanity": {
+    "checked": 300,
+    "uniquePct": 100,
+    "unknownBudgetPct": 0
+   },
+   "genMs": {
+    "mean": 5.48,
+    "std": 2.59,
+    "p10": 3,
+    "p50": 4,
+    "p90": 9,
+    "min": 2,
+    "max": 25
+   }
+  },
+  "9-hard": {
+   "size": 9,
+   "diff": "hard",
+   "label": "🔴 困難",
+   "targetGivens": [
+    20,
+    22
+   ],
+   "n": 300,
+   "givens": {
+    "mean": 23.39,
+    "std": 1.04,
+    "p10": 22,
+    "p50": 24,
+    "p90": 24,
+    "min": 20,
+    "max": 26
+   },
+   "givensInTargetRangePct": 26.3,
+   "singlesOnlySolvedPct": 74.7,
+   "needsAdvancedPct": 25.3,
+   "uniqueSanity": {
+    "checked": 300,
+    "uniquePct": 100,
+    "unknownBudgetPct": 0
+   },
+   "genMs": {
+    "mean": 354.07,
+    "std": 109.64,
+    "p10": 159,
+    "p50": 395,
+    "p90": 430,
+    "min": 8,
+    "max": 552
+   }
+  },
+  "16-easy": {
+   "size": 16,
+   "diff": "easy",
+   "label": "🟢 簡單",
+   "targetGivens": [
+    140,
+    150
+   ],
+   "n": 300,
+   "givens": {
+    "mean": 144.37,
+    "std": 3.3,
+    "p10": 140,
+    "p50": 144,
+    "p90": 150,
+    "min": 140,
+    "max": 150
+   },
+   "givensInTargetRangePct": 100,
+   "singlesOnlySolvedPct": 100,
+   "needsAdvancedPct": 0,
+   "uniqueSanity": {
+    "checked": 30,
+    "uniquePct": 100,
+    "unknownBudgetPct": 0
+   },
+   "genMs": {
+    "mean": 79.41,
+    "std": 6.79,
+    "p10": 71,
+    "p50": 79,
+    "p90": 89,
+    "min": 65,
+    "max": 101
+   }
+  },
+  "16-medium": {
+   "size": 16,
+   "diff": "medium",
+   "label": "🟡 普通",
+   "targetGivens": [
+    105,
+    120
+   ],
+   "n": 300,
+   "givens": {
+    "mean": 112.17,
+    "std": 4.43,
+    "p10": 106,
+    "p50": 112,
+    "p90": 118,
+    "min": 104,
+    "max": 120
+   },
+   "givensInTargetRangePct": 96.3,
+   "singlesOnlySolvedPct": 60.3,
+   "needsAdvancedPct": 39.7,
+   "uniqueSanity": {
+    "checked": 30,
+    "uniquePct": 100,
+    "unknownBudgetPct": 0
+   },
+   "genMs": {
+    "mean": 1171.48,
+    "std": 2253.14,
+    "p10": 126,
+    "p50": 202,
+    "p90": 4233,
+    "min": 99,
+    "max": 9019
+   }
+  },
+  "16-hard": {
+   "size": 16,
+   "diff": "hard",
+   "label": "🔴 困難",
+   "targetGivens": [
+    98,
+    108
+   ],
+   "n": 300,
+   "givens": {
+    "mean": 105.37,
+    "std": 2.07,
+    "p10": 102,
+    "p50": 106,
+    "p90": 108,
+    "min": 98,
+    "max": 108
+   },
+   "givensInTargetRangePct": 100,
+   "singlesOnlySolvedPct": 20.7,
+   "needsAdvancedPct": 79.3,
+   "uniqueSanity": {
+    "checked": 30,
+    "uniquePct": 100,
+    "unknownBudgetPct": 0
+   },
+   "genMs": {
+    "mean": 6236.14,
+    "std": 4072.48,
+    "p10": 504,
+    "p50": 8085,
+    "p90": 8949,
+    "min": 148,
+    "max": 25210
+   }
+  }
+ },
+ "hashi": {
+  "L1": {
+   "level": 1,
+   "name": "5x5 幼幼班",
+   "size": "5x5",
+   "n": 300,
+   "rawUniqueFirstAttemptPct": 91.7,
+   "attemptsToUnique": {
+    "mean": 1.09,
+    "std": 0.32,
+    "p10": 1,
+    "p50": 1,
+    "p90": 1,
+    "min": 1,
+    "max": 3
+   },
+   "retriedPct": 8.3,
+   "hitAttemptCap": 0,
+   "solverAbortedChecks": 0,
+   "islands": {
+    "mean": 4.24,
+    "std": 1.5,
+    "p10": 3,
+    "p50": 4,
+    "p90": 6,
+    "min": 2,
+    "max": 10
+   },
+   "totalBridgesInSolution": {
+    "mean": 4.94,
+    "std": 2.41,
+    "p10": 2,
+    "p50": 5,
+    "p90": 8,
+    "min": 1,
+    "max": 15
+   }
+  },
+  "L2": {
+   "level": 2,
+   "name": "10x10 標準",
+   "size": "10x10",
+   "n": 300,
+   "rawUniqueFirstAttemptPct": 51.7,
+   "attemptsToUnique": {
+    "mean": 1.95,
+    "std": 1.3,
+    "p10": 1,
+    "p50": 1,
+    "p90": 4,
+    "min": 1,
+    "max": 8
+   },
+   "retriedPct": 48.3,
+   "hitAttemptCap": 0,
+   "solverAbortedChecks": 0,
+   "islands": {
+    "mean": 18.59,
+    "std": 5.11,
+    "p10": 12,
+    "p50": 19,
+    "p90": 25,
+    "min": 5,
+    "max": 32
+   },
+   "totalBridgesInSolution": {
+    "mean": 27.41,
+    "std": 7.91,
+    "p10": 17,
+    "p50": 27,
+    "p90": 37,
+    "min": 7,
+    "max": 48
+   }
+  },
+  "L3": {
+   "level": 3,
+   "name": "10x20 手機直式",
+   "size": "10x20",
+   "n": 300,
+   "rawUniqueFirstAttemptPct": 30.3,
+   "attemptsToUnique": {
+    "mean": 3.58,
+    "std": 3.12,
+    "p10": 1,
+    "p50": 3,
+    "p90": 7,
+    "min": 1,
+    "max": 23
+   },
+   "retriedPct": 69.7,
+   "hitAttemptCap": 0,
+   "solverAbortedChecks": 0,
+   "islands": {
+    "mean": 39.47,
+    "std": 8.81,
+    "p10": 26,
+    "p50": 41,
+    "p90": 50,
+    "min": 13,
+    "max": 56
+   },
+   "totalBridgesInSolution": {
+    "mean": 59.79,
+    "std": 14.41,
+    "p10": 40,
+    "p50": 62,
+    "p90": 77,
+    "min": 17,
+    "max": 94
+   }
+  },
+  "L4": {
+   "level": 4,
+   "name": "15x15 魔王",
+   "size": "15x15",
+   "n": 300,
+   "rawUniqueFirstAttemptPct": 22.3,
+   "attemptsToUnique": {
+    "mean": 4.45,
+    "std": 3.87,
+    "p10": 1,
+    "p50": 3,
+    "p90": 11,
+    "min": 1,
+    "max": 25
+   },
+   "retriedPct": 77.7,
+   "hitAttemptCap": 0,
+   "solverAbortedChecks": 0,
+   "islands": {
+    "mean": 45.42,
+    "std": 9.98,
+    "p10": 29,
+    "p50": 48,
+    "p90": 56,
+    "min": 18,
+    "max": 64
+   },
+   "totalBridgesInSolution": {
+    "mean": 68.8,
+    "std": 15.78,
+    "p10": 43,
+    "p50": 72,
+    "p90": 85,
+    "min": 28,
+    "max": 98
+   }
+  },
+  "L5": {
+   "level": 5,
+   "name": "20x20 史詩",
+   "size": "20x20",
+   "n": 300,
+   "rawUniqueFirstAttemptPct": 4.7,
+   "attemptsToUnique": {
+    "mean": 15.7,
+    "std": 15.4,
+    "p10": 2,
+    "p50": 11,
+    "p90": 38,
+    "min": 1,
+    "max": 87
+   },
+   "retriedPct": 95.3,
+   "hitAttemptCap": 0,
+   "solverAbortedChecks": 96,
+   "islands": {
+    "mean": 84.16,
+    "std": 15.72,
+    "p10": 60,
+    "p50": 89,
+    "p90": 99,
+    "min": 36,
+    "max": 110
+   },
+   "totalBridgesInSolution": {
+    "mean": 130.58,
+    "std": 25.43,
+    "p10": 91,
+    "p50": 138,
+    "p90": 156,
+    "min": 54,
+    "max": 172
+   }
+  }
+ },
+ "mines": {
+  "S9": {
+   "preset": "9×9・10 雷",
+   "w": 9,
+   "h": 9,
+   "mines": 10,
+   "n": 300,
+   "bv3": {
+    "mean": 15.26,
+    "std": 4.89,
+    "p10": 9,
+    "p50": 15,
+    "p90": 22,
+    "min": 4,
+    "max": 32
+   },
+   "bv3Cv": 0.32,
+   "firstClickSafety": {
+    "probes": 900,
+    "zoneSafePct": 100,
+    "minesPreservedPct": 100
+   }
+  },
+  "S16": {
+   "preset": "16×16・40 雷",
+   "w": 16,
+   "h": 16,
+   "mines": 40,
+   "n": 300,
+   "bv3": {
+    "mean": 66.81,
+    "std": 10.97,
+    "p10": 52,
+    "p50": 66,
+    "p90": 81,
+    "min": 42,
+    "max": 97
+   },
+   "bv3Cv": 0.164,
+   "firstClickSafety": {
+    "probes": 900,
+    "zoneSafePct": 100,
+    "minesPreservedPct": 100
+   }
+  },
+  "correlation": {
+   "pooledPearsonMinesVs3BV": 0.95,
+   "pooledN": 600,
+   "note": "兩預設各自雷數固定（10/40），pooled r 由預設間差異主導；預設內難度變異完全由 3BV 決定（雷數變異為 0）。"
+  }
+ }
+}
