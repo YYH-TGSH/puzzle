@@ -1,0 +1,61 @@
+{
+ "meta": {
+  "item": "S6",
+  "bundleVersion": "v1.65.9",
+  "startedAt": "2026-11-11T17:06:54.509Z",
+  "env": "jsdom (相對判讀用、非真機絕對值)",
+  "updatedAt": "2026-11-11T17:08:26.719Z",
+  "doneAt": "2026-11-11T17:08:26.719Z"
+ },
+ "sudoku16": {
+  "困難": {
+   "e2e": {
+    "runs": [
+     2517,
+     8083,
+     469
+    ],
+    "mean": 3690,
+    "min": 469,
+    "max": 8083
+   },
+   "nodes": 1025,
+   "cellTapHandlerMs": [
+    3.7,
+    2.7,
+    1.3
+   ]
+  },
+  "普通": {
+   "e2e": {
+    "runs": [
+     618,
+     8954,
+     609
+    ],
+    "mean": 3394,
+    "min": 609,
+    "max": 8954
+   },
+   "nodes": 1033,
+   "cellTapHandlerMs": [
+    1.2,
+    59.4,
+    1.5
+   ]
+  }
+ },
+ "mines30x24": {
+  "e2eMs": 221,
+  "cells": 720,
+  "nodes": 840,
+  "revealHandlerMs": 2.7
+ },
+ "hashi20": {
+  "e2eMs": 548,
+  "islandCircles": 242,
+  "approxIslands": 81,
+  "nodes": 740,
+  "islandTapHandlerMs": 3.9
+ }
+}
