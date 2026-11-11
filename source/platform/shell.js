@@ -178,7 +178,7 @@
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.65.3';
+  var PLAT_VERSION = '1.65.4';
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -303,6 +303,17 @@
       complete: { notes: [[523, 0, 0.16, 1, 'triangle'], [659, 0.07, 0.16, 1, 'triangle'], [784, 0.14, 0.16, 1, 'triangle'], [1046, 0.21, 0.30, 1, 'triangle'], [262, 0, 0.75, 0.22, 'sine'], [330, 0, 0.75, 0.22, 'sine'], [392, 0, 0.75, 0.22, 'sine']] },
       win:      { notes: [[523, 0, 0.16, 1, 'triangle'], [587, 0.08, 0.16, 1, 'triangle'], [659, 0.16, 0.16, 1, 'triangle'], [784, 0.24, 0.16, 1, 'triangle'], [880, 0.32, 0.16, 1, 'triangle'], [1046, 0.40, 0.24, 1, 'triangle'], [1046, 0.48, 1.0, 0.45, 'sine'], [1318, 0.48, 1.0, 0.45, 'sine'], [1568, 0.48, 1.0, 0.45, 'sine'], [262, 0, 1.2, 0.22, 'sine'], [330, 0, 1.2, 0.22, 'sine'], [392, 0, 1.2, 0.22, 'sine']] }
     };
+    // 殼級功能音（v1.65.4 復原）：拉霸（1150ms）/摩天輪（2800ms）的滾動 tick＋落地叮噹——節奏逐字照舊 spinSound（tick 先密後疏的 ease-out 間隔、620/820 交替 square、落地 880＋1318 sine）。
+    // 舊制走獨立的 platAC 第二引擎（只 resume suspended、不認 interrupted、不跟隨 plat_muted）→ 與 v1.65.3 同洞：中斷後整段靜音、靜音時照響。本批整組遷入 PlatAudio、platAC 退役。
+    function spinRecipe(ms) {
+      var notes = [], n = Math.max(6, Math.round(ms / 95));
+      for (var i = 0; i < n; i++) { var p = i / n; notes.push([620 + (i % 2) * 200, (ms * (1 - Math.pow(1 - p, 2))) / 1000, 0.03, 0.12, 'square']); }
+      notes.push([880, ms / 1000, 0.12, 0.18, 'sine']);
+      notes.push([1318, ms / 1000 + 0.08, 0.2, 0.14, 'sine']);
+      return { notes: notes };
+    }
+    RECIPES.spin = spinRecipe(1150);
+    RECIPES.wheelspin = spinRecipe(2800);
     var ctx = null, master = null, unlocked = false, lastPlay = {}, mutedCache = null;
     function readMuted() {
       if (mutedCache !== null) return mutedCache;
@@ -400,29 +411,9 @@
 
   var SLOT_NAMES = ['柴犬', '柯基', '虎斑貓', '橘貓', '倉鼠', '兔兔', '刺蝟', '龍貓', '水豚', '樹懶', '狐獴', '羊駝', '企鵝', '海獺', '貓頭鷹', '松鼠', '無尾熊', '台灣黑熊', '石虎', '穿山甲', '梅花鹿', '台灣藍鵲', '帝雉', '獼猴', '山羌', '綠蠵龜', '櫻花鉤吻鮭', '飛魚', '螢火蟲', '獨角仙'];
   var slotName = '', slotTimer = null;
-  // 拉霸音效（WebAudio 小嗶聲；無音效環境/被擋就靜默）
-  var platAC = null;
-  function platTone(freq, dur, delay, type, vol) {
-    try {
-      if (!platAC) { var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; platAC = new AC(); }
-      if (platAC.state === 'suspended') platAC.resume();
-      var t0 = platAC.currentTime + (delay || 0);
-      var o = platAC.createOscillator(), g = platAC.createGain();
-      o.type = type || 'square'; o.frequency.setValueAtTime(freq, t0);
-      g.gain.setValueAtTime(vol || 0.04, t0);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-      o.connect(g); g.connect(platAC.destination);
-      o.start(t0); o.stop(t0 + dur + 0.02);
-    } catch (e) {}
-  }
+  // 拉霸/摩天輪音效（v1.65.4：遷入 PlatAudio 的 spin/wheelspin 事件——解鎖/中斷恢復/靜音跟隨全走殼級 PlatAudio；舊 platTone/platAC 第二引擎整組退役）
   function spinSound(totalMs) { // 滾動 tick 先密後疏（配合減速），落地叮噹兩聲
-    var n = Math.max(6, Math.round(totalMs / 95));
-    for (var i = 0; i < n; i++) {
-      var p = i / n;
-      platTone(620 + (i % 2) * 200, 0.03, (totalMs * (1 - Math.pow(1 - p, 2))) / 1000, 'square', 0.028);
-    }
-    platTone(880, 0.12, totalMs / 1000, 'sine', 0.06);
-    platTone(1318, 0.2, totalMs / 1000 + 0.08, 'sine', 0.05);
+    try { if (window.PlatAudio) window.PlatAudio.play(totalMs >= 2000 ? 'wheelspin' : 'spin'); } catch (e) {}
   }
   function spinSlot(cb) {
     if (slotTimer) return;
