@@ -331,8 +331,9 @@ function platAudio() {
   if (__paLocal) return __paLocal;
   var RECIPES = {
     place:    { notes: [[880, 0, 0.07, 1, 'triangle']] },
-    count:    { notes: [[660, 0, 0.07, 0.8, 'triangle']] },
-    go:       { notes: [[523, 0, 0.16, 0.42], [659, 0.11, 0.22, 0.42]] },
+    count:    { notes: [[880, 0, 0.09, 0.5, 'square']] },
+    go:       { notes: [[1320, 0, 0.25, 0.55, 'square']] },
+    star:     { notes: [[1568, 0, 0.18, 0.35, 'sine']] },
     error:    { notes: [[170, 0, 0.13, 1, 'triangle']] },
     boom:     { notes: [[140, 0, 0.22, 1, 'triangle']] },
     gift:     { notes: [[523, 0, 0.14, 0.7, 'triangle'], [659, 0.07, 0.18, 0.7, 'triangle']] },

@@ -1239,7 +1239,7 @@ function SudokuGame() {
         });
         const weaponName = weaponType === 'balloon' ? '💧 水球' : '🧹 橡皮擦';
         showToast(`🎒 集滿 3 個 ${weaponName}，自動連續發動！`);
-        try { platAudio().play('gift'); } catch (e) {} // 集滿自動發動（gift、v1.65.8 定案）
+        try { platAudio().play('star'); } catch (e) {} // 集滿自動發動（star、v1.65.9 鎖定）
         let fired = 0;
         const step = () => {
             if (fired >= 3) { weaponAutoRef.current[weaponType] = false; return; }
@@ -1263,7 +1263,7 @@ function SudokuGame() {
     handleReceiveWeaponRef.current = (ev) => {
         if (ev.targetUid !== myId || isSpectator) return;
         if (stateRef.current.matchPhase !== 'playing') return; // 等待/倒數期收到的遲到道具不進背包（稽核修）
-        try { platAudio().play('gift'); } catch (e) {} // 獲得道具（孤兒裁示最終定版：三款統一 gift、v1.65.8 定案不再翻動）
+        try { platAudio().play('star'); } catch (e) {} // 獲得道具（孤兒裁示鎖定形：三款統一 star 舊制叮聲、v1.65.9 定死）
         if (amLastPlayer()) { // 已是最後一位：武器入包前直接轉成系統禮物
             setUnopenedGifts(prev => ({ ...prev, [myId]: [...(prev[myId] || []), 'system'] }));
             showToast('🏁 只剩你一人，獲得的武器自動轉換成 🎁 禮物！');

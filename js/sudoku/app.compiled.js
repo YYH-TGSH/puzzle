@@ -2141,8 +2141,8 @@ function SudokuGame() {
     var weaponName = weaponType === 'balloon' ? '💧 水球' : '🧹 橡皮擦';
     showToast("\uD83C\uDF92 \u96C6\u6EFF 3 \u500B ".concat(weaponName, "\uFF0C\u81EA\u52D5\u9023\u7E8C\u767C\u52D5\uFF01"));
     try {
-      platAudio().play('gift');
-    } catch (e) {} // 集滿自動發動（gift、v1.65.8 定案）
+      platAudio().play('star');
+    } catch (e) {} // 集滿自動發動（star、v1.65.9 鎖定）
     var fired = 0;
     var step = function step() {
       if (fired >= 3) {
@@ -2182,8 +2182,8 @@ function SudokuGame() {
     if (ev.targetUid !== myId || isSpectator) return;
     if (stateRef.current.matchPhase !== 'playing') return; // 等待/倒數期收到的遲到道具不進背包（稽核修）
     try {
-      platAudio().play('gift');
-    } catch (e) {} // 獲得道具（孤兒裁示最終定版：三款統一 gift、v1.65.8 定案不再翻動）
+      platAudio().play('star');
+    } catch (e) {} // 獲得道具（孤兒裁示鎖定形：三款統一 star 舊制叮聲、v1.65.9 定死）
     if (amLastPlayer()) {
       // 已是最後一位：武器入包前直接轉成系統禮物
       setUnopenedGifts(function (prev) {
