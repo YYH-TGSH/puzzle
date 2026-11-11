@@ -131,20 +131,26 @@ function readBoard(D) {
     const dbg = () => w.__PLAT_HOOKS_mines.debug();
     const snap0 = dbg();
     const safe = []; snap0.layout.forEach((m, i) => { if (!m) safe.push(i); });
-    const [iA, iB, iC, iD, iDig] = safe;
+    const [iA, iB] = safe;
     const cellEl = (i) => d.querySelector('#mines-root button[data-cell="' + i + '"]');
+    // v1.54.2 後的語意：短按在 pointerup 就挖開（不再等 click）——②的舊前提「短按不挖」已隨該版作廢；
+    // ③④改為動態挑「當下仍未開」的安全格，避免②的洪泛連鎖開格污染後續斷言（實測踩過：iC/iD 被②洪泛掃到變 'o'）。
+    const freshHidden = () => { const dd = dbg(); const cs = dd.cells; for (let i = 0; i < dd.layout.length; i++) if (!dd.layout[i] && cs[i] === 'h') return i; return -1; }; // 挑格改用當下 layout 重算（稽核裁決 2026-11-11）：首挖觸發版面重生後舊 safe 快照失效、會挑到已變雷的格——僅修挑格、斷言本體不動
     // ① 長按 500ms+ 插旗有效
     pev(M, cellEl(iA), 'pointerdown', 100, 100); await sleep(700); pev(M, cellEl(iA), 'pointerup', 100, 100); await sleep(200);
     check('地雷：長按插旗仍有效（500ms）', dbg().cells[iA] === 'f', 'cell=' + dbg().cells[iA]);
-    // ② 短按不插旗也不挖（無 click）
+    // ② 短按：不插旗（v1.54.2 起短按在 pointerup 挖開 → 期望 'o'）
     pev(M, cellEl(iB), 'pointerdown', 100, 100); await sleep(150); pev(M, cellEl(iB), 'pointerup', 100, 100); await sleep(700);
-    check('地雷：短按不插旗', dbg().cells[iB] === 'h', 'cell=' + dbg().cells[iB]);
-    // ③ 按住移動 >10px → 長按取消（手滑/捲動）
+    check('地雷：短按不插旗（pointerup 挖開）', dbg().cells[iB] === 'o', 'cell=' + dbg().cells[iB]);
+    // ③ 按住移動 >22px → 長按取消、點按作廢（挑當下仍隱藏的格）
+    const iC = freshHidden();
     pev(M, cellEl(iC), 'pointerdown', 100, 100); await sleep(60); pev(M, cellEl(iC), 'pointermove', 140, 100); await sleep(700); pev(M, cellEl(iC), 'pointerup', 140, 100); await sleep(200);
-    check('地雷：按住移動後不插旗（移動取消長按）', dbg().cells[iC] === 'h', 'cell=' + dbg().cells[iC]);
-    // ④ pointercancel（捲動接管）→ 計時器清掉、不插旗
+    check('地雷：按住移動後不插旗也不挖（移動取消＋漂移作廢）', dbg().cells[iC] === 'h', 'cell=' + dbg().cells[iC]);
+    // ④ pointercancel（捲動接管）→ 計時器清掉、不插旗不挖
+    const iD = freshHidden();
     pev(M, cellEl(iD), 'pointerdown', 100, 100); await sleep(60); pev(M, cellEl(iD), 'pointercancel', 100, 100); await sleep(800);
     check('地雷：pointercancel 後不插旗（捲動不誤觸）', dbg().cells[iD] === 'h', 'cell=' + dbg().cells[iD]);
+    const iDig = freshHidden();
     // ⑤ 一般 click 挖開正常
     cellEl(iDig).click(); await sleep(300);
     check('地雷：一般 click 挖開正常', dbg().cells[iDig] === 'o', 'cell=' + dbg().cells[iDig]);
