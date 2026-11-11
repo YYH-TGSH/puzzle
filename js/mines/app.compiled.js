@@ -1,6 +1,5 @@
 "use strict";
 
-function _typeof(o) { "@babel/helpers - typeof"; return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function (o) { return typeof o; } : function (o) { return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o; }, _typeof(o); }
 function _defineProperty(obj, key, value) { key = _toPropertyKey(key); if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 function _toPropertyKey(t) { var i = _toPrimitive(t, "string"); return "symbol" == _typeof(i) ? i : String(i); }
 function _toPrimitive(t, r) { if ("object" != _typeof(t) || !t) return t; var e = t[Symbol.toPrimitive]; if (void 0 !== e) { var i = e.call(t, r || "default"); if ("object" != _typeof(i)) return i; throw new TypeError("@@toPrimitive must return a primitive value."); } return ("string" === r ? String : Number)(t); }
@@ -10,6 +9,7 @@ function _unsupportedIterableToArray(o, minLen) { if (!o) return; if (typeof o =
 function _arrayLikeToArray(arr, len) { if (len == null || len > arr.length) len = arr.length; for (var i = 0, arr2 = new Array(len); i < len; i++) arr2[i] = arr[i]; return arr2; }
 function _iterableToArrayLimit(r, l) { var t = null == r ? null : "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (null != t) { var e, n, i, u, a = [], f = !0, o = !1; try { if (i = (t = t.call(r)).next, 0 === l) { if (Object(t) !== t) return; f = !1; } else for (; !(f = (e = i.call(t)).done) && (a.push(e.value), a.length !== l); f = !0); } catch (r) { o = !0, n = r; } finally { try { if (!f && null != t["return"] && (u = t["return"](), Object(u) !== u)) return; } finally { if (o) throw n; } } return a; } }
 function _arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
+function _typeof(o) { "@babel/helpers - typeof"; return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function (o) { return typeof o; } : function (o) { return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o; }, _typeof(o); }
 // 踩地雷 Minesweeper（平台第三款遊戲）
 // 架構比照數獨/數橋：React 單一 app、平台模式走殼的 Peer 連線（PlatPeer shim）與共用元件（PlatBar/PlatRoom/PlatResults/PlatCountdown）。
 // 規則（使用者 2026-10-28 拍板）：多人競速踩到雷直接出局、照當時進度%排名；盤面 9×9・10雷（預設）/16×16・40雷；
@@ -72,6 +72,129 @@ function sSet(k, v) {
     window.localStorage.setItem(k, v);
   } catch (e) {}
 }
+// ===== PlatSave 接點（facade）：平台模式委派殼的 window.PlatSave、獨立開啟時用同語意本地後備；validator 在此集中登記、read 時統一帶入 =====
+var __psFacade = null;
+function platSave() {
+  if (__psFacade) return __psFacade;
+  var regs = [];
+  function findV(key) {
+    var best = null;
+    for (var i = 0; i < regs.length; i++) {
+      if (key.indexOf(regs[i].p) === 0 && (!best || regs[i].p.length > best.p.length)) best = regs[i];
+    }
+    return best ? best.fn : null;
+  }
+  function g(k) {
+    try {
+      return window.localStorage.getItem(k);
+    } catch (e) {
+      return null;
+    }
+  }
+  function rm(k) {
+    try {
+      window.localStorage.removeItem(k);
+    } catch (e) {}
+  }
+  var local = {
+    getStr: function getStr(k, fb) {
+      var v = g(k);
+      return v === null || v === undefined ? fb || '' : v;
+    },
+    setStr: function setStr(k, v) {
+      try {
+        window.localStorage.setItem(k, String(v));
+      } catch (e) {}
+    },
+    remove: rm,
+    write: function write(k, data) {
+      try {
+        window.localStorage.setItem(k, JSON.stringify({
+          __psv: 1,
+          t: Date.now(),
+          data: data
+        }));
+      } catch (e) {}
+    },
+    read: function read(k, opts) {
+      opts = opts || {};
+      var fb = 'fallback' in opts ? opts.fallback : null;
+      var raw = g(k);
+      if (raw === null || raw === undefined) return fb;
+      var parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch (e) {
+        rm(k);
+        return fb;
+      }
+      var data = parsed;
+      if (parsed && _typeof(parsed) === 'object' && parsed.__psv === 1 && 'data' in parsed) data = parsed.data;
+      var fn = opts.validate;
+      if (fn) {
+        var ok = false;
+        try {
+          ok = !!fn(data, k);
+        } catch (e) {
+          ok = false;
+        }
+        if (!ok) {
+          rm(k);
+          return fb;
+        }
+      }
+      return data;
+    }
+  };
+  function impl() {
+    return window.PlatSave || local;
+  }
+  __psFacade = {
+    register: function register(p, fn) {
+      regs.push({
+        p: p,
+        fn: fn
+      });
+      if (window.PlatSave) window.PlatSave.register(p, fn);
+    },
+    getStr: function getStr(k, fb) {
+      return impl().getStr(k, fb);
+    },
+    setStr: function setStr(k, v) {
+      impl().setStr(k, v);
+    },
+    remove: function remove(k) {
+      impl().remove(k);
+    },
+    write: function write(k, data) {
+      impl().write(k, data);
+    },
+    read: function read(k, opts) {
+      opts = opts || {};
+      var fn = opts.validate || findV(k);
+      var o = {
+        fallback: 'fallback' in opts ? opts.fallback : null
+      };
+      if (fn) o.validate = fn;
+      return impl().read(k, o);
+    }
+  };
+  return __psFacade;
+}
+
+// validator 集中登記（收編既有守衛、行為等價）：resume＝形狀＋3 小時 TTL（種子/尺寸/長度比對在 loadResume 以 opts.validate 帶入）；custom_cfg＝三數值欄位
+platSave().register('mines_resume', function (p) {
+  return !!p && _typeof(p) === 'object' && typeof p.cells === 'string' && typeof p.ts === 'number' && Date.now() - p.ts <= 3 * 3600 * 1000;
+});
+platSave().register('mines_daily_records', function (p) {
+  return !!p && _typeof(p) === 'object' && !Array.isArray(p);
+});
+platSave().register('mines_daily_streak', function (p) {
+  return !!p && _typeof(p) === 'object' && typeof p.count === 'number';
+});
+platSave().register('mines_custom_cfg', function (p) {
+  return !!p && _typeof(p) === 'object' && typeof p.w === 'number' && typeof p.h === 'number' && typeof p.mines === 'number';
+});
 function mulberry32(a) {
   return function () {
     a |= 0;
@@ -106,24 +229,17 @@ function dailySeed(dateStr) {
   return hashStr('mines-daily-' + dateStr);
 }
 function readDailyRecords() {
-  try {
-    return JSON.parse(sGet('mines_daily_records') || '{}') || {};
-  } catch (e) {
-    return {};
-  }
+  return platSave().read('mines_daily_records', {
+    fallback: {}
+  });
 }
 function readDailyStreak() {
-  try {
-    return JSON.parse(sGet('mines_daily_streak') || 'null') || {
+  return platSave().read('mines_daily_streak', {
+    fallback: {
       last: '',
       count: 0
-    };
-  } catch (e) {
-    return {
-      last: '',
-      count: 0
-    };
-  }
+    }
+  });
 }
 function shiftDate(dateStr, days) {
   var p = dateStr.split('-');
@@ -352,7 +468,7 @@ function countFlags(cells) {
 // ---------- 極簡音效（WebAudio，靜音鍵 mines_muted） ----------
 var _ac = null;
 function beep(freq, dur, type, vol, slideTo) {
-  if (sGet('mines_muted') === '1') return;
+  if (platSave().getStr('mines_muted', '') === '1') return;
   try {
     _ac = _ac || new (window.AudioContext || window.webkitAudioContext)();
     if (_ac.state === 'suspended') _ac.resume();
@@ -451,7 +567,7 @@ function MinesGame() {
     _useState16 = _slicedToArray(_useState15, 2),
     tutDemoBoom = _useState16[0],
     setTutDemoBoom = _useState16[1]; // 教學互動 demo：踩到雷了
-  var _useState17 = useState(sGet('mines_muted') === '1'),
+  var _useState17 = useState(platSave().getStr('mines_muted', '') === '1'),
     _useState18 = _slicedToArray(_useState17, 2),
     muted = _useState18[0],
     setMuted = _useState18[1];
@@ -592,10 +708,10 @@ function MinesGame() {
     zoomOpen = _useState66[0],
     setZoomOpen = _useState66[1];
   var _useState67 = useState(function () {
-      try {
-        var c0 = JSON.parse(sGet('mines_custom_cfg') || 'null');
-        if (c0) return clampCustomSpec(c0.w, c0.h, c0.mines);
-      } catch (e) {}
+      var c0 = platSave().read('mines_custom_cfg', {
+        fallback: null
+      });
+      if (c0) return clampCustomSpec(c0.w, c0.h, c0.mines);
       return {
         w: 16,
         h: 16,
@@ -975,24 +1091,24 @@ function MinesGame() {
       var rec = readDailyRecords();
       if (rec[dailyDate] == null || t < rec[dailyDate]) {
         rec[dailyDate] = t;
-        sSet('mines_daily_records', JSON.stringify(rec));
+        platSave().write('mines_daily_records', rec);
       }
       if (dailyDate === todayStr()) {
         var st = readDailyStreak();
-        if (st.last === dailyDate) {/* 同日重玩不重複計 */} else if (st.last === shiftDate(dailyDate, -1)) sSet('mines_daily_streak', JSON.stringify({
+        if (st.last === dailyDate) {/* 同日重玩不重複計 */} else if (st.last === shiftDate(dailyDate, -1)) platSave().write('mines_daily_streak', {
           last: dailyDate,
           count: (st.count || 0) + 1
-        }));else sSet('mines_daily_streak', JSON.stringify({
+        });else platSave().write('mines_daily_streak', {
           last: dailyDate,
           count: 1
-        }));
+        });
       }
       return;
     }
     var spk = specRef.current;
     var key = 'mines_best_' + (sizeId === 'custom' ? 'c' + spk.w + 'x' + spk.h + '_' + spk.mines : sizeId); // 自訂盤最佳紀錄依形狀分開存，不同形狀不互相覆蓋
-    var prev = parseInt(sGet(key) || '0', 10);
-    if (!prev || t < prev) sSet(key, String(t));
+    var prev = parseInt(platSave().getStr(key, '0'), 10);
+    if (!prev || t < prev) platSave().setStr(key, String(t));
   }
   function startDaily(ds) {
     newGame(9, dailySeed(ds), ds);
@@ -1120,7 +1236,7 @@ function MinesGame() {
     // 單機自訂盤面：clamp→持久化→註冊規格→以 sizeId 'custom' 開局（與預設盤走同一條 newGame 路徑）
     var cl = clampCustomSpec(custCfg.w, custCfg.h, custCfg.mines);
     setCustCfg(cl);
-    sSet('mines_custom_cfg', JSON.stringify(cl));
+    platSave().write('mines_custom_cfg', cl);
     regCustomSpec(cl);
     SFX.click();
     newGame('custom');
@@ -1539,30 +1655,29 @@ function MinesGame() {
     var a = stateArgsRef.current;
     if (!a || !a[0] || !a[2] || !mpRef.current.seed) return;
     var spSv = SIZES[mpRef.current.sizeId] || SIZES[9];
-    try {
-      sSet(minesResumeKey(), JSON.stringify({
-        seed: mpRef.current.seed,
-        sizeId: mpRef.current.sizeId,
-        cw: spSv.w,
-        ch: spSv.h,
-        cm: spSv.mines,
-        startAt: mpRef.current.startAt,
-        cells: a[0].join(''),
-        items: itemsRef.current,
-        giftCredit: giftCreditRef.current,
-        milestone: milestoneRef.current,
-        ts: Date.now()
-      }));
-    } catch (e) {} // cw/ch/cm：自訂盤的形狀指紋，回座時對不上就不還原（陳年存檔鐵則）
+    platSave().write(minesResumeKey(), {
+      seed: mpRef.current.seed,
+      sizeId: mpRef.current.sizeId,
+      cw: spSv.w,
+      ch: spSv.h,
+      cm: spSv.mines,
+      startAt: mpRef.current.startAt,
+      cells: a[0].join(''),
+      items: itemsRef.current,
+      giftCredit: giftCreditRef.current,
+      milestone: milestoneRef.current,
+      ts: Date.now()
+    }); // cw/ch/cm：自訂盤的形狀指紋，回座時對不上就不還原（陳年存檔鐵則）
   }
   function loadResume(seed, sizeId, total) {
     try {
-      var raw = sGet(minesResumeKey());
-      if (!raw) return null;
-      var p = JSON.parse(raw);
-      if (!p || p.seed !== seed || p.sizeId !== sizeId || !p.cells || p.cells.length !== total) return null; // 種子/尺寸/盤面長度不符＝別場的存檔，不准還原（陳年存檔鐵則）
-      if (!p.ts || Date.now() - p.ts > 3 * 3600 * 1000) return null;
-      return p;
+      // 種子/尺寸/盤面長度不符＝別場的存檔，不准還原（陳年存檔鐵則）；驗證收編為 validator，不合由讀取層清除自癒
+      return platSave().read(minesResumeKey(), {
+        fallback: null,
+        validate: function validate(p) {
+          return !!p && p.seed === seed && p.sizeId === sizeId && !!p.cells && p.cells.length === total && !!p.ts && Date.now() - p.ts <= 3 * 3600 * 1000;
+        }
+      });
     } catch (e) {
       return null;
     }
@@ -3524,7 +3639,7 @@ function MinesGame() {
     }, rows);
   }
   function bestText(sz) {
-    var b = sGet('mines_best_' + sz);
+    var b = platSave().getStr('mines_best_' + sz, '');
     return b ? '最佳 ' + fmtTime(parseInt(b, 10)) : '';
   }
 
@@ -4326,7 +4441,7 @@ function MinesGame() {
     onClick: function onClick() {
       var m = !muted;
       setMuted(m);
-      sSet('mines_muted', m ? '1' : '0');
+      platSave().setStr('mines_muted', m ? '1' : '0');
     },
     title: muted ? '取消靜音' : '靜音',
     className: hbtn

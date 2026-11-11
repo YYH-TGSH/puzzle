@@ -119,18 +119,65 @@ function PlatNum(props) {
 
     // (moved to js/puzzle.js: getDailySeed)
 
+// ===== PlatSave 接點（facade）：平台模式委派殼的 window.PlatSave、獨立開啟時用同語意本地後備；validator 在此集中登記、read 時統一帶入 =====
+var __psFacade = null;
+function platSave() {
+  if (__psFacade) return __psFacade;
+  var regs = [];
+  function findV(key) { var best = null; for (var i = 0; i < regs.length; i++) { if (key.indexOf(regs[i].p) === 0 && (!best || regs[i].p.length > best.p.length)) best = regs[i]; } return best ? best.fn : null; }
+  function g(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
+  function rm(k) { try { window.localStorage.removeItem(k); } catch (e) {} }
+  var local = {
+    getStr: function (k, fb) { var v = g(k); return (v === null || v === undefined) ? (fb || '') : v; },
+    setStr: function (k, v) { try { window.localStorage.setItem(k, String(v)); } catch (e) {} },
+    remove: rm,
+    write: function (k, data) { try { window.localStorage.setItem(k, JSON.stringify({ __psv: 1, t: Date.now(), data: data })); } catch (e) {} },
+    read: function (k, opts) {
+      opts = opts || {}; var fb = ('fallback' in opts) ? opts.fallback : null;
+      var raw = g(k); if (raw === null || raw === undefined) return fb;
+      var parsed; try { parsed = JSON.parse(raw); } catch (e) { rm(k); return fb; }
+      var data = parsed;
+      if (parsed && typeof parsed === 'object' && parsed.__psv === 1 && 'data' in parsed) data = parsed.data;
+      var fn = opts.validate;
+      if (fn) { var ok = false; try { ok = !!fn(data, k); } catch (e) { ok = false; } if (!ok) { rm(k); return fb; } }
+      return data;
+    }
+  };
+  function impl() { return window.PlatSave || local; }
+  __psFacade = {
+    register: function (p, fn) { regs.push({ p: p, fn: fn }); if (window.PlatSave) window.PlatSave.register(p, fn); },
+    getStr: function (k, fb) { return impl().getStr(k, fb); },
+    setStr: function (k, v) { impl().setStr(k, v); },
+    remove: function (k) { impl().remove(k); },
+    write: function (k, data) { impl().write(k, data); },
+    read: function (k, opts) {
+      opts = opts || {};
+      var fn = opts.validate || findV(k);
+      var o = { fallback: ('fallback' in opts) ? opts.fallback : null };
+      if (fn) o.validate = fn;
+      return impl().read(k, o);
+    }
+  };
+  return __psFacade;
+}
+
+// validator 集中登記（收編既有守衛、行為等價）：resume＝形狀＋3 小時 TTL（場次 startAt 比對在 loadHashiResume 以 opts.validate 帶入）；daily_map 沿用其自帶 v:1 檢查
+platSave().register('hashi_resume', function (p) { return !!p && typeof p === 'object' && Array.isArray(p.bridges) && typeof p.ts === 'number' && (Date.now() - p.ts) <= 3 * 3600 * 1000; });
+platSave().register('hashi_daily_map', function (p) { return !!p && p.v === 1 && !!p.days && typeof p.days === 'object'; });
+platSave().register('hashi_daily_streak', function (p) { return !!p && typeof p === 'object' && typeof p.count === 'number'; });
+platSave().register('hashi_solo_custom', function (p) { return !!p && typeof p === 'object' && typeof p.w === 'number' && typeof p.h === 'number'; });
+
     // 每日紀錄收斂為單一 map key（稽核 G-01：原「一天一 key」無界成長）：第一次讀取時把全部舊 key 摺進 hashi_daily_map 並刪除舊 key，之後只讀寫 map（帶 schema 版本 v:1，G-02）
     let _dailyMapCache = null;
     function dailyMap() {
       if (_dailyMapCache) return _dailyMapCache;
-      let m = null;
-      try { const raw = localStorage.getItem('hashi_daily_map'); const p = raw ? JSON.parse(raw) : null; if (p && p.v === 1 && p.days && typeof p.days === 'object') m = p; } catch (e) {}
+      let m = platSave().read('hashi_daily_map', { fallback: null });
       if (!m) m = { v: 1, days: {} };
       try {
         const legacy = [];
         for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && /^hashi_daily_\d{4}-\d{2}-\d{2}$/.test(k)) legacy.push(k); }
         legacy.forEach(k => { const ds = k.slice('hashi_daily_'.length); if (!m.days[ds]) { try { const p = JSON.parse(localStorage.getItem(k)); if (p && typeof p.time === 'number' && isFinite(p.time)) m.days[ds] = { time: p.time }; } catch (e) {} } try { localStorage.removeItem(k); } catch (e) {} });
-        if (legacy.length) try { localStorage.setItem('hashi_daily_map', JSON.stringify(m)); } catch (e) {}
+        if (legacy.length) platSave().write('hashi_daily_map', m);
       } catch (e) {}
       _dailyMapCache = m;
       return m;
@@ -141,9 +188,7 @@ function PlatNum(props) {
     }
     function readDailyStreak() {
       try {
-        const raw = localStorage.getItem('hashi_daily_streak');
-        const s = raw ? JSON.parse(raw) : null;
-        return (s && typeof s.count === 'number') ? s : { count: 0, lastDate: '' };
+        return platSave().read('hashi_daily_streak', { fallback: { count: 0, lastDate: '' } });
       } catch (e) { return { count: 0, lastDate: '' }; }
     }
     function getDailyStatus(dateStr) {
@@ -261,13 +306,13 @@ function PlatNum(props) {
       const [editName, setEditName] = useState('');
 
       // 💾 記住暱稱與房號（同一裝置下次免重打；房主代碼固定不變）
-      const loadSavedNickname = () => { try { return localStorage.getItem('hashi_nickname') || ""; } catch (e) { return ""; } };
-      const saveNickname = (n) => { try { if (n) localStorage.setItem('hashi_nickname', n); } catch (e) {} };
-      const loadLastRoom = () => { try { return localStorage.getItem('hashi_last_room') || ""; } catch (e) { return ""; } };
-      const saveLastRoom = (r) => { try { if (r) localStorage.setItem('hashi_last_room', r); } catch (e) {} };
-      const loadHostRoom = () => { try { return localStorage.getItem('hashi_host_room') || ""; } catch (e) { return ""; } };
-      const saveHostRoom = (r) => { try { if (r) localStorage.setItem('hashi_host_room', r); } catch (e) {} };
-      const clearHostRoom = () => { try { localStorage.removeItem('hashi_host_room'); } catch (e) {} };
+      const loadSavedNickname = () => platSave().getStr('hashi_nickname', '');
+      const saveNickname = (n) => { if (n) platSave().setStr('hashi_nickname', n); };
+      const loadLastRoom = () => platSave().getStr('hashi_last_room', '');
+      const saveLastRoom = (r) => { if (r) platSave().setStr('hashi_last_room', r); };
+      const loadHostRoom = () => platSave().getStr('hashi_host_room', '');
+      const saveHostRoom = (r) => { if (r) platSave().setStr('hashi_host_room', r); };
+      const clearHostRoom = () => platSave().remove('hashi_host_room');
 
       const [roomId, setRoomId] = useState("");
       const [isHost, setIsHost] = useState(false);
@@ -449,7 +494,7 @@ function PlatNum(props) {
 
       // 靜音偏好（與全域音效引擎同步）
       const [muted, setMuted] = useState(() => {
-        try { return localStorage.getItem('hashi_muted') === '1'; } catch (e) { return false; }
+        return platSave().getStr('hashi_muted', '') === '1';
       });
 
       // 🏁 競速模式
@@ -630,7 +675,7 @@ function PlatNum(props) {
       // 首次進入遊戲時顯示教學導覽（localStorage 記錄）
       useEffect(function() {
         let seen = false;
-        try { seen = localStorage.getItem('hashi_tutorial_seen') === '1'; } catch (e) {}
+        seen = platSave().getStr('hashi_tutorial_seen', '') === '1';
         if (!seen) {
             setTutorialStep(0);
             setShowTutorial(true);
@@ -791,15 +836,12 @@ function PlatNum(props) {
       // ----- 競速回座存檔（不小心跳出/重整後接續：房主 RACE_RESUME 有快照，但本地存檔更新更快、且含道具/里程碑狀態） -----
       const saveHashiResume = (bridgesArr) => {
         if (raceStateRef.current !== 'racing' && raceStateRef.current !== 'countdown') return;
-        try { localStorage.setItem('hashi_resume_' + myId, JSON.stringify({ startAt: raceStartAtRef.current, bridges: bridgesArr || stateRef.current.bridges || [], items: myItemsRef.current, milestones: milestonesRef.current, giftCredit: hashiGiftCreditRef.current, giftUnits: hashiGiftUnitsRef.current, ts: Date.now() })); } catch (e) {}
+        platSave().write('hashi_resume_' + myId, { startAt: raceStartAtRef.current, bridges: bridgesArr || stateRef.current.bridges || [], items: myItemsRef.current, milestones: milestonesRef.current, giftCredit: hashiGiftCreditRef.current, giftUnits: hashiGiftUnitsRef.current, ts: Date.now() });
       };
       const loadHashiResume = (startAt) => {
         try {
-          const raw = localStorage.getItem('hashi_resume_' + myId); if (!raw) return null;
-          const p = JSON.parse(raw);
-          if (!p || p.startAt !== startAt || !Array.isArray(p.bridges)) return null; // 不是同一場（startAt 不符）不准還原
-          if (!p.ts || Date.now() - p.ts > 3 * 3600 * 1000) return null;
-          return p;
+          // 不是同一場（startAt 不符）不准還原；形狀/TTL 與場次比對收編為 validator，不合由讀取層清除自癒
+          return platSave().read('hashi_resume_' + myId, { fallback: null, validate: (p) => !!p && p.startAt === startAt && Array.isArray(p.bridges) && !!p.ts && (Date.now() - p.ts) <= 3 * 3600 * 1000 });
         } catch (e) { return null; }
       };
 
@@ -1655,9 +1697,9 @@ function PlatNum(props) {
         try {
           const w = randomLevelData.width, h = randomLevelData.height;
           const key = 'hashi_best_' + w + 'x' + h;
-          const prev = parseInt(localStorage.getItem(key) || '0', 10);
+          const prev = parseInt(platSave().getStr(key, '0'), 10);
           if (!prev || secs < prev) {
-            localStorage.setItem(key, String(secs));
+            platSave().setStr(key, String(secs));
             setIsNewBest(true);
           } else {
             setIsNewBest(false);
@@ -2043,7 +2085,7 @@ function PlatNum(props) {
       const handleCustomGenerate = () => {
           let w = Math.max(5, Math.min(100, tempWidth));
           let h = Math.max(5, Math.min(100, tempHeight));
-          if (soloPick) { try { localStorage.setItem('hashi_solo_level', 'custom'); localStorage.setItem('hashi_solo_custom', JSON.stringify({ w: w, h: h })); } catch (e) {} setSoloPick(false); }
+          if (soloPick) { platSave().setStr('hashi_solo_level', 'custom'); platSave().write('hashi_solo_custom', { w: w, h: h }); setSoloPick(false); }
           setTempWidth(w);
           setTempHeight(h);
           setShowCustomModal(false);
@@ -2104,9 +2146,9 @@ function PlatNum(props) {
         // v1.58.0：單機入口先選難度（不要直接開局）——還原上次單機選的難度供 modal 反綠，再開設定 modal；
         // 選定才生成題目（handleLevelChange/handleCustomGenerate），取消則回主畫面（closeSettingsModal 處理）
         try {
-          var lastSolo = localStorage.getItem('hashi_solo_level');
+          var lastSolo = platSave().getStr('hashi_solo_level', '');
           if (lastSolo === 'custom') {
-            var cd = JSON.parse(localStorage.getItem('hashi_solo_custom') || 'null');
+            var cd = platSave().read('hashi_solo_custom', { fallback: null });
             if (cd && cd.w && cd.h) { setTempWidth(cd.w); setTempHeight(cd.h); }
             setCurrentLevelId('custom');
           } else if (lastSolo && LEVELS.some(l => String(l.id) === String(lastSolo))) setCurrentLevelId(Number(lastSolo));
@@ -2129,7 +2171,7 @@ function PlatNum(props) {
         try {
           const prev = readDailyRecord(d);
           const best = prev ? Math.min(prev.time, secs) : secs;
-          const dm = dailyMap(); dm.days[d] = { time: best }; localStorage.setItem('hashi_daily_map', JSON.stringify(dm));
+          const dm = dailyMap(); dm.days[d] = { time: best }; platSave().write('hashi_daily_map', dm);
         } catch (e) {}
         // 連擊只算「今天」：補玩以前日期的題目只記成績，不影響連擊
         try {
@@ -2141,7 +2183,7 @@ function PlatNum(props) {
             if (streak.lastDate === d) newCount = streak.count;
             else if (streak.lastDate === yesterday) newCount = streak.count + 1;
             else newCount = 1;
-            localStorage.setItem('hashi_daily_streak', JSON.stringify({ count: newCount, lastDate: d }));
+            platSave().write('hashi_daily_streak', { count: newCount, lastDate: d });
             setDailyStreak(newCount);
           }
         } catch (e) {}
@@ -3505,7 +3547,7 @@ function PlatNum(props) {
 
       // === 首次教學導覽 overlay（可在任何畫面開啟） ===
       const closeTutorial = () => {
-        try { localStorage.setItem('hashi_tutorial_seen', '1'); } catch (e) {}
+        platSave().setStr('hashi_tutorial_seen', '1');
         setShowTutorial(false);
       };
       // ===== 👆 架橋教學動畫（兩幕：拖曳 → 點擊三連拍） =====
@@ -4585,7 +4627,7 @@ function PlatNum(props) {
                 <p className="text-sm font-bold text-slate-600 mb-4">{soloPick ? '選一個難度，開始一局新的挑戰。' : '選一個難度，立刻換一題新的。'}</p>
                 <div className="flex flex-col gap-2 mb-4">
                   {LEVELS.map(level => (
-                    <button key={level.id} onClick={() => { setShowSettingsModal(false); if (soloPick && level.id !== 'custom') { try { localStorage.setItem('hashi_solo_level', String(level.id)); } catch (e) {} setSoloPick(false); } handleLevelChange(level.id === 'custom' ? 'custom' : level.id); }} className={"plat-btn-hard plat-btn-hard-3 w-full text-left px-4 py-3 border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_rgba(30,41,59,1)]" + (String(currentLevelId) === String(level.id) ? " bg-[#4ade80] text-slate-900" : " bg-white text-slate-800")}>
+                    <button key={level.id} onClick={() => { setShowSettingsModal(false); if (soloPick && level.id !== 'custom') { platSave().setStr('hashi_solo_level', String(level.id)); setSoloPick(false); } handleLevelChange(level.id === 'custom' ? 'custom' : level.id); }} className={"plat-btn-hard plat-btn-hard-3 w-full text-left px-4 py-3 border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_rgba(30,41,59,1)]" + (String(currentLevelId) === String(level.id) ? " bg-[#4ade80] text-slate-900" : " bg-white text-slate-800")}>
                       {level.name}
                       <span className="block text-xs font-bold opacity-70 mt-0.5">{level.description}</span>
                     </button>

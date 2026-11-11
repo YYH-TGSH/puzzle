@@ -3385,6 +3385,59 @@ async function generateDailySudoku(dateStr, onProgress) {
 
 function formatTime(secs) { return String(Math.floor(secs / 60)).padStart(2, '0') + ":" + String(secs % 60).padStart(2, '0'); }
 
+// ===== PlatSave 接點（facade）：平台模式委派殼的 window.PlatSave、獨立開啟時用同語意本地後備；validator 在此集中登記、read 時統一帶入 =====
+var __psFacade = null;
+function platSave() {
+  if (__psFacade) return __psFacade;
+  var regs = [];
+  function findV(key) { var best = null; for (var i = 0; i < regs.length; i++) { if (key.indexOf(regs[i].p) === 0 && (!best || regs[i].p.length > best.p.length)) best = regs[i]; } return best ? best.fn : null; }
+  function g(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
+  function rm(k) { try { window.localStorage.removeItem(k); } catch (e) {} }
+  var local = {
+    getStr: function (k, fb) { var v = g(k); return (v === null || v === undefined) ? (fb || '') : v; },
+    setStr: function (k, v) { try { window.localStorage.setItem(k, String(v)); } catch (e) {} },
+    remove: rm,
+    write: function (k, data) { try { window.localStorage.setItem(k, JSON.stringify({ __psv: 1, t: Date.now(), data: data })); } catch (e) {} },
+    read: function (k, opts) {
+      opts = opts || {}; var fb = ('fallback' in opts) ? opts.fallback : null;
+      var raw = g(k); if (raw === null || raw === undefined) return fb;
+      var parsed; try { parsed = JSON.parse(raw); } catch (e) { rm(k); return fb; }
+      var data = parsed;
+      if (parsed && typeof parsed === 'object' && parsed.__psv === 1 && 'data' in parsed) data = parsed.data;
+      var fn = opts.validate;
+      if (fn) { var ok = false; try { ok = !!fn(data, k); } catch (e) { ok = false; } if (!ok) { rm(k); return fb; } }
+      return data;
+    }
+  };
+  function impl() { return window.PlatSave || local; }
+  __psFacade = {
+    register: function (p, fn) { regs.push({ p: p, fn: fn }); if (window.PlatSave) window.PlatSave.register(p, fn); },
+    getStr: function (k, fb) { return impl().getStr(k, fb); },
+    setStr: function (k, v) { impl().setStr(k, v); },
+    remove: function (k) { impl().remove(k); },
+    write: function (k, data) { impl().write(k, data); },
+    read: function (k, opts) {
+      opts = opts || {};
+      var fn = opts.validate || findV(k);
+      var o = { fallback: ('fallback' in opts) ? opts.fallback : null };
+      if (fn) o.validate = fn;
+      return impl().read(k, o);
+    }
+  };
+  return __psFacade;
+}
+
+// validator 集中登記（收編既有守衛、行為等價）：prog＝形狀＋24 小時年齡上限（v1.19.1 loadLocalProgress 原邏輯；盤面尺寸比對需本局尺寸、留在 app.js 消費端）
+// 注意：平台 bundle 裡 engine.js（classic）比 shell.js 先執行，此刻 window.PlatSave 還不存在——先登記進 facade 自己的表（消費端全走 facade 不受影響），DOMContentLoaded 後再補登記進殼的中央表。
+function regSudokuPlatSave() {
+  platSave().register('sudoku_prog', function (p) { return !!p && Array.isArray(p.d) && typeof p.t === 'number' && (Date.now() - p.t) <= 24 * 3600 * 1000; });
+  platSave().register('sudoku_last_session', function (p) { return !!p && typeof p === 'object'; });
+  platSave().register('sudoku_daily_records', function (p) { return !!p && typeof p === 'object' && !Array.isArray(p); });
+  platSave().register('sudoku_daily_streak', function (p) { return !!p && typeof p === 'object' && typeof p.count === 'number'; });
+}
+regSudokuPlatSave();
+if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('DOMContentLoaded', regSudokuPlatSave);
+
 // 本地進度恢復系統核心函數 (v3.8.0)
 // 存檔清掃（稽核 G-01）：讀寫時順手掃掉全部過期/損毀的 sudoku_prog_*（原本只清「下次同房號被讀到」的那筆，沒再進的房間會永久殘留無界成長）；每頁只掃一次
 let _progSwept = false;
@@ -3402,18 +3455,12 @@ const saveLocalProgress = (rid, uid, name, isHost, data, sessionId, extra) => {
     try {
         const payload = { d: data, t: Date.now(), sid: sessionId };
         if (extra) Object.assign(payload, extra); // 存入 solutionGrid, playersList 等
-        localStorage.setItem(`sudoku_prog_${rid}_${uid}`, JSON.stringify(payload));
-        localStorage.setItem('sudoku_last_session', JSON.stringify({ rid, uid, time: Date.now(), name, isHost, sid: sessionId }));
+        platSave().write(`sudoku_prog_${rid}_${uid}`, payload);
+        platSave().write('sudoku_last_session', { rid, uid, time: Date.now(), name, isHost, sid: sessionId });
     } catch (e) { /* 儲存空間被瀏覽器封鎖時（如預覽環境）靜默略過，不可讓遊戲崩潰 */ }
 };
-const loadLocalProgress = (rid, uid) => { sweepSudokuProg(); try {
-    const s = localStorage.getItem(`sudoku_prog_${rid}_${uid}`); if (!s) return null;
-    const p = JSON.parse(s);
-    // 存檔衛生（2026-11-01）：超過 24 小時或形狀不對的殘檔直接清除。房號只有 4 碼、會撞號，
-    // 陳年殘檔被別場比賽撈到會污染新局（實機事故：16×16 殘檔毒死 9×9 新房的房主開局）。
-    if (!p || !Array.isArray(p.d) || !p.t || (Date.now() - p.t) > 24 * 3600 * 1000) { try { localStorage.removeItem(`sudoku_prog_${rid}_${uid}`); } catch (e) {} return null; }
-    return p;
-} catch (e) { return null; } };
+// 存檔衛生（2026-11-01 立、v1.62.0 收編 PlatSave）：超過 24 小時或形狀不對的殘檔由登錄 validator 判定、讀取層清除自癒。房號只有 4 碼、會撞號，陳年殘檔被別場比賽撈到會污染新局（實機事故：16×16 殘檔毒死 9×9 新房的房主開局）。
+const loadLocalProgress = (rid, uid) => { sweepSudokuProg(); return platSave().read(`sudoku_prog_${rid}_${uid}`, { fallback: null }); };
   </script>
 
   <script type="text/plain" id="code-sudoku">
@@ -3754,11 +3801,7 @@ function SudokuGame() {
     setSelectedChar = _useState78[1];
   // 輸入方式：'num' 數字先行（先點數字再點格子）｜'cell' 格子先行（先點格子再點數字）— 玩家可切換、記住選擇
   var _useState79 = useState(function () {
-      try {
-        return localStorage.getItem('sudoku_input_mode') === 'cell' ? 'cell' : 'num';
-      } catch (e) {
-        return 'num';
-      }
+      return platSave().getStr('sudoku_input_mode', '') === 'cell' ? 'cell' : 'num';
     }),
     _useState80 = _slicedToArray(_useState79, 2),
     inputMode = _useState80[0],
@@ -3768,9 +3811,7 @@ function SudokuGame() {
     selectedCellId = _useState82[0],
     setSelectedCellId = _useState82[1];
   useEffect(function () {
-    try {
-      localStorage.setItem('sudoku_input_mode', inputMode);
-    } catch (e) {}
+    platSave().setStr('sudoku_input_mode', inputMode);
   }, [inputMode]);
   // v1.61.0 K1：單機難度段位滑動指示片（殼 PlatSeg 共用；量測在 effect 內、選取變化才滑）
   useEffect(function () {
@@ -3782,11 +3823,7 @@ function SudokuGame() {
   }, [diffId, screen]);
   // 靜音偏好（與全域音效引擎同步，同數橋）
   var _useState83 = useState(function () {
-      try {
-        return localStorage.getItem('sudoku_muted') === '1';
-      } catch (e) {
-        return false;
-      }
+      return platSave().getStr('sudoku_muted', '') === '1';
     }),
     _useState84 = _slicedToArray(_useState83, 2),
     muted = _useState84[0],
@@ -4029,24 +4066,20 @@ function SudokuGame() {
   var dailyRef = useRef(null);
   var dailyRecordedRef = useRef(false);
   var _useState149 = useState(function () {
-      try {
-        return JSON.parse(localStorage.getItem('sudoku_daily_records') || '{}');
-      } catch (e) {
-        return {};
-      }
+      return platSave().read('sudoku_daily_records', {
+        fallback: {}
+      });
     }),
     _useState150 = _slicedToArray(_useState149, 2),
     dailyRecords = _useState150[0],
     setDailyRecords = _useState150[1];
   var _useState151 = useState(function () {
-      try {
-        return JSON.parse(localStorage.getItem('sudoku_daily_streak') || '{"count":0,"lastDate":""}');
-      } catch (e) {
-        return {
+      return platSave().read('sudoku_daily_streak', {
+        fallback: {
           count: 0,
           lastDate: ''
-        };
-      }
+        }
+      });
     }),
     _useState152 = _slicedToArray(_useState151, 2),
     dailyStreak = _useState152[0],
@@ -7913,9 +7946,7 @@ function SudokuGame() {
     setDailyRecords(function (prev) {
       var next = _objectSpread({}, prev);
       if (!next[dateStr] || secs < next[dateStr]) next[dateStr] = secs;
-      try {
-        localStorage.setItem('sudoku_daily_records', JSON.stringify(next));
-      } catch (e) {}
+      platSave().write('sudoku_daily_records', next);
       return next;
     });
     if (dateStr === dailyTodayStr()) {
@@ -7927,9 +7958,7 @@ function SudokuGame() {
             count: count,
             lastDate: dateStr
           };
-          try {
-            localStorage.setItem('sudoku_daily_streak', JSON.stringify(next));
-          } catch (e) {}
+          platSave().write('sudoku_daily_streak', next);
         }
         return next;
       });
@@ -8490,9 +8519,7 @@ function SudokuGame() {
         _iterator7.f();
       }
       if (maxDim !== targetSize) {
-        try {
-          localStorage.removeItem("sudoku_prog_".concat(rId, "_").concat(myId));
-        } catch (e) {}
+        platSave().remove("sudoku_prog_".concat(rId, "_").concat(myId));
         savedProg = null;
       }
     }
@@ -8576,10 +8603,12 @@ function SudokuGame() {
             }
             if (m.type === 'JOIN') {
               var storedSid = null;
-              try {
-                var ls = localStorage.getItem('sudoku_last_session');
-                storedSid = ls ? JSON.parse(ls).sid : null;
-              } catch (e) {}
+              {
+                var ls = platSave().read('sudoku_last_session', {
+                  fallback: null
+                });
+                storedSid = ls ? ls.sid : null;
+              }
               var roomSessionId = stateRef.current.sessionId || storedSid;
               if (m.sid && roomSessionId && m.sid !== roomSessionId) {
                 c.send({
@@ -11079,14 +11108,115 @@ function normName(n) {
 
 // (moved to js/puzzle.js: getDailySeed)
 
+// ===== PlatSave 接點（facade）：平台模式委派殼的 window.PlatSave、獨立開啟時用同語意本地後備；validator 在此集中登記、read 時統一帶入 =====
+var __psFacade = null;
+function platSave() {
+  if (__psFacade) return __psFacade;
+  var regs = [];
+  function findV(key) {
+    var best = null;for (var i = 0; i < regs.length; i++) {
+      if (key.indexOf(regs[i].p) === 0 && (!best || regs[i].p.length > best.p.length)) best = regs[i];
+    }return best ? best.fn : null;
+  }
+  function g(k) {
+    try {
+      return window.localStorage.getItem(k);
+    } catch (e) {
+      return null;
+    }
+  }
+  function rm(k) {
+    try {
+      window.localStorage.removeItem(k);
+    } catch (e) {}
+  }
+  var local = {
+    getStr: function getStr(k, fb) {
+      var v = g(k);return v === null || v === undefined ? fb || '' : v;
+    },
+    setStr: function setStr(k, v) {
+      try {
+        window.localStorage.setItem(k, String(v));
+      } catch (e) {}
+    },
+    remove: rm,
+    write: function write(k, data) {
+      try {
+        window.localStorage.setItem(k, JSON.stringify({ __psv: 1, t: Date.now(), data: data }));
+      } catch (e) {}
+    },
+    read: function read(k, opts) {
+      opts = opts || {};var fb = 'fallback' in opts ? opts.fallback : null;
+      var raw = g(k);if (raw === null || raw === undefined) return fb;
+      var parsed;try {
+        parsed = JSON.parse(raw);
+      } catch (e) {
+        rm(k);return fb;
+      }
+      var data = parsed;
+      if (parsed && (typeof parsed === 'undefined' ? 'undefined' : _typeof(parsed)) === 'object' && parsed.__psv === 1 && 'data' in parsed) data = parsed.data;
+      var fn = opts.validate;
+      if (fn) {
+        var ok = false;try {
+          ok = !!fn(data, k);
+        } catch (e) {
+          ok = false;
+        }if (!ok) {
+          rm(k);return fb;
+        }
+      }
+      return data;
+    }
+  };
+  function impl() {
+    return window.PlatSave || local;
+  }
+  __psFacade = {
+    register: function register(p, fn) {
+      regs.push({ p: p, fn: fn });if (window.PlatSave) window.PlatSave.register(p, fn);
+    },
+    getStr: function getStr(k, fb) {
+      return impl().getStr(k, fb);
+    },
+    setStr: function setStr(k, v) {
+      impl().setStr(k, v);
+    },
+    remove: function remove(k) {
+      impl().remove(k);
+    },
+    write: function write(k, data) {
+      impl().write(k, data);
+    },
+    read: function read(k, opts) {
+      opts = opts || {};
+      var fn = opts.validate || findV(k);
+      var o = { fallback: 'fallback' in opts ? opts.fallback : null };
+      if (fn) o.validate = fn;
+      return impl().read(k, o);
+    }
+  };
+  return __psFacade;
+}
+
+// validator 集中登記（收編既有守衛、行為等價）：resume＝形狀＋3 小時 TTL（場次 startAt 比對在 loadHashiResume 以 opts.validate 帶入）；daily_map 沿用其自帶 v:1 檢查
+platSave().register('hashi_resume', function (p) {
+  return !!p && (typeof p === 'undefined' ? 'undefined' : _typeof(p)) === 'object' && Array.isArray(p.bridges) && typeof p.ts === 'number' && Date.now() - p.ts <= 3 * 3600 * 1000;
+});
+platSave().register('hashi_daily_map', function (p) {
+  return !!p && p.v === 1 && !!p.days && _typeof(p.days) === 'object';
+});
+platSave().register('hashi_daily_streak', function (p) {
+  return !!p && (typeof p === 'undefined' ? 'undefined' : _typeof(p)) === 'object' && typeof p.count === 'number';
+});
+platSave().register('hashi_solo_custom', function (p) {
+  return !!p && (typeof p === 'undefined' ? 'undefined' : _typeof(p)) === 'object' && typeof p.w === 'number' && typeof p.h === 'number';
+});
+
 // 每日紀錄收斂為單一 map key（稽核 G-01：原「一天一 key」無界成長）：第一次讀取時把全部舊 key 摺進 hashi_daily_map 並刪除舊 key，之後只讀寫 map（帶 schema 版本 v:1，G-02）
 var _dailyMapCache = null;
 function dailyMap() {
   if (_dailyMapCache) return _dailyMapCache;
-  var m = null;
-  try {
-    var raw = localStorage.getItem('hashi_daily_map');var p = raw ? JSON.parse(raw) : null;if (p && p.v === 1 && p.days && _typeof(p.days) === 'object') m = p;
-  } catch (e) {}
+  var m = platSave().read('hashi_daily_map', { fallback: null });
   if (!m) m = { v: 1, days: {} };
   try {
     var legacy = [];
@@ -11096,15 +11226,13 @@ function dailyMap() {
     legacy.forEach(function (k) {
       var ds = k.slice('hashi_daily_'.length);if (!m.days[ds]) {
         try {
-          var _p = JSON.parse(localStorage.getItem(k));if (_p && typeof _p.time === 'number' && isFinite(_p.time)) m.days[ds] = { time: _p.time };
+          var p = JSON.parse(localStorage.getItem(k));if (p && typeof p.time === 'number' && isFinite(p.time)) m.days[ds] = { time: p.time };
         } catch (e) {}
       }try {
         localStorage.removeItem(k);
       } catch (e) {}
     });
-    if (legacy.length) try {
-      localStorage.setItem('hashi_daily_map', JSON.stringify(m));
-    } catch (e) {}
+    if (legacy.length) platSave().write('hashi_daily_map', m);
   } catch (e) {}
   _dailyMapCache = m;
   return m;
@@ -11115,9 +11243,7 @@ function readDailyRecord(dateStr) {
 }
 function readDailyStreak() {
   try {
-    var raw = localStorage.getItem('hashi_daily_streak');
-    var s = raw ? JSON.parse(raw) : null;
-    return s && typeof s.count === 'number' ? s : { count: 0, lastDate: '' };
+    return platSave().read('hashi_daily_streak', { fallback: { count: 0, lastDate: '' } });
   } catch (e) {
     return { count: 0, lastDate: '' };
   }
@@ -11400,45 +11526,25 @@ function HashiGame() {
 
 
   var loadSavedNickname = function loadSavedNickname() {
-    try {
-      return localStorage.getItem('hashi_nickname') || "";
-    } catch (e) {
-      return "";
-    }
+    return platSave().getStr('hashi_nickname', '');
   };
   var saveNickname = function saveNickname(n) {
-    try {
-      if (n) localStorage.setItem('hashi_nickname', n);
-    } catch (e) {}
+    if (n) platSave().setStr('hashi_nickname', n);
   };
   var loadLastRoom = function loadLastRoom() {
-    try {
-      return localStorage.getItem('hashi_last_room') || "";
-    } catch (e) {
-      return "";
-    }
+    return platSave().getStr('hashi_last_room', '');
   };
   var saveLastRoom = function saveLastRoom(r) {
-    try {
-      if (r) localStorage.setItem('hashi_last_room', r);
-    } catch (e) {}
+    if (r) platSave().setStr('hashi_last_room', r);
   };
   var loadHostRoom = function loadHostRoom() {
-    try {
-      return localStorage.getItem('hashi_host_room') || "";
-    } catch (e) {
-      return "";
-    }
+    return platSave().getStr('hashi_host_room', '');
   };
   var saveHostRoom = function saveHostRoom(r) {
-    try {
-      if (r) localStorage.setItem('hashi_host_room', r);
-    } catch (e) {}
+    if (r) platSave().setStr('hashi_host_room', r);
   };
   var clearHostRoom = function clearHostRoom() {
-    try {
-      localStorage.removeItem('hashi_host_room');
-    } catch (e) {}
+    return platSave().remove('hashi_host_room');
   };
 
   var _useState71 = useState(""),
@@ -11899,11 +12005,7 @@ function HashiGame() {
 
 
   var _useState141 = useState(function () {
-    try {
-      return localStorage.getItem('hashi_muted') === '1';
-    } catch (e) {
-      return false;
-    }
+    return platSave().getStr('hashi_muted', '') === '1';
   }),
       _useState142 = _slicedToArray(_useState141, 2),
       muted = _useState142[0],
@@ -12297,9 +12399,7 @@ function HashiGame() {
   // 首次進入遊戲時顯示教學導覽（localStorage 記錄）
   useEffect(function () {
     var seen = false;
-    try {
-      seen = localStorage.getItem('hashi_tutorial_seen') === '1';
-    } catch (e) {}
+    seen = platSave().getStr('hashi_tutorial_seen', '') === '1';
     if (!seen) {
       setTutorialStep(0);
       setShowTutorial(true);
@@ -12491,17 +12591,14 @@ function HashiGame() {
   // ----- 競速回座存檔（不小心跳出/重整後接續：房主 RACE_RESUME 有快照，但本地存檔更新更快、且含道具/里程碑狀態） -----
   var saveHashiResume = function saveHashiResume(bridgesArr) {
     if (raceStateRef.current !== 'racing' && raceStateRef.current !== 'countdown') return;
-    try {
-      localStorage.setItem('hashi_resume_' + myId, JSON.stringify({ startAt: raceStartAtRef.current, bridges: bridgesArr || stateRef.current.bridges || [], items: myItemsRef.current, milestones: milestonesRef.current, giftCredit: hashiGiftCreditRef.current, giftUnits: hashiGiftUnitsRef.current, ts: Date.now() }));
-    } catch (e) {}
+    platSave().write('hashi_resume_' + myId, { startAt: raceStartAtRef.current, bridges: bridgesArr || stateRef.current.bridges || [], items: myItemsRef.current, milestones: milestonesRef.current, giftCredit: hashiGiftCreditRef.current, giftUnits: hashiGiftUnitsRef.current, ts: Date.now() });
   };
   var loadHashiResume = function loadHashiResume(startAt) {
     try {
-      var raw = localStorage.getItem('hashi_resume_' + myId);if (!raw) return null;
-      var p = JSON.parse(raw);
-      if (!p || p.startAt !== startAt || !Array.isArray(p.bridges)) return null; // 不是同一場（startAt 不符）不准還原
-      if (!p.ts || Date.now() - p.ts > 3 * 3600 * 1000) return null;
-      return p;
+      // 不是同一場（startAt 不符）不准還原；形狀/TTL 與場次比對收編為 validator，不合由讀取層清除自癒
+      return platSave().read('hashi_resume_' + myId, { fallback: null, validate: function validate(p) {
+          return !!p && p.startAt === startAt && Array.isArray(p.bridges) && !!p.ts && Date.now() - p.ts <= 3 * 3600 * 1000;
+        } });
     } catch (e) {
       return null;
     }
@@ -13706,9 +13803,9 @@ function HashiGame() {
       var w = randomLevelData.width,
           h = randomLevelData.height;
       var key = 'hashi_best_' + w + 'x' + h;
-      var prev = parseInt(localStorage.getItem(key) || '0', 10);
+      var prev = parseInt(platSave().getStr(key, '0'), 10);
       if (!prev || secs < prev) {
-        localStorage.setItem(key, String(secs));
+        platSave().setStr(key, String(secs));
         setIsNewBest(true);
       } else {
         setIsNewBest(false);
@@ -14142,9 +14239,7 @@ function HashiGame() {
     var w = Math.max(5, Math.min(100, tempWidth));
     var h = Math.max(5, Math.min(100, tempHeight));
     if (soloPick) {
-      try {
-        localStorage.setItem('hashi_solo_level', 'custom');localStorage.setItem('hashi_solo_custom', JSON.stringify({ w: w, h: h }));
-      } catch (e) {}setSoloPick(false);
+      platSave().setStr('hashi_solo_level', 'custom');platSave().write('hashi_solo_custom', { w: w, h: h });setSoloPick(false);
     }
     setTempWidth(w);
     setTempHeight(h);
@@ -14208,9 +14303,9 @@ function HashiGame() {
     // v1.58.0：單機入口先選難度（不要直接開局）——還原上次單機選的難度供 modal 反綠，再開設定 modal；
     // 選定才生成題目（handleLevelChange/handleCustomGenerate），取消則回主畫面（closeSettingsModal 處理）
     try {
-      var lastSolo = localStorage.getItem('hashi_solo_level');
+      var lastSolo = platSave().getStr('hashi_solo_level', '');
       if (lastSolo === 'custom') {
-        var cd = JSON.parse(localStorage.getItem('hashi_solo_custom') || 'null');
+        var cd = platSave().read('hashi_solo_custom', { fallback: null });
         if (cd && cd.w && cd.h) {
           setTempWidth(cd.w);setTempHeight(cd.h);
         }
@@ -14240,7 +14335,7 @@ function HashiGame() {
     try {
       var prev = readDailyRecord(d);
       var best = prev ? Math.min(prev.time, secs) : secs;
-      var dm = dailyMap();dm.days[d] = { time: best };localStorage.setItem('hashi_daily_map', JSON.stringify(dm));
+      var dm = dailyMap();dm.days[d] = { time: best };platSave().write('hashi_daily_map', dm);
     } catch (e) {}
     // 連擊只算「今天」：補玩以前日期的題目只記成績，不影響連擊
     try {
@@ -14250,7 +14345,7 @@ function HashiGame() {
         var yesterday = HASHI_PUZZLE.shiftDateStr(d, -1);
         var newCount = void 0;
         if (streak.lastDate === d) newCount = streak.count;else if (streak.lastDate === yesterday) newCount = streak.count + 1;else newCount = 1;
-        localStorage.setItem('hashi_daily_streak', JSON.stringify({ count: newCount, lastDate: d }));
+        platSave().write('hashi_daily_streak', { count: newCount, lastDate: d });
         setDailyStreak(newCount);
       }
     } catch (e) {}
@@ -16112,9 +16207,7 @@ function HashiGame() {
 
   // === 首次教學導覽 overlay（可在任何畫面開啟） ===
   var closeTutorial = function closeTutorial() {
-    try {
-      localStorage.setItem('hashi_tutorial_seen', '1');
-    } catch (e) {}
+    platSave().setStr('hashi_tutorial_seen', '1');
     setShowTutorial(false);
   };
   // ===== 👆 架橋教學動畫（兩幕：拖曳 → 點擊三連拍） =====
@@ -18238,9 +18331,7 @@ function HashiGame() {
               'button',
               { key: level.id, onClick: function onClick() {
                   setShowSettingsModal(false);if (soloPick && level.id !== 'custom') {
-                    try {
-                      localStorage.setItem('hashi_solo_level', String(level.id));
-                    } catch (e) {}setSoloPick(false);
+                    platSave().setStr('hashi_solo_level', String(level.id));setSoloPick(false);
                   }handleLevelChange(level.id === 'custom' ? 'custom' : level.id);
                 }, className: "plat-btn-hard plat-btn-hard-3 w-full text-left px-4 py-3 border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_rgba(30,41,59,1)]" + (String(currentLevelId) === String(level.id) ? " bg-[#4ade80] text-slate-900" : " bg-white text-slate-800") },
               level.name,
@@ -18476,7 +18567,6 @@ root.render(React.createElement(window.PlatBoundary, null, React.createElement(H
   <script type="text/plain" id="code-mines">
 "use strict";
 
-function _typeof(o) { "@babel/helpers - typeof"; return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function (o) { return typeof o; } : function (o) { return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o; }, _typeof(o); }
 function _defineProperty(obj, key, value) { key = _toPropertyKey(key); if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 function _toPropertyKey(t) { var i = _toPrimitive(t, "string"); return "symbol" == _typeof(i) ? i : String(i); }
 function _toPrimitive(t, r) { if ("object" != _typeof(t) || !t) return t; var e = t[Symbol.toPrimitive]; if (void 0 !== e) { var i = e.call(t, r || "default"); if ("object" != _typeof(i)) return i; throw new TypeError("@@toPrimitive must return a primitive value."); } return ("string" === r ? String : Number)(t); }
@@ -18486,6 +18576,7 @@ function _unsupportedIterableToArray(o, minLen) { if (!o) return; if (typeof o =
 function _arrayLikeToArray(arr, len) { if (len == null || len > arr.length) len = arr.length; for (var i = 0, arr2 = new Array(len); i < len; i++) arr2[i] = arr[i]; return arr2; }
 function _iterableToArrayLimit(r, l) { var t = null == r ? null : "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (null != t) { var e, n, i, u, a = [], f = !0, o = !1; try { if (i = (t = t.call(r)).next, 0 === l) { if (Object(t) !== t) return; f = !1; } else for (; !(f = (e = i.call(t)).done) && (a.push(e.value), a.length !== l); f = !0); } catch (r) { o = !0, n = r; } finally { try { if (!f && null != t["return"] && (u = t["return"](), Object(u) !== u)) return; } finally { if (o) throw n; } } return a; } }
 function _arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
+function _typeof(o) { "@babel/helpers - typeof"; return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function (o) { return typeof o; } : function (o) { return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o; }, _typeof(o); }
 // 踩地雷 Minesweeper（平台第三款遊戲）
 // 架構比照數獨/數橋：React 單一 app、平台模式走殼的 Peer 連線（PlatPeer shim）與共用元件（PlatBar/PlatRoom/PlatResults/PlatCountdown）。
 // 規則（使用者 2026-10-28 拍板）：多人競速踩到雷直接出局、照當時進度%排名；盤面 9×9・10雷（預設）/16×16・40雷；
@@ -18548,6 +18639,129 @@ function sSet(k, v) {
     window.localStorage.setItem(k, v);
   } catch (e) {}
 }
+// ===== PlatSave 接點（facade）：平台模式委派殼的 window.PlatSave、獨立開啟時用同語意本地後備；validator 在此集中登記、read 時統一帶入 =====
+var __psFacade = null;
+function platSave() {
+  if (__psFacade) return __psFacade;
+  var regs = [];
+  function findV(key) {
+    var best = null;
+    for (var i = 0; i < regs.length; i++) {
+      if (key.indexOf(regs[i].p) === 0 && (!best || regs[i].p.length > best.p.length)) best = regs[i];
+    }
+    return best ? best.fn : null;
+  }
+  function g(k) {
+    try {
+      return window.localStorage.getItem(k);
+    } catch (e) {
+      return null;
+    }
+  }
+  function rm(k) {
+    try {
+      window.localStorage.removeItem(k);
+    } catch (e) {}
+  }
+  var local = {
+    getStr: function getStr(k, fb) {
+      var v = g(k);
+      return v === null || v === undefined ? fb || '' : v;
+    },
+    setStr: function setStr(k, v) {
+      try {
+        window.localStorage.setItem(k, String(v));
+      } catch (e) {}
+    },
+    remove: rm,
+    write: function write(k, data) {
+      try {
+        window.localStorage.setItem(k, JSON.stringify({
+          __psv: 1,
+          t: Date.now(),
+          data: data
+        }));
+      } catch (e) {}
+    },
+    read: function read(k, opts) {
+      opts = opts || {};
+      var fb = 'fallback' in opts ? opts.fallback : null;
+      var raw = g(k);
+      if (raw === null || raw === undefined) return fb;
+      var parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch (e) {
+        rm(k);
+        return fb;
+      }
+      var data = parsed;
+      if (parsed && _typeof(parsed) === 'object' && parsed.__psv === 1 && 'data' in parsed) data = parsed.data;
+      var fn = opts.validate;
+      if (fn) {
+        var ok = false;
+        try {
+          ok = !!fn(data, k);
+        } catch (e) {
+          ok = false;
+        }
+        if (!ok) {
+          rm(k);
+          return fb;
+        }
+      }
+      return data;
+    }
+  };
+  function impl() {
+    return window.PlatSave || local;
+  }
+  __psFacade = {
+    register: function register(p, fn) {
+      regs.push({
+        p: p,
+        fn: fn
+      });
+      if (window.PlatSave) window.PlatSave.register(p, fn);
+    },
+    getStr: function getStr(k, fb) {
+      return impl().getStr(k, fb);
+    },
+    setStr: function setStr(k, v) {
+      impl().setStr(k, v);
+    },
+    remove: function remove(k) {
+      impl().remove(k);
+    },
+    write: function write(k, data) {
+      impl().write(k, data);
+    },
+    read: function read(k, opts) {
+      opts = opts || {};
+      var fn = opts.validate || findV(k);
+      var o = {
+        fallback: 'fallback' in opts ? opts.fallback : null
+      };
+      if (fn) o.validate = fn;
+      return impl().read(k, o);
+    }
+  };
+  return __psFacade;
+}
+
+// validator 集中登記（收編既有守衛、行為等價）：resume＝形狀＋3 小時 TTL（種子/尺寸/長度比對在 loadResume 以 opts.validate 帶入）；custom_cfg＝三數值欄位
+platSave().register('mines_resume', function (p) {
+  return !!p && _typeof(p) === 'object' && typeof p.cells === 'string' && typeof p.ts === 'number' && Date.now() - p.ts <= 3 * 3600 * 1000;
+});
+platSave().register('mines_daily_records', function (p) {
+  return !!p && _typeof(p) === 'object' && !Array.isArray(p);
+});
+platSave().register('mines_daily_streak', function (p) {
+  return !!p && _typeof(p) === 'object' && typeof p.count === 'number';
+});
+platSave().register('mines_custom_cfg', function (p) {
+  return !!p && _typeof(p) === 'object' && typeof p.w === 'number' && typeof p.h === 'number' && typeof p.mines === 'number';
+});
 function mulberry32(a) {
   return function () {
     a |= 0;
@@ -18582,24 +18796,17 @@ function dailySeed(dateStr) {
   return hashStr('mines-daily-' + dateStr);
 }
 function readDailyRecords() {
-  try {
-    return JSON.parse(sGet('mines_daily_records') || '{}') || {};
-  } catch (e) {
-    return {};
-  }
+  return platSave().read('mines_daily_records', {
+    fallback: {}
+  });
 }
 function readDailyStreak() {
-  try {
-    return JSON.parse(sGet('mines_daily_streak') || 'null') || {
+  return platSave().read('mines_daily_streak', {
+    fallback: {
       last: '',
       count: 0
-    };
-  } catch (e) {
-    return {
-      last: '',
-      count: 0
-    };
-  }
+    }
+  });
 }
 function shiftDate(dateStr, days) {
   var p = dateStr.split('-');
@@ -18828,7 +19035,7 @@ function countFlags(cells) {
 // ---------- 極簡音效（WebAudio，靜音鍵 mines_muted） ----------
 var _ac = null;
 function beep(freq, dur, type, vol, slideTo) {
-  if (sGet('mines_muted') === '1') return;
+  if (platSave().getStr('mines_muted', '') === '1') return;
   try {
     _ac = _ac || new (window.AudioContext || window.webkitAudioContext)();
     if (_ac.state === 'suspended') _ac.resume();
@@ -18927,7 +19134,7 @@ function MinesGame() {
     _useState16 = _slicedToArray(_useState15, 2),
     tutDemoBoom = _useState16[0],
     setTutDemoBoom = _useState16[1]; // 教學互動 demo：踩到雷了
-  var _useState17 = useState(sGet('mines_muted') === '1'),
+  var _useState17 = useState(platSave().getStr('mines_muted', '') === '1'),
     _useState18 = _slicedToArray(_useState17, 2),
     muted = _useState18[0],
     setMuted = _useState18[1];
@@ -19068,10 +19275,10 @@ function MinesGame() {
     zoomOpen = _useState66[0],
     setZoomOpen = _useState66[1];
   var _useState67 = useState(function () {
-      try {
-        var c0 = JSON.parse(sGet('mines_custom_cfg') || 'null');
-        if (c0) return clampCustomSpec(c0.w, c0.h, c0.mines);
-      } catch (e) {}
+      var c0 = platSave().read('mines_custom_cfg', {
+        fallback: null
+      });
+      if (c0) return clampCustomSpec(c0.w, c0.h, c0.mines);
       return {
         w: 16,
         h: 16,
@@ -19451,24 +19658,24 @@ function MinesGame() {
       var rec = readDailyRecords();
       if (rec[dailyDate] == null || t < rec[dailyDate]) {
         rec[dailyDate] = t;
-        sSet('mines_daily_records', JSON.stringify(rec));
+        platSave().write('mines_daily_records', rec);
       }
       if (dailyDate === todayStr()) {
         var st = readDailyStreak();
-        if (st.last === dailyDate) {/* 同日重玩不重複計 */} else if (st.last === shiftDate(dailyDate, -1)) sSet('mines_daily_streak', JSON.stringify({
+        if (st.last === dailyDate) {/* 同日重玩不重複計 */} else if (st.last === shiftDate(dailyDate, -1)) platSave().write('mines_daily_streak', {
           last: dailyDate,
           count: (st.count || 0) + 1
-        }));else sSet('mines_daily_streak', JSON.stringify({
+        });else platSave().write('mines_daily_streak', {
           last: dailyDate,
           count: 1
-        }));
+        });
       }
       return;
     }
     var spk = specRef.current;
     var key = 'mines_best_' + (sizeId === 'custom' ? 'c' + spk.w + 'x' + spk.h + '_' + spk.mines : sizeId); // 自訂盤最佳紀錄依形狀分開存，不同形狀不互相覆蓋
-    var prev = parseInt(sGet(key) || '0', 10);
-    if (!prev || t < prev) sSet(key, String(t));
+    var prev = parseInt(platSave().getStr(key, '0'), 10);
+    if (!prev || t < prev) platSave().setStr(key, String(t));
   }
   function startDaily(ds) {
     newGame(9, dailySeed(ds), ds);
@@ -19596,7 +19803,7 @@ function MinesGame() {
     // 單機自訂盤面：clamp→持久化→註冊規格→以 sizeId 'custom' 開局（與預設盤走同一條 newGame 路徑）
     var cl = clampCustomSpec(custCfg.w, custCfg.h, custCfg.mines);
     setCustCfg(cl);
-    sSet('mines_custom_cfg', JSON.stringify(cl));
+    platSave().write('mines_custom_cfg', cl);
     regCustomSpec(cl);
     SFX.click();
     newGame('custom');
@@ -20015,30 +20222,29 @@ function MinesGame() {
     var a = stateArgsRef.current;
     if (!a || !a[0] || !a[2] || !mpRef.current.seed) return;
     var spSv = SIZES[mpRef.current.sizeId] || SIZES[9];
-    try {
-      sSet(minesResumeKey(), JSON.stringify({
-        seed: mpRef.current.seed,
-        sizeId: mpRef.current.sizeId,
-        cw: spSv.w,
-        ch: spSv.h,
-        cm: spSv.mines,
-        startAt: mpRef.current.startAt,
-        cells: a[0].join(''),
-        items: itemsRef.current,
-        giftCredit: giftCreditRef.current,
-        milestone: milestoneRef.current,
-        ts: Date.now()
-      }));
-    } catch (e) {} // cw/ch/cm：自訂盤的形狀指紋，回座時對不上就不還原（陳年存檔鐵則）
+    platSave().write(minesResumeKey(), {
+      seed: mpRef.current.seed,
+      sizeId: mpRef.current.sizeId,
+      cw: spSv.w,
+      ch: spSv.h,
+      cm: spSv.mines,
+      startAt: mpRef.current.startAt,
+      cells: a[0].join(''),
+      items: itemsRef.current,
+      giftCredit: giftCreditRef.current,
+      milestone: milestoneRef.current,
+      ts: Date.now()
+    }); // cw/ch/cm：自訂盤的形狀指紋，回座時對不上就不還原（陳年存檔鐵則）
   }
   function loadResume(seed, sizeId, total) {
     try {
-      var raw = sGet(minesResumeKey());
-      if (!raw) return null;
-      var p = JSON.parse(raw);
-      if (!p || p.seed !== seed || p.sizeId !== sizeId || !p.cells || p.cells.length !== total) return null; // 種子/尺寸/盤面長度不符＝別場的存檔，不准還原（陳年存檔鐵則）
-      if (!p.ts || Date.now() - p.ts > 3 * 3600 * 1000) return null;
-      return p;
+      // 種子/尺寸/盤面長度不符＝別場的存檔，不准還原（陳年存檔鐵則）；驗證收編為 validator，不合由讀取層清除自癒
+      return platSave().read(minesResumeKey(), {
+        fallback: null,
+        validate: function validate(p) {
+          return !!p && p.seed === seed && p.sizeId === sizeId && !!p.cells && p.cells.length === total && !!p.ts && Date.now() - p.ts <= 3 * 3600 * 1000;
+        }
+      });
     } catch (e) {
       return null;
     }
@@ -22000,7 +22206,7 @@ function MinesGame() {
     }, rows);
   }
   function bestText(sz) {
-    var b = sGet('mines_best_' + sz);
+    var b = platSave().getStr('mines_best_' + sz, '');
     return b ? '最佳 ' + fmtTime(parseInt(b, 10)) : '';
   }
 
@@ -22802,7 +23008,7 @@ function MinesGame() {
     onClick: function onClick() {
       var m = !muted;
       setMuted(m);
-      sSet('mines_muted', m ? '1' : '0');
+      platSave().setStr('mines_muted', m ? '1' : '0');
     },
     title: muted ? '取消靜音' : '靜音',
     className: hbtn
@@ -23539,7 +23745,7 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.61.3'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
+  var PLAT_VERSION = '1.62.0'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -23556,6 +23762,35 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
   function $(id) { return document.getElementById(id); }
   function storeGet(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
   function storeSet(k, v) { try { window.localStorage.setItem(k, v); } catch (e) {} }
+  // ===== PlatSave 存檔層（技能對照改造第 1 項・save-systems，v1.62.0）=====
+  // 物件/陣列型存檔寫入包 envelope {__psv:1, t, data} 存回同一個 key（不改 key 名、舊資料原地相容）；
+  // 純量（字串/數字旗標）維持裸值、只走 safe 存取。讀取行為矩陣：無值→fallback；envelope/舊格式(v0)
+  // 驗證通過→回 data（v0 下次寫入自動升級）；驗證不過/解析失敗→清除該 key 自癒＋回 fallback；絕不 throw。
+  // validator 由各遊戲以 register(prefix, fn) 集中登記（收編既有守衛、不發明新規則）；read 可傳 opts.validate 覆蓋（如回座的場次比對）。
+  var PS_VER = 1;
+  var psValidators = [];
+  function psFindValidator(key) { var best = null; for (var i = 0; i < psValidators.length; i++) { var e = psValidators[i]; if (key.indexOf(e.prefix) === 0 && (!best || e.prefix.length > best.prefix.length)) best = e; } return best ? best.fn : null; }
+  function psRemove(key) { try { window.localStorage.removeItem(key); } catch (e) {} }
+  window.PlatSave = {
+    register: function (prefix, fn) { psValidators.push({ prefix: prefix, fn: fn }); },
+    getStr: function (key, fallback) { var v = storeGet(key); return (v === null || v === undefined) ? (fallback || '') : v; },
+    setStr: function (key, val) { storeSet(key, String(val)); },
+    remove: psRemove,
+    write: function (key, data) { try { window.localStorage.setItem(key, JSON.stringify({ __psv: PS_VER, t: Date.now(), data: data })); } catch (e) {} },
+    read: function (key, opts) {
+      opts = opts || {};
+      var fallback = ('fallback' in opts) ? opts.fallback : null;
+      var raw = storeGet(key);
+      if (raw === null || raw === undefined) return fallback;
+      var parsed; try { parsed = JSON.parse(raw); } catch (e) { psRemove(key); return fallback; }
+      var data = parsed;
+      if (parsed && typeof parsed === 'object' && parsed.__psv === PS_VER && 'data' in parsed) data = parsed.data;
+      var fn = opts.validate || psFindValidator(key);
+      if (fn) { var ok = false; try { ok = !!fn(data, key); } catch (e) { ok = false; } if (!ok) { psRemove(key); return fallback; } }
+      return data;
+    }
+  };
+  window.PlatSave.register('plat_vpos', function (p) { return !!p && typeof p === 'object' && !Array.isArray(p); });
   function normName(s) { return (s || '').trim().toLowerCase(); }
   function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); } // 補齊引號跳脫（稽核 B-02：esc 也用在 value="..." 屬性上下文，未跳脫的引號可突破屬性）；與 pbEsc 規格統一為五字元
   function platSafeColor(c) { // 顏色白名單（稽核 B-03）：只放行 PLAT_COLORS、rainbow 與 #rrggbb，其餘一律中性灰——防自報顏色拼進 style 字串時突破屬性/注入 CSS
@@ -26274,7 +26509,7 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
   var vidPosCache = null;
   function vidPosMap() {
     if (vidPosCache) return vidPosCache;
-    try { vidPosCache = JSON.parse(storeGet('plat_vpos') || '{}') || {}; } catch (e) { vidPosCache = {}; }
+    vidPosCache = window.PlatSave.read('plat_vpos', { fallback: {} });
     return vidPosCache;
   }
   function applyVidPos(d, key, idx) {
@@ -26310,7 +26545,7 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
           var W = window.innerWidth || 360, H = window.innerHeight || 640;
           var m = vidPosMap();
           m[key] = { fx: (parseFloat(d.style.left) || 0) / Math.max(1, W - 60), fy: (parseFloat(d.style.top) || 0) / Math.max(1, H - 84) };
-          try { storeSet('plat_vpos', JSON.stringify(m)); } catch (err) {}
+          window.PlatSave.write('plat_vpos', m);
         }
       }
       d.addEventListener('pointermove', mv);

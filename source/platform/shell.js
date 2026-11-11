@@ -178,7 +178,7 @@
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.61.3'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
+  var PLAT_VERSION = '1.62.0'; // 平台主版本（功能批 +0.1 尾碼歸零；小修 +0.0.1）——數獨/數橋的子版本號讀這個值
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -195,6 +195,35 @@
   function $(id) { return document.getElementById(id); }
   function storeGet(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
   function storeSet(k, v) { try { window.localStorage.setItem(k, v); } catch (e) {} }
+  // ===== PlatSave 存檔層（技能對照改造第 1 項・save-systems，v1.62.0）=====
+  // 物件/陣列型存檔寫入包 envelope {__psv:1, t, data} 存回同一個 key（不改 key 名、舊資料原地相容）；
+  // 純量（字串/數字旗標）維持裸值、只走 safe 存取。讀取行為矩陣：無值→fallback；envelope/舊格式(v0)
+  // 驗證通過→回 data（v0 下次寫入自動升級）；驗證不過/解析失敗→清除該 key 自癒＋回 fallback；絕不 throw。
+  // validator 由各遊戲以 register(prefix, fn) 集中登記（收編既有守衛、不發明新規則）；read 可傳 opts.validate 覆蓋（如回座的場次比對）。
+  var PS_VER = 1;
+  var psValidators = [];
+  function psFindValidator(key) { var best = null; for (var i = 0; i < psValidators.length; i++) { var e = psValidators[i]; if (key.indexOf(e.prefix) === 0 && (!best || e.prefix.length > best.prefix.length)) best = e; } return best ? best.fn : null; }
+  function psRemove(key) { try { window.localStorage.removeItem(key); } catch (e) {} }
+  window.PlatSave = {
+    register: function (prefix, fn) { psValidators.push({ prefix: prefix, fn: fn }); },
+    getStr: function (key, fallback) { var v = storeGet(key); return (v === null || v === undefined) ? (fallback || '') : v; },
+    setStr: function (key, val) { storeSet(key, String(val)); },
+    remove: psRemove,
+    write: function (key, data) { try { window.localStorage.setItem(key, JSON.stringify({ __psv: PS_VER, t: Date.now(), data: data })); } catch (e) {} },
+    read: function (key, opts) {
+      opts = opts || {};
+      var fallback = ('fallback' in opts) ? opts.fallback : null;
+      var raw = storeGet(key);
+      if (raw === null || raw === undefined) return fallback;
+      var parsed; try { parsed = JSON.parse(raw); } catch (e) { psRemove(key); return fallback; }
+      var data = parsed;
+      if (parsed && typeof parsed === 'object' && parsed.__psv === PS_VER && 'data' in parsed) data = parsed.data;
+      var fn = opts.validate || psFindValidator(key);
+      if (fn) { var ok = false; try { ok = !!fn(data, key); } catch (e) { ok = false; } if (!ok) { psRemove(key); return fallback; } }
+      return data;
+    }
+  };
+  window.PlatSave.register('plat_vpos', function (p) { return !!p && typeof p === 'object' && !Array.isArray(p); });
   function normName(s) { return (s || '').trim().toLowerCase(); }
   function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); } // 補齊引號跳脫（稽核 B-02：esc 也用在 value="..." 屬性上下文，未跳脫的引號可突破屬性）；與 pbEsc 規格統一為五字元
   function platSafeColor(c) { // 顏色白名單（稽核 B-03）：只放行 PLAT_COLORS、rainbow 與 #rrggbb，其餘一律中性灰——防自報顏色拼進 style 字串時突破屬性/注入 CSS
@@ -2913,7 +2942,7 @@
   var vidPosCache = null;
   function vidPosMap() {
     if (vidPosCache) return vidPosCache;
-    try { vidPosCache = JSON.parse(storeGet('plat_vpos') || '{}') || {}; } catch (e) { vidPosCache = {}; }
+    vidPosCache = window.PlatSave.read('plat_vpos', { fallback: {} });
     return vidPosCache;
   }
   function applyVidPos(d, key, idx) {
@@ -2949,7 +2978,7 @@
           var W = window.innerWidth || 360, H = window.innerHeight || 640;
           var m = vidPosMap();
           m[key] = { fx: (parseFloat(d.style.left) || 0) / Math.max(1, W - 60), fy: (parseFloat(d.style.top) || 0) / Math.max(1, H - 84) };
-          try { storeSet('plat_vpos', JSON.stringify(m)); } catch (err) {}
+          window.PlatSave.write('plat_vpos', m);
         }
       }
       d.addEventListener('pointermove', mv);

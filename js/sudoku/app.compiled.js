@@ -335,11 +335,7 @@ function SudokuGame() {
     setSelectedChar = _useState78[1];
   // 輸入方式：'num' 數字先行（先點數字再點格子）｜'cell' 格子先行（先點格子再點數字）— 玩家可切換、記住選擇
   var _useState79 = useState(function () {
-      try {
-        return localStorage.getItem('sudoku_input_mode') === 'cell' ? 'cell' : 'num';
-      } catch (e) {
-        return 'num';
-      }
+      return platSave().getStr('sudoku_input_mode', '') === 'cell' ? 'cell' : 'num';
     }),
     _useState80 = _slicedToArray(_useState79, 2),
     inputMode = _useState80[0],
@@ -349,9 +345,7 @@ function SudokuGame() {
     selectedCellId = _useState82[0],
     setSelectedCellId = _useState82[1];
   useEffect(function () {
-    try {
-      localStorage.setItem('sudoku_input_mode', inputMode);
-    } catch (e) {}
+    platSave().setStr('sudoku_input_mode', inputMode);
   }, [inputMode]);
   // v1.61.0 K1：單機難度段位滑動指示片（殼 PlatSeg 共用；量測在 effect 內、選取變化才滑）
   useEffect(function () {
@@ -363,11 +357,7 @@ function SudokuGame() {
   }, [diffId, screen]);
   // 靜音偏好（與全域音效引擎同步，同數橋）
   var _useState83 = useState(function () {
-      try {
-        return localStorage.getItem('sudoku_muted') === '1';
-      } catch (e) {
-        return false;
-      }
+      return platSave().getStr('sudoku_muted', '') === '1';
     }),
     _useState84 = _slicedToArray(_useState83, 2),
     muted = _useState84[0],
@@ -610,24 +600,20 @@ function SudokuGame() {
   var dailyRef = useRef(null);
   var dailyRecordedRef = useRef(false);
   var _useState149 = useState(function () {
-      try {
-        return JSON.parse(localStorage.getItem('sudoku_daily_records') || '{}');
-      } catch (e) {
-        return {};
-      }
+      return platSave().read('sudoku_daily_records', {
+        fallback: {}
+      });
     }),
     _useState150 = _slicedToArray(_useState149, 2),
     dailyRecords = _useState150[0],
     setDailyRecords = _useState150[1];
   var _useState151 = useState(function () {
-      try {
-        return JSON.parse(localStorage.getItem('sudoku_daily_streak') || '{"count":0,"lastDate":""}');
-      } catch (e) {
-        return {
+      return platSave().read('sudoku_daily_streak', {
+        fallback: {
           count: 0,
           lastDate: ''
-        };
-      }
+        }
+      });
     }),
     _useState152 = _slicedToArray(_useState151, 2),
     dailyStreak = _useState152[0],
@@ -4494,9 +4480,7 @@ function SudokuGame() {
     setDailyRecords(function (prev) {
       var next = _objectSpread({}, prev);
       if (!next[dateStr] || secs < next[dateStr]) next[dateStr] = secs;
-      try {
-        localStorage.setItem('sudoku_daily_records', JSON.stringify(next));
-      } catch (e) {}
+      platSave().write('sudoku_daily_records', next);
       return next;
     });
     if (dateStr === dailyTodayStr()) {
@@ -4508,9 +4492,7 @@ function SudokuGame() {
             count: count,
             lastDate: dateStr
           };
-          try {
-            localStorage.setItem('sudoku_daily_streak', JSON.stringify(next));
-          } catch (e) {}
+          platSave().write('sudoku_daily_streak', next);
         }
         return next;
       });
@@ -5071,9 +5053,7 @@ function SudokuGame() {
         _iterator7.f();
       }
       if (maxDim !== targetSize) {
-        try {
-          localStorage.removeItem("sudoku_prog_".concat(rId, "_").concat(myId));
-        } catch (e) {}
+        platSave().remove("sudoku_prog_".concat(rId, "_").concat(myId));
         savedProg = null;
       }
     }
@@ -5157,10 +5137,12 @@ function SudokuGame() {
             }
             if (m.type === 'JOIN') {
               var storedSid = null;
-              try {
-                var ls = localStorage.getItem('sudoku_last_session');
-                storedSid = ls ? JSON.parse(ls).sid : null;
-              } catch (e) {}
+              {
+                var ls = platSave().read('sudoku_last_session', {
+                  fallback: null
+                });
+                storedSid = ls ? ls.sid : null;
+              }
               var roomSessionId = stateRef.current.sessionId || storedSid;
               if (m.sid && roomSessionId && m.sid !== roomSessionId) {
                 c.send({

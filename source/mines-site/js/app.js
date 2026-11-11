@@ -32,14 +32,62 @@ function PlatNum(props) {
 function platTimeOffset() { try { return (window.__PLAT_NET && window.__PLAT_NET.timeOffset) || 0; } catch (e) { return 0; } } // 房主時鐘偏移（稽核 D-05）：殼以 roster 時間戳估計，房主/單機恆 0
 function sGet(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
 function sSet(k, v) { try { window.localStorage.setItem(k, v); } catch (e) {} }
+// ===== PlatSave 接點（facade）：平台模式委派殼的 window.PlatSave、獨立開啟時用同語意本地後備；validator 在此集中登記、read 時統一帶入 =====
+var __psFacade = null;
+function platSave() {
+  if (__psFacade) return __psFacade;
+  var regs = [];
+  function findV(key) { var best = null; for (var i = 0; i < regs.length; i++) { if (key.indexOf(regs[i].p) === 0 && (!best || regs[i].p.length > best.p.length)) best = regs[i]; } return best ? best.fn : null; }
+  function g(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
+  function rm(k) { try { window.localStorage.removeItem(k); } catch (e) {} }
+  var local = {
+    getStr: function (k, fb) { var v = g(k); return (v === null || v === undefined) ? (fb || '') : v; },
+    setStr: function (k, v) { try { window.localStorage.setItem(k, String(v)); } catch (e) {} },
+    remove: rm,
+    write: function (k, data) { try { window.localStorage.setItem(k, JSON.stringify({ __psv: 1, t: Date.now(), data: data })); } catch (e) {} },
+    read: function (k, opts) {
+      opts = opts || {}; var fb = ('fallback' in opts) ? opts.fallback : null;
+      var raw = g(k); if (raw === null || raw === undefined) return fb;
+      var parsed; try { parsed = JSON.parse(raw); } catch (e) { rm(k); return fb; }
+      var data = parsed;
+      if (parsed && typeof parsed === 'object' && parsed.__psv === 1 && 'data' in parsed) data = parsed.data;
+      var fn = opts.validate;
+      if (fn) { var ok = false; try { ok = !!fn(data, k); } catch (e) { ok = false; } if (!ok) { rm(k); return fb; } }
+      return data;
+    }
+  };
+  function impl() { return window.PlatSave || local; }
+  __psFacade = {
+    register: function (p, fn) { regs.push({ p: p, fn: fn }); if (window.PlatSave) window.PlatSave.register(p, fn); },
+    getStr: function (k, fb) { return impl().getStr(k, fb); },
+    setStr: function (k, v) { impl().setStr(k, v); },
+    remove: function (k) { impl().remove(k); },
+    write: function (k, data) { impl().write(k, data); },
+    read: function (k, opts) {
+      opts = opts || {};
+      var fn = opts.validate || findV(k);
+      var o = { fallback: ('fallback' in opts) ? opts.fallback : null };
+      if (fn) o.validate = fn;
+      return impl().read(k, o);
+    }
+  };
+  return __psFacade;
+}
+
+// validator 集中登記（收編既有守衛、行為等價）：resume＝形狀＋3 小時 TTL（種子/尺寸/長度比對在 loadResume 以 opts.validate 帶入）；custom_cfg＝三數值欄位
+platSave().register('mines_resume', function (p) { return !!p && typeof p === 'object' && typeof p.cells === 'string' && typeof p.ts === 'number' && (Date.now() - p.ts) <= 3 * 3600 * 1000; });
+platSave().register('mines_daily_records', function (p) { return !!p && typeof p === 'object' && !Array.isArray(p); });
+platSave().register('mines_daily_streak', function (p) { return !!p && typeof p === 'object' && typeof p.count === 'number'; });
+platSave().register('mines_custom_cfg', function (p) { return !!p && typeof p === 'object' && typeof p.w === 'number' && typeof p.h === 'number' && typeof p.mines === 'number'; });
+
 function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 function hashStr(s) { var h = 2166136261; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 function fmtTime(sec) { sec = Math.max(0, Math.floor(sec || 0)); var m = Math.floor(sec / 60), s = sec % 60; return m + ':' + (s < 10 ? '0' : '') + s; }
 function todayStr(d) { d = d || new Date(); var m = d.getMonth() + 1, day = d.getDate(); return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day; }
 // ---------- 每日一題（日期種子，全員同題；規則比照數獨/數橋） ----------
 function dailySeed(dateStr) { return hashStr('mines-daily-' + dateStr); }
-function readDailyRecords() { try { return JSON.parse(sGet('mines_daily_records') || '{}') || {}; } catch (e) { return {}; } }
-function readDailyStreak() { try { return JSON.parse(sGet('mines_daily_streak') || 'null') || { last: '', count: 0 }; } catch (e) { return { last: '', count: 0 }; } }
+function readDailyRecords() { return platSave().read('mines_daily_records', { fallback: {} }); }
+function readDailyStreak() { return platSave().read('mines_daily_streak', { fallback: { last: '', count: 0 } }); }
 function shiftDate(dateStr, days) { var p = dateStr.split('-'); var d = new Date(+p[0], +p[1] - 1, +p[2]); d.setDate(d.getDate() + days); return todayStr(d); }
 var DAILY_MIN = '2026-01-01';
 
@@ -148,7 +196,7 @@ function countFlags(cells) { var c = 0; for (var i = 0; i < cells.length; i++) i
 // ---------- 極簡音效（WebAudio，靜音鍵 mines_muted） ----------
 var _ac = null;
 function beep(freq, dur, type, vol, slideTo) {
-  if (sGet('mines_muted') === '1') return;
+  if (platSave().getStr('mines_muted', '') === '1') return;
   try {
     _ac = _ac || new (window.AudioContext || window.webkitAudioContext)();
     if (_ac.state === 'suspended') _ac.resume();
@@ -184,7 +232,7 @@ function MinesGame() {
   const [tutStep, setTutStep] = useState(0); // 玩法教學步進（美學稽核 V-09：三款教學統一為數橋的步進骨架）
   const [tutDemoOpen, setTutDemoOpen] = useState(() => new Array(9).fill(false)); // 教學互動 demo（v1.46 Q6）：3×3 已挖開格
   const [tutDemoBoom, setTutDemoBoom] = useState(false); // 教學互動 demo：踩到雷了
-  const [muted, setMuted] = useState(sGet('mines_muted') === '1');
+  const [muted, setMuted] = useState(platSave().getStr('mines_muted', '') === '1');
   const [sizeId, setSizeId] = useState(9);
   const [layout, setLayout] = useState(null);       // bool[] 雷位（目前這一局）
   const [nums, setNums] = useState(null);           // int[] 鄰雷數（-1=雷）
@@ -230,7 +278,7 @@ function MinesGame() {
   const mistakesRef = useRef(0);                // 競速已用掉的容錯次數
   const [zoom, setZoom] = useState(1);          // 盤面縮放（比照數獨：1=適應螢幕，展開後 －/＋/適應）——卡片內 🔍 與殼 PlatBar 左下角縮放組共用這一顆 state（單一真相）
   const [zoomOpen, setZoomOpen] = useState(false);
-  const [custCfg, setCustCfg] = useState(() => { try { var c0 = JSON.parse(sGet('mines_custom_cfg') || 'null'); if (c0) return clampCustomSpec(c0.w, c0.h, c0.mines); } catch (e) {} return { w: 16, h: 16, mines: 40 }; }); // 單機自訂盤面（寬/高/雷），持久化
+  const [custCfg, setCustCfg] = useState(() => { var c0 = platSave().read('mines_custom_cfg', { fallback: null }); if (c0) return clampCustomSpec(c0.w, c0.h, c0.mines); return { w: 16, h: 16, mines: 40 }; }); // 單機自訂盤面（寬/高/雷），持久化
   const [custOpen, setCustOpen] = useState(false);
   const boardScrollRef = useRef(null);
   const boardZoomRef = useRef(null);   // F3：縮放 FLIP 過渡的盤面包裝層（盤面＋塗鴉一起縮放）
@@ -338,19 +386,19 @@ function MinesGame() {
     if (dailyDate) {
       // 每日一題：完成才寫該日最佳；連勝只有今天的題目會動（回補不影響）
       var rec = readDailyRecords();
-      if (rec[dailyDate] == null || t < rec[dailyDate]) { rec[dailyDate] = t; sSet('mines_daily_records', JSON.stringify(rec)); }
+      if (rec[dailyDate] == null || t < rec[dailyDate]) { rec[dailyDate] = t; platSave().write('mines_daily_records', rec); }
       if (dailyDate === todayStr()) {
         var st = readDailyStreak();
         if (st.last === dailyDate) { /* 同日重玩不重複計 */ }
-        else if (st.last === shiftDate(dailyDate, -1)) sSet('mines_daily_streak', JSON.stringify({ last: dailyDate, count: (st.count || 0) + 1 }));
-        else sSet('mines_daily_streak', JSON.stringify({ last: dailyDate, count: 1 }));
+        else if (st.last === shiftDate(dailyDate, -1)) platSave().write('mines_daily_streak', { last: dailyDate, count: (st.count || 0) + 1 });
+        else platSave().write('mines_daily_streak', { last: dailyDate, count: 1 });
       }
       return;
     }
     var spk = specRef.current;
     var key = 'mines_best_' + (sizeId === 'custom' ? 'c' + spk.w + 'x' + spk.h + '_' + spk.mines : sizeId); // 自訂盤最佳紀錄依形狀分開存，不同形狀不互相覆蓋
-    var prev = parseInt(sGet(key) || '0', 10);
-    if (!prev || t < prev) sSet(key, String(t));
+    var prev = parseInt(platSave().getStr(key, '0'), 10);
+    if (!prev || t < prev) platSave().setStr(key, String(t));
   }
   function startDaily(ds) { newGame(9, dailySeed(ds), ds); }
 
@@ -413,7 +461,7 @@ function MinesGame() {
   }
   function startCustom() { // 單機自訂盤面：clamp→持久化→註冊規格→以 sizeId 'custom' 開局（與預設盤走同一條 newGame 路徑）
     var cl = clampCustomSpec(custCfg.w, custCfg.h, custCfg.mines);
-    setCustCfg(cl); sSet('mines_custom_cfg', JSON.stringify(cl));
+    setCustCfg(cl); platSave().write('mines_custom_cfg', cl);
     regCustomSpec(cl);
     SFX.click();
     newGame('custom');
@@ -601,15 +649,12 @@ function MinesGame() {
     if (!mpRef.current.on || mpRef.current.mode !== 'race' || iAmSpecRef.current || outcomeRef.current) return;
     var a = stateArgsRef.current; if (!a || !a[0] || !a[2] || !mpRef.current.seed) return;
     var spSv = SIZES[mpRef.current.sizeId] || SIZES[9];
-    try { sSet(minesResumeKey(), JSON.stringify({ seed: mpRef.current.seed, sizeId: mpRef.current.sizeId, cw: spSv.w, ch: spSv.h, cm: spSv.mines, startAt: mpRef.current.startAt, cells: a[0].join(''), items: itemsRef.current, giftCredit: giftCreditRef.current, milestone: milestoneRef.current, ts: Date.now() })); } catch (e) {} // cw/ch/cm：自訂盤的形狀指紋，回座時對不上就不還原（陳年存檔鐵則）
+    platSave().write(minesResumeKey(), { seed: mpRef.current.seed, sizeId: mpRef.current.sizeId, cw: spSv.w, ch: spSv.h, cm: spSv.mines, startAt: mpRef.current.startAt, cells: a[0].join(''), items: itemsRef.current, giftCredit: giftCreditRef.current, milestone: milestoneRef.current, ts: Date.now() }); // cw/ch/cm：自訂盤的形狀指紋，回座時對不上就不還原（陳年存檔鐵則）
   }
   function loadResume(seed, sizeId, total) {
     try {
-      var raw = sGet(minesResumeKey()); if (!raw) return null;
-      var p = JSON.parse(raw);
-      if (!p || p.seed !== seed || p.sizeId !== sizeId || !p.cells || p.cells.length !== total) return null; // 種子/尺寸/盤面長度不符＝別場的存檔，不准還原（陳年存檔鐵則）
-      if (!p.ts || Date.now() - p.ts > 3 * 3600 * 1000) return null;
-      return p;
+      // 種子/尺寸/盤面長度不符＝別場的存檔，不准還原（陳年存檔鐵則）；驗證收編為 validator，不合由讀取層清除自癒
+      return platSave().read(minesResumeKey(), { fallback: null, validate: function (p) { return !!p && p.seed === seed && p.sizeId === sizeId && !!p.cells && p.cells.length === total && !!p.ts && (Date.now() - p.ts) <= 3 * 3600 * 1000; } });
     } catch (e) { return null; }
   }
   function resumeRestore(m) { // guestOnInit 回座：還原中斷前的盤面/犯錯/道具（本地存檔優先，房主 god 快照備援）
@@ -1392,7 +1437,7 @@ function MinesGame() {
     return <div className="flex flex-col items-center" style={{ gap: gapPx }}>{rows}</div>;
   }
 
-  function bestText(sz) { var b = sGet('mines_best_' + sz); return b ? '最佳 ' + fmtTime(parseInt(b, 10)) : ''; }
+  function bestText(sz) { var b = platSave().getStr('mines_best_' + sz, ''); return b ? '最佳 ' + fmtTime(parseInt(b, 10)) : ''; }
 
   // ---------- 上帝模式觀戰：只渲染對手已公開的盤面（已開格數字+插旗），不含雷位 ----------
   function renderGodBoard(g, szId) {
@@ -1737,7 +1782,7 @@ function MinesGame() {
             <div className="flex gap-1 md:gap-2 flex-wrap items-center ml-auto">
               {!mpOn && (<button onClick={() => { if (dailyDate) startDaily(dailyDate); else newGame(sizeId); }} className={hbtn} title="重開一局">🔄<span className="hidden sm:inline ml-1">重開</span></button>)}
               {!mpOn && (<button onClick={() => { setSaveCode(''); setShowSaveModal(true); }} className={hbtn} title="存檔/讀檔（進度代碼）">💾<span className="hidden sm:inline ml-1">存檔</span></button>)}
-              <button onClick={() => { var m = !muted; setMuted(m); sSet('mines_muted', m ? '1' : '0'); }} title={muted ? '取消靜音' : '靜音'} className={hbtn}>{muted ? '🔇' : '🔊'}</button>
+              <button onClick={() => { var m = !muted; setMuted(m); platSave().setStr('mines_muted', m ? '1' : '0'); }} title={muted ? '取消靜音' : '靜音'} className={hbtn}>{muted ? '🔇' : '🔊'}</button>
               {mpOn ? (<button onClick={() => setShowExitMenu(true)} className={hbtn} title="離開對局">🔌<span className="hidden sm:inline ml-1">退出</span></button>)
                     : (<button onClick={() => setScreen('home')} className={hbtn} title="回主選單">🏠<span className="hidden sm:inline ml-1">主選單</span></button>)}
             </div>

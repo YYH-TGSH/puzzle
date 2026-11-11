@@ -133,13 +133,13 @@ function SudokuGame() {
     const [drawSubMode, setDrawSubMode] = useState('pen');
     const [selectedChar, setSelectedChar] = useState(null);
     // 輸入方式：'num' 數字先行（先點數字再點格子）｜'cell' 格子先行（先點格子再點數字）— 玩家可切換、記住選擇
-    const [inputMode, setInputMode] = useState(() => { try { return localStorage.getItem('sudoku_input_mode') === 'cell' ? 'cell' : 'num'; } catch (e) { return 'num'; } });
+    const [inputMode, setInputMode] = useState(() => platSave().getStr('sudoku_input_mode', '') === 'cell' ? 'cell' : 'num');
     const [selectedCellId, setSelectedCellId] = useState(null);
-    useEffect(() => { try { localStorage.setItem('sudoku_input_mode', inputMode); } catch (e) {} }, [inputMode]);
+    useEffect(() => { platSave().setStr('sudoku_input_mode', inputMode); }, [inputMode]);
     // v1.61.0 K1：單機難度段位滑動指示片（殼 PlatSeg 共用；量測在 effect 內、選取變化才滑）
     useEffect(() => { if (window.PlatSeg) { var c = document.querySelector('#view-sudoku [data-seg="sudoku-diff"]'); var b = c && c.querySelector('[data-seg-on="1"]'); if (c && b) window.PlatSeg(c, 'sudoku-diff', b, '#ffcc00'); } }, [diffId, screen]);
     // 靜音偏好（與全域音效引擎同步，同數橋）
-    const [muted, setMuted] = useState(() => { try { return localStorage.getItem('sudoku_muted') === '1'; } catch (e) { return false; } });
+    const [muted, setMuted] = useState(() => platSave().getStr('sudoku_muted', '') === '1');
 
     // 平台 dock 按鈕（💬/🎥/🎤/🔈）：平台模式＋連線中時畫進自己的底部列，與遊戲按鈕同排同款
     const [dockTick, setDockTick] = useState(0);
@@ -232,8 +232,8 @@ function SudokuGame() {
     const [dailyDate, setDailyDate] = useState(null); // 進行中的每日題日期（null=非每日模式）
     const dailyRef = useRef(null);
     const dailyRecordedRef = useRef(false);
-    const [dailyRecords, setDailyRecords] = useState(() => { try { return JSON.parse(localStorage.getItem('sudoku_daily_records') || '{}'); } catch (e) { return {}; } });
-    const [dailyStreak, setDailyStreak] = useState(() => { try { return JSON.parse(localStorage.getItem('sudoku_daily_streak') || '{"count":0,"lastDate":""}'); } catch (e) { return { count: 0, lastDate: '' }; } });
+    const [dailyRecords, setDailyRecords] = useState(() => platSave().read('sudoku_daily_records', { fallback: {} }));
+    const [dailyStreak, setDailyStreak] = useState(() => platSave().read('sudoku_daily_streak', { fallback: { count: 0, lastDate: '' } }));
     const [showTutorial, setShowTutorial] = useState(false);
     const [tutStep, setTutStep] = useState(0); // 玩法教學步進（美學稽核 V-09：三款教學統一為數橋的步進骨架）
     const [tutDemoVal, setTutDemoVal] = useState(null);   // 教學互動 demo（v1.46 Q6）：已填入的數字
@@ -2383,7 +2383,7 @@ function SudokuGame() {
         setDailyRecords(prev => {
             const next = { ...prev };
             if (!next[dateStr] || secs < next[dateStr]) next[dateStr] = secs;
-            try { localStorage.setItem('sudoku_daily_records', JSON.stringify(next)); } catch (e) {}
+            platSave().write('sudoku_daily_records', next);
             return next;
         });
         if (dateStr === dailyTodayStr()) {
@@ -2392,7 +2392,7 @@ function SudokuGame() {
                 if (prev.lastDate !== dateStr) {
                     const count = prev.lastDate === shiftDateStr(dateStr, -1) ? prev.count + 1 : 1;
                     next = { count: count, lastDate: dateStr };
-                    try { localStorage.setItem('sudoku_daily_streak', JSON.stringify(next)); } catch (e) {}
+                    platSave().write('sudoku_daily_streak', next);
                 }
                 return next;
             });
@@ -2681,7 +2681,7 @@ function SudokuGame() {
             const targetSize = (SIZES.find(s => s.id === stateRef.current.sizeId) || SIZES[1]).size;
             let maxDim = 0;
             for (const c of savedProg.d) { if (c && typeof c.x === 'number' && typeof c.y === 'number') { if (c.x + 1 > maxDim) maxDim = c.x + 1; if (c.y + 1 > maxDim) maxDim = c.y + 1; } }
-            if (maxDim !== targetSize) { try { localStorage.removeItem(`sudoku_prog_${rId}_${myId}`); } catch (e) {} savedProg = null; }
+            if (maxDim !== targetSize) { platSave().remove(`sudoku_prog_${rId}_${myId}`); savedProg = null; }
         }
         setConnectionStatus(isCreating ? "正在啟動通訊模組..." : `正在尋找房間 ${rId}...`);
         if (isCreating) {
@@ -2724,7 +2724,7 @@ function SudokuGame() {
                         if (c.uid || m.uid || m.targetId) lastSeenRef.current[c.uid || m.uid || m.targetId] = Date.now();
                         if (m.type === 'PING') { try { c.send({ type: 'PONG' }); } catch (e) {} return; }
                         if (m.type === 'JOIN') {
-                            let storedSid = null; try { const ls = localStorage.getItem('sudoku_last_session'); storedSid = ls ? JSON.parse(ls).sid : null; } catch (e) {}
+                            let storedSid = null; { const ls = platSave().read('sudoku_last_session', { fallback: null }); storedSid = ls ? ls.sid : null; }
                             const roomSessionId = stateRef.current.sessionId || storedSid;
                             if (m.sid && roomSessionId && m.sid !== roomSessionId) { c.send({ type: 'JOIN_REJECTED', reason: 'session_mismatch' }); return; }
                             if (playersListRef.current.some(p => p.name === m.pName && p.id !== m.uid && !p.pending)) { c.send({ type: 'JOIN_REJECTED', reason: 'name_conflict' }); return; }

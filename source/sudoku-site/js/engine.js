@@ -210,6 +210,59 @@ async function generateDailySudoku(dateStr, onProgress) {
 
 function formatTime(secs) { return String(Math.floor(secs / 60)).padStart(2, '0') + ":" + String(secs % 60).padStart(2, '0'); }
 
+// ===== PlatSave 接點（facade）：平台模式委派殼的 window.PlatSave、獨立開啟時用同語意本地後備；validator 在此集中登記、read 時統一帶入 =====
+var __psFacade = null;
+function platSave() {
+  if (__psFacade) return __psFacade;
+  var regs = [];
+  function findV(key) { var best = null; for (var i = 0; i < regs.length; i++) { if (key.indexOf(regs[i].p) === 0 && (!best || regs[i].p.length > best.p.length)) best = regs[i]; } return best ? best.fn : null; }
+  function g(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
+  function rm(k) { try { window.localStorage.removeItem(k); } catch (e) {} }
+  var local = {
+    getStr: function (k, fb) { var v = g(k); return (v === null || v === undefined) ? (fb || '') : v; },
+    setStr: function (k, v) { try { window.localStorage.setItem(k, String(v)); } catch (e) {} },
+    remove: rm,
+    write: function (k, data) { try { window.localStorage.setItem(k, JSON.stringify({ __psv: 1, t: Date.now(), data: data })); } catch (e) {} },
+    read: function (k, opts) {
+      opts = opts || {}; var fb = ('fallback' in opts) ? opts.fallback : null;
+      var raw = g(k); if (raw === null || raw === undefined) return fb;
+      var parsed; try { parsed = JSON.parse(raw); } catch (e) { rm(k); return fb; }
+      var data = parsed;
+      if (parsed && typeof parsed === 'object' && parsed.__psv === 1 && 'data' in parsed) data = parsed.data;
+      var fn = opts.validate;
+      if (fn) { var ok = false; try { ok = !!fn(data, k); } catch (e) { ok = false; } if (!ok) { rm(k); return fb; } }
+      return data;
+    }
+  };
+  function impl() { return window.PlatSave || local; }
+  __psFacade = {
+    register: function (p, fn) { regs.push({ p: p, fn: fn }); if (window.PlatSave) window.PlatSave.register(p, fn); },
+    getStr: function (k, fb) { return impl().getStr(k, fb); },
+    setStr: function (k, v) { impl().setStr(k, v); },
+    remove: function (k) { impl().remove(k); },
+    write: function (k, data) { impl().write(k, data); },
+    read: function (k, opts) {
+      opts = opts || {};
+      var fn = opts.validate || findV(k);
+      var o = { fallback: ('fallback' in opts) ? opts.fallback : null };
+      if (fn) o.validate = fn;
+      return impl().read(k, o);
+    }
+  };
+  return __psFacade;
+}
+
+// validator 集中登記（收編既有守衛、行為等價）：prog＝形狀＋24 小時年齡上限（v1.19.1 loadLocalProgress 原邏輯；盤面尺寸比對需本局尺寸、留在 app.js 消費端）
+// 注意：平台 bundle 裡 engine.js（classic）比 shell.js 先執行，此刻 window.PlatSave 還不存在——先登記進 facade 自己的表（消費端全走 facade 不受影響），DOMContentLoaded 後再補登記進殼的中央表。
+function regSudokuPlatSave() {
+  platSave().register('sudoku_prog', function (p) { return !!p && Array.isArray(p.d) && typeof p.t === 'number' && (Date.now() - p.t) <= 24 * 3600 * 1000; });
+  platSave().register('sudoku_last_session', function (p) { return !!p && typeof p === 'object'; });
+  platSave().register('sudoku_daily_records', function (p) { return !!p && typeof p === 'object' && !Array.isArray(p); });
+  platSave().register('sudoku_daily_streak', function (p) { return !!p && typeof p === 'object' && typeof p.count === 'number'; });
+}
+regSudokuPlatSave();
+if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('DOMContentLoaded', regSudokuPlatSave);
+
 // 本地進度恢復系統核心函數 (v3.8.0)
 // 存檔清掃（稽核 G-01）：讀寫時順手掃掉全部過期/損毀的 sudoku_prog_*（原本只清「下次同房號被讀到」的那筆，沒再進的房間會永久殘留無界成長）；每頁只掃一次
 let _progSwept = false;
@@ -227,15 +280,9 @@ const saveLocalProgress = (rid, uid, name, isHost, data, sessionId, extra) => {
     try {
         const payload = { d: data, t: Date.now(), sid: sessionId };
         if (extra) Object.assign(payload, extra); // 存入 solutionGrid, playersList 等
-        localStorage.setItem(`sudoku_prog_${rid}_${uid}`, JSON.stringify(payload));
-        localStorage.setItem('sudoku_last_session', JSON.stringify({ rid, uid, time: Date.now(), name, isHost, sid: sessionId }));
+        platSave().write(`sudoku_prog_${rid}_${uid}`, payload);
+        platSave().write('sudoku_last_session', { rid, uid, time: Date.now(), name, isHost, sid: sessionId });
     } catch (e) { /* 儲存空間被瀏覽器封鎖時（如預覽環境）靜默略過，不可讓遊戲崩潰 */ }
 };
-const loadLocalProgress = (rid, uid) => { sweepSudokuProg(); try {
-    const s = localStorage.getItem(`sudoku_prog_${rid}_${uid}`); if (!s) return null;
-    const p = JSON.parse(s);
-    // 存檔衛生（2026-11-01）：超過 24 小時或形狀不對的殘檔直接清除。房號只有 4 碼、會撞號，
-    // 陳年殘檔被別場比賽撈到會污染新局（實機事故：16×16 殘檔毒死 9×9 新房的房主開局）。
-    if (!p || !Array.isArray(p.d) || !p.t || (Date.now() - p.t) > 24 * 3600 * 1000) { try { localStorage.removeItem(`sudoku_prog_${rid}_${uid}`); } catch (e) {} return null; }
-    return p;
-} catch (e) { return null; } };
+// 存檔衛生（2026-11-01 立、v1.62.0 收編 PlatSave）：超過 24 小時或形狀不對的殘檔由登錄 validator 判定、讀取層清除自癒。房號只有 4 碼、會撞號，陳年殘檔被別場比賽撈到會污染新局（實機事故：16×16 殘檔毒死 9×9 新房的房主開局）。
+const loadLocalProgress = (rid, uid) => { sweepSudokuProg(); return platSave().read(`sudoku_prog_${rid}_${uid}`, { fallback: null }); };

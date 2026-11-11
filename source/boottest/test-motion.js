@@ -119,3 +119,28 @@ function loadPage(extraBeforeParse, url) {
   console.log('\nRESULT motion: ' + pass + ' pass / ' + fail + ' fail');
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error('ERR', e); process.exit(2); });
+
+// ================= v1.54.0 補完批（A/B/C/D/E） =================
+try {
+  const bp2 = require('path'), bf2 = require('fs');
+  const bdir2 = bp2.join(__dirname, '..', 'platform', '.build');
+  const comp2 = g => bf2.readFileSync(bp2.join(bdir2, 'plat-' + g + '-compiled.js'), 'utf8');
+  const cssOf2 = g => bf2.readFileSync(bp2.join(__dirname, '..', g + '-site', 'css', 'style.css'), 'utf8');
+  ['sudoku', 'hashi', 'mines'].forEach(g => {
+    const c = comp2(g);
+    const n = (c.match(/plat-btn-hard/g) || []).length;
+    ok(n > 10, 'A ' + g + ' compiled plat-btn-hard >10', n);
+    ok((c.match(/PlatNum/g) || []).length >= 3 && c.indexOf('PlatLite') >= 0, 'B ' + g + ' PlatNum 接入（定義+使用）');
+  });
+  ok(comp2('mines').indexOf('plat-btn-hard plat-btn-hard-2 px-2 py-1') >= 0, 'A mines hbtn 收編');
+  const sc2 = comp2('sudoku'), hc2 = comp2('hashi');
+  ok(sc2.indexOf('pressedCellId') >= 0 && sc2.indexOf('sudoku-pressfx') >= 0, 'D 數獨 pressedCellId+pressfx');
+  ok(/@keyframes sudokuCellPress/.test(cssOf2('sudoku')) && cssOf2('sudoku').indexOf('sudokuCellPress 70ms') >= 0, 'D 數獨格動畫 70ms');
+  ok(hc2.indexOf('hashi-island') >= 0 && cssOf2('hashi').indexOf('.hashi-island:active') >= 0 && cssOf2('hashi').indexOf('scale(0.96)') >= 0 && cssOf2('hashi').indexOf('transform-box: fill-box') >= 0, 'D 數橋島 class+CSS 參數');
+  const shellCss2 = bf2.readFileSync(bp2.join(__dirname, '..', 'platform', 'shell.css'), 'utf8');
+  ok(['.plat-btn-hard-1', '.plat-btn-hard-2', '.plat-btn-hard-3', '.plat-btn-hard-6'].every(x => shellCss2.indexOf(x) >= 0), 'A 尺寸變體 classes');
+  ok(/#plat-bar button \{[^}]*background-color 150ms ease/.test(shellCss2), 'C PlatBar 底色 150ms');
+  const shellJs2 = bf2.readFileSync(bp2.join(__dirname, '..', 'platform', 'shell.js'), 'utf8');
+  ok((shellJs2.match(/platFadeOut\(/g) || []).length >= 4 && shellJs2.indexOf('function platFadeInReset') >= 0, 'E platFadeOut 定義+多處使用（v1.55 聊天面板改走 popover helper 後門檻 5→4）');
+  ok(shellJs2.indexOf("PLAT_VERSION = '1.62.0'") >= 0, 'E 版號 1.62.0');
+} catch (e) { ok(false, 'v1.54 靜態斷言例外: ' + e.message); }
