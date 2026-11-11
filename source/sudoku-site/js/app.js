@@ -1239,6 +1239,7 @@ function SudokuGame() {
         });
         const weaponName = weaponType === 'balloon' ? '💧 水球' : '🧹 橡皮擦';
         showToast(`🎒 集滿 3 個 ${weaponName}，自動連續發動！`);
+        try { platAudio().play('star'); } catch (e) {} // 集滿自動發動輕響（v1.65.5）
         let fired = 0;
         const step = () => {
             if (fired >= 3) { weaponAutoRef.current[weaponType] = false; return; }
@@ -1262,6 +1263,7 @@ function SudokuGame() {
     handleReceiveWeaponRef.current = (ev) => {
         if (ev.targetUid !== myId || isSpectator) return;
         if (stateRef.current.matchPhase !== 'playing') return; // 等待/倒數期收到的遲到道具不進背包（稽核修）
+        try { platAudio().play('star'); } catch (e) {} // 獲得道具輕響（v1.65.5 孤兒裁示：三款統一 star）
         if (amLastPlayer()) { // 已是最後一位：武器入包前直接轉成系統禮物
             setUnopenedGifts(prev => ({ ...prev, [myId]: [...(prev[myId] || []), 'system'] }));
             showToast('🏁 只剩你一人，獲得的武器自動轉換成 🎁 禮物！');
@@ -2134,7 +2136,7 @@ function SudokuGame() {
         const targetIdx = cur.findIndex(c => c.id === cellId);
         if (targetIdx === -1) return; const target = cur[targetIdx];
         if (target.isGiven || target.isSystemRevealed) return;
-        if (isCellFrozen(cellId)) { frozenToast('填'); return; } // 凍結拒填：新規格不播（error 僅給數字衝突標示，v1.64.0）
+        if (isCellFrozen(cellId)) { try { platAudio().play('error'); } catch (e) {} frozenToast('填'); return; } // 凍結拒填＝error（v1.65.5 孤兒裁示：與數橋被拒一致、推翻 v1.64.0 規格的靜音）
 
         if (engineRef.current === 'none') setHistory(past => [...past.slice(past.length > 25 ? 1 : 0), cur]);
 

@@ -178,7 +178,7 @@
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.65.4';
+  var PLAT_VERSION = '1.65.5';
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -297,6 +297,9 @@
   window.PlatAudio = (function () {
     var RECIPES = {
       place:    { notes: [[880, 0, 0.07, 1, 'triangle']] },
+    count:    { notes: [[880, 0, 0.09, 0.5, 'square']] },
+    go:       { notes: [[1320, 0, 0.25, 0.55, 'square']] },
+    star:     { notes: [[1568, 0, 0.18, 0.35, 'sine']] },
       error:    { notes: [[170, 0, 0.13, 1, 'triangle']] },
       boom:     { notes: [[140, 0, 0.22, 1, 'triangle']] },
       gift:     { notes: [[523, 0, 0.14, 0.7, 'triangle'], [659, 0.07, 0.18, 0.7, 'triangle']] },
@@ -2716,7 +2719,7 @@
 
   // ===== PlatCountdown：兩款共用倒數 overlay（同一套邏輯，不寫兩遍）=====
   window.PlatCountdown = (function () {
-    var el = null, numEl = null;
+    var el = null, numEl = null, cdLast = null, cdArmed = false; // 倒數音（v1.65.5 孤兒裁示復原）：數字變化播 count、GO 播 go；數獨無 GO 畫面 → 曾顯示 1 後 hide 視為倒數完成補 go（中途 hide 不觸發）
     function ensure() {
       if (el) return;
       el = document.createElement('div');
@@ -2728,8 +2731,12 @@
       document.body.appendChild(el);
     }
     return {
-      show: function (v) { ensure(); el.style.display = 'flex'; numEl.textContent = v; numEl.style.animation = ''; numEl.classList.remove('plat-count-roll'); void numEl.offsetWidth; numEl.classList.add('plat-count-roll'); }, // v1.53.0：Roll 換位（下滾入＋spring 落定）後接呼吸脈衝
-      hide: function () { if (el) el.style.display = 'none'; },
+      show: function (v) { ensure(); el.style.display = 'flex'; numEl.textContent = v; numEl.style.animation = ''; numEl.classList.remove('plat-count-roll'); void numEl.offsetWidth; numEl.classList.add('plat-count-roll');
+        try {
+          if (v === 'GO!') { if (window.PlatAudio) window.PlatAudio.play('go'); cdArmed = false; cdLast = v; }
+          else if (typeof v === 'number' || /^\d+$/.test(String(v))) { if (String(v) !== String(cdLast) && window.PlatAudio) window.PlatAudio.play('count'); if (Number(v) === 1) cdArmed = true; cdLast = v; }
+        } catch (e) {} }, // v1.53.0：Roll 換位（下滾入＋spring 落定）後接呼吸脈衝；v1.65.5 補倒數音
+      hide: function () { if (el) el.style.display = 'none'; if (cdArmed) { cdArmed = false; try { if (window.PlatAudio) window.PlatAudio.play('go'); } catch (e) {} } cdLast = null; },
       _visible: function () { return !!(el && el.style.display === 'flex'); }
     };
   })();
@@ -2812,7 +2819,7 @@
     if (s.verdict) h += '<p class="text-emerald-600 font-black text-lg my-2">' + pbEsc(s.verdict) + '</p>';
     if (s.stars != null) {
       h += '<div class="flex justify-center gap-2 my-3">';
-      for (var si = 0; si < 3; si++) h += '<span style="font-size:2.2rem;line-height:1' + (si < s.stars ? '' : ';opacity:.2;filter:grayscale(1)') + '">⭐</span>';
+      for (var si = 0; si < 3; si++) h += '<span style="font-size:2.2rem;line-height:1' + (si < s.stars ? ';animation:platStarPop .35s cubic-bezier(.22,1,.36,1) both;animation-delay:' + (200 + si * 320) + 'ms' : ';opacity:.2;filter:grayscale(1)') + '">⭐</span>'; // 獲星逐顆 pop-in（v1.65.5，比照舊制 cascade 節奏 200+si*320）
       h += '</div>';
     }
     if (s.buttons && s.buttons.length) {
@@ -2827,6 +2834,7 @@
     h += '</div>';
     el.innerHTML = h;
     el.style.display = 'flex';
+    if (s.stars) { for (var sj = 0; sj < s.stars && sj < 3; sj++) (function (d) { setTimeout(function () { try { if (window.PlatAudio) window.PlatAudio.play('star'); } catch (e) {} }, d); })(200 + sj * 320); } // 星星逐顆輕響（v1.65.5 孤兒裁示復原）
   }
   window.PlatResults = {
     show: function (spec) {

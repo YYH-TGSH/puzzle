@@ -365,6 +365,9 @@ function platAudio() {
   if (__paLocal) return __paLocal;
   var RECIPES = {
     place: { notes: [[880, 0, 0.07, 1, 'triangle']] },
+    count: { notes: [[880, 0, 0.09, 0.5, 'square']] },
+    go: { notes: [[1320, 0, 0.25, 0.55, 'square']] },
+    star: { notes: [[1568, 0, 0.18, 0.35, 'sine']] },
     error: { notes: [[170, 0, 0.13, 1, 'triangle']] },
     boom: { notes: [[140, 0, 0.22, 1, 'triangle']] },
     gift: { notes: [[523, 0, 0.14, 0.7, 'triangle'], [659, 0.07, 0.18, 0.7, 'triangle']] },
@@ -2602,6 +2605,9 @@ function HashiGame() {
       } catch (e) {}
     } // H3 禮物 Fly（純顯示層）
     showToast('🎁 里程碑道具：你獲得 ' + meta.icon + ' ' + meta.name + '！');
+    try {
+      platAudio().play('star');
+    } catch (e) {} // 獲得道具輕響（v1.65.5 孤兒裁示：三款統一 star、復原舊制叮聲）
     if (ni.filter(function (x) {
       return x === effItem;
     }).length >= 3) setTimeout(function () {
@@ -2791,6 +2797,9 @@ function HashiGame() {
       return x.key === key;
     });
     showToast('🎒 集滿 3 個 ' + (meta ? meta.icon + ' ' + meta.name : key) + '，自動連續發動！');
+    try {
+      platAudio().play('star');
+    } catch (e) {} // 集滿自動發動輕響（v1.65.5）
     var fired = 0;
     var step = function step() {
       if (fired >= 3) {

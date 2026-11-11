@@ -326,3 +326,4 @@ body.plat-room-on[data-view="mines"] {
 .pcal-in-next { animation: pcalInNext 150ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 .pcal-in-prev { animation: pcalInPrev 150ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 @media (prefers-reduced-motion: reduce) { .pcal-out-next, .pcal-out-prev, .pcal-in-next, .pcal-in-prev { animation: none; } }
+@keyframes platStarPop { 0% { transform: scale(0) rotate(-30deg); opacity: 0; } 70% { transform: scale(1.25) rotate(6deg); opacity: 1; } 100% { transform: scale(1) rotate(0deg); opacity: 1; } }

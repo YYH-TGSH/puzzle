@@ -2322,6 +2322,7 @@ body.plat-room-on[data-view="mines"] {
 .pcal-in-next { animation: pcalInNext 150ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 .pcal-in-prev { animation: pcalInPrev 150ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 @media (prefers-reduced-motion: reduce) { .pcal-out-next, .pcal-out-prev, .pcal-in-next, .pcal-in-prev { animation: none; } }
+@keyframes platStarPop { 0% { transform: scale(0) rotate(-30deg); opacity: 0; } 70% { transform: scale(1.25) rotate(6deg); opacity: 1; } 100% { transform: scale(1) rotate(0deg); opacity: 1; } }
   </style>
 </head>
 <body data-view="home">
@@ -3365,6 +3366,9 @@ function platAudio() {
   if (__paLocal) return __paLocal;
   var RECIPES = {
     place:    { notes: [[880, 0, 0.07, 1, 'triangle']] },
+    count:    { notes: [[880, 0, 0.09, 0.5, 'square']] },
+    go:       { notes: [[1320, 0, 0.25, 0.55, 'square']] },
+    star:     { notes: [[1568, 0, 0.18, 0.35, 'sine']] },
     error:    { notes: [[170, 0, 0.13, 1, 'triangle']] },
     boom:     { notes: [[140, 0, 0.22, 1, 'triangle']] },
     gift:     { notes: [[523, 0, 0.14, 0.7, 'triangle'], [659, 0.07, 0.18, 0.7, 'triangle']] },
@@ -5611,6 +5615,9 @@ function SudokuGame() {
     });
     var weaponName = weaponType === 'balloon' ? '💧 水球' : '🧹 橡皮擦';
     showToast("\uD83C\uDF92 \u96C6\u6EFF 3 \u500B ".concat(weaponName, "\uFF0C\u81EA\u52D5\u9023\u7E8C\u767C\u52D5\uFF01"));
+    try {
+      platAudio().play('star');
+    } catch (e) {} // 集滿自動發動輕響（v1.65.5）
     var fired = 0;
     var step = function step() {
       if (fired >= 3) {
@@ -5649,6 +5656,9 @@ function SudokuGame() {
   handleReceiveWeaponRef.current = function (ev) {
     if (ev.targetUid !== myId || isSpectator) return;
     if (stateRef.current.matchPhase !== 'playing') return; // 等待/倒數期收到的遲到道具不進背包（稽核修）
+    try {
+      platAudio().play('star');
+    } catch (e) {} // 獲得道具輕響（v1.65.5 孤兒裁示：三款統一 star）
     if (amLastPlayer()) {
       // 已是最後一位：武器入包前直接轉成系統禮物
       setUnopenedGifts(function (prev) {
@@ -7533,9 +7543,12 @@ function SudokuGame() {
     var target = cur[targetIdx];
     if (target.isGiven || target.isSystemRevealed) return;
     if (isCellFrozen(cellId)) {
+      try {
+        platAudio().play('error');
+      } catch (e) {}
       frozenToast('填');
       return;
-    } // 凍結拒填：新規格不播（error 僅給數字衝突標示，v1.64.0）
+    } // 凍結拒填＝error（v1.65.5 孤兒裁示：與數橋被拒一致、推翻 v1.64.0 規格的靜音）
 
     if (engineRef.current === 'none') setHistory(function (past) {
       return [].concat(_toConsumableArray(past.slice(past.length > 25 ? 1 : 0)), [cur]);
@@ -11364,6 +11377,9 @@ function platAudio() {
   if (__paLocal) return __paLocal;
   var RECIPES = {
     place: { notes: [[880, 0, 0.07, 1, 'triangle']] },
+    count: { notes: [[880, 0, 0.09, 0.5, 'square']] },
+    go: { notes: [[1320, 0, 0.25, 0.55, 'square']] },
+    star: { notes: [[1568, 0, 0.18, 0.35, 'sine']] },
     error: { notes: [[170, 0, 0.13, 1, 'triangle']] },
     boom: { notes: [[140, 0, 0.22, 1, 'triangle']] },
     gift: { notes: [[523, 0, 0.14, 0.7, 'triangle'], [659, 0.07, 0.18, 0.7, 'triangle']] },
@@ -13601,6 +13617,9 @@ function HashiGame() {
       } catch (e) {}
     } // H3 禮物 Fly（純顯示層）
     showToast('🎁 里程碑道具：你獲得 ' + meta.icon + ' ' + meta.name + '！');
+    try {
+      platAudio().play('star');
+    } catch (e) {} // 獲得道具輕響（v1.65.5 孤兒裁示：三款統一 star、復原舊制叮聲）
     if (ni.filter(function (x) {
       return x === effItem;
     }).length >= 3) setTimeout(function () {
@@ -13790,6 +13809,9 @@ function HashiGame() {
       return x.key === key;
     });
     showToast('🎒 集滿 3 個 ' + (meta ? meta.icon + ' ' + meta.name : key) + '，自動連續發動！');
+    try {
+      platAudio().play('star');
+    } catch (e) {} // 集滿自動發動輕響（v1.65.5）
     var fired = 0;
     var step = function step() {
       if (fired >= 3) {
@@ -19035,6 +19057,15 @@ function platAudio() {
     place: {
       notes: [[880, 0, 0.07, 1, 'triangle']]
     },
+    count: {
+      notes: [[880, 0, 0.09, 0.5, 'square']]
+    },
+    go: {
+      notes: [[1320, 0, 0.25, 0.55, 'square']]
+    },
+    star: {
+      notes: [[1568, 0, 0.18, 0.35, 'sine']]
+    },
     error: {
       notes: [[170, 0, 0.13, 1, 'triangle']]
     },
@@ -21173,6 +21204,9 @@ function MinesGame() {
     itemsRef.current = ni;
     setMyItems(ni);
     itemSay(item === 'question' ? '🎁 里程碑道具：❓ 問號干擾 ×' + ni[item] : '🎁 里程碑道具：⏪ 回填 ×' + ni[item]);
+    try {
+      platAudio().play('star');
+    } catch (e) {} // 獲得道具輕響（v1.65.5 孤兒裁示：三款統一 star）
     maybeAutoFire();
   }
   function giftCandidates() {
@@ -21184,6 +21218,9 @@ function MinesGame() {
   }
   function holdGift(fromName) {
     // 禮物持有制：進禮物鈕、玩家自己按才發動（使用者 2026-11-02 指示，比照數獨禮物鈕）
+    try {
+      platAudio().play('star');
+    } catch (e) {} // 收到禮物輕響（v1.65.5：與里程碑獲得同格）
     var ni = Object.assign({}, itemsRef.current);
     ni.gift = (ni.gift || 0) + 1;
     itemsRef.current = ni;
@@ -21296,6 +21333,9 @@ function MinesGame() {
     if (autoItemIvRef.current) return;
     var startKind = itemsRef.current.question >= 3 ? 'question' : itemsRef.current.backfill >= 3 ? 'backfill' : null;
     if (!startKind) return;
+    try {
+      platAudio().play('star');
+    } catch (e) {} // 集滿自動發動輕響（v1.65.5）
     autoItemIvRef.current = setInterval(function () {
       var kind = (itemsRef.current[startKind] || 0) > 0 ? startKind : itemsRef.current.question >= 3 ? 'question' : itemsRef.current.backfill >= 3 ? 'backfill' : null;
       var hasTgt = unfinishedRacers().some(function (p) {
@@ -24369,7 +24409,7 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.65.4';
+  var PLAT_VERSION = '1.65.5';
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -24488,6 +24528,9 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
   window.PlatAudio = (function () {
     var RECIPES = {
       place:    { notes: [[880, 0, 0.07, 1, 'triangle']] },
+    count:    { notes: [[880, 0, 0.09, 0.5, 'square']] },
+    go:       { notes: [[1320, 0, 0.25, 0.55, 'square']] },
+    star:     { notes: [[1568, 0, 0.18, 0.35, 'sine']] },
       error:    { notes: [[170, 0, 0.13, 1, 'triangle']] },
       boom:     { notes: [[140, 0, 0.22, 1, 'triangle']] },
       gift:     { notes: [[523, 0, 0.14, 0.7, 'triangle'], [659, 0.07, 0.18, 0.7, 'triangle']] },
@@ -26907,7 +26950,7 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
 
   // ===== PlatCountdown：兩款共用倒數 overlay（同一套邏輯，不寫兩遍）=====
   window.PlatCountdown = (function () {
-    var el = null, numEl = null;
+    var el = null, numEl = null, cdLast = null, cdArmed = false; // 倒數音（v1.65.5 孤兒裁示復原）：數字變化播 count、GO 播 go；數獨無 GO 畫面 → 曾顯示 1 後 hide 視為倒數完成補 go（中途 hide 不觸發）
     function ensure() {
       if (el) return;
       el = document.createElement('div');
@@ -26919,8 +26962,12 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
       document.body.appendChild(el);
     }
     return {
-      show: function (v) { ensure(); el.style.display = 'flex'; numEl.textContent = v; numEl.style.animation = ''; numEl.classList.remove('plat-count-roll'); void numEl.offsetWidth; numEl.classList.add('plat-count-roll'); }, // v1.53.0：Roll 換位（下滾入＋spring 落定）後接呼吸脈衝
-      hide: function () { if (el) el.style.display = 'none'; },
+      show: function (v) { ensure(); el.style.display = 'flex'; numEl.textContent = v; numEl.style.animation = ''; numEl.classList.remove('plat-count-roll'); void numEl.offsetWidth; numEl.classList.add('plat-count-roll');
+        try {
+          if (v === 'GO!') { if (window.PlatAudio) window.PlatAudio.play('go'); cdArmed = false; cdLast = v; }
+          else if (typeof v === 'number' || /^\d+$/.test(String(v))) { if (String(v) !== String(cdLast) && window.PlatAudio) window.PlatAudio.play('count'); if (Number(v) === 1) cdArmed = true; cdLast = v; }
+        } catch (e) {} }, // v1.53.0：Roll 換位（下滾入＋spring 落定）後接呼吸脈衝；v1.65.5 補倒數音
+      hide: function () { if (el) el.style.display = 'none'; if (cdArmed) { cdArmed = false; try { if (window.PlatAudio) window.PlatAudio.play('go'); } catch (e) {} } cdLast = null; },
       _visible: function () { return !!(el && el.style.display === 'flex'); }
     };
   })();
@@ -27003,7 +27050,7 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
     if (s.verdict) h += '<p class="text-emerald-600 font-black text-lg my-2">' + pbEsc(s.verdict) + '</p>';
     if (s.stars != null) {
       h += '<div class="flex justify-center gap-2 my-3">';
-      for (var si = 0; si < 3; si++) h += '<span style="font-size:2.2rem;line-height:1' + (si < s.stars ? '' : ';opacity:.2;filter:grayscale(1)') + '">⭐</span>';
+      for (var si = 0; si < 3; si++) h += '<span style="font-size:2.2rem;line-height:1' + (si < s.stars ? ';animation:platStarPop .35s cubic-bezier(.22,1,.36,1) both;animation-delay:' + (200 + si * 320) + 'ms' : ';opacity:.2;filter:grayscale(1)') + '">⭐</span>'; // 獲星逐顆 pop-in（v1.65.5，比照舊制 cascade 節奏 200+si*320）
       h += '</div>';
     }
     if (s.buttons && s.buttons.length) {
@@ -27018,6 +27065,7 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
     h += '</div>';
     el.innerHTML = h;
     el.style.display = 'flex';
+    if (s.stars) { for (var sj = 0; sj < s.stars && sj < 3; sj++) (function (d) { setTimeout(function () { try { if (window.PlatAudio) window.PlatAudio.play('star'); } catch (e) {} }, d); })(200 + sj * 320); } // 星星逐顆輕響（v1.65.5 孤兒裁示復原）
   }
   window.PlatResults = {
     show: function (spec) {
