@@ -86,9 +86,8 @@ function platAudio() {
   if (__paLocal) return __paLocal;
   var RECIPES = {
     place:    { notes: [[880, 0, 0.07, 1, 'triangle']] },
-    count:    { notes: [[880, 0, 0.09, 0.5, 'square']] },
-    go:       { notes: [[1320, 0, 0.25, 0.55, 'square']] },
-    star:     { notes: [[1568, 0, 0.18, 0.35, 'sine']] },
+    count:    { notes: [[660, 0, 0.07, 0.8, 'triangle']] },
+    go:       { notes: [[523, 0, 0.16, 0.42], [659, 0.11, 0.22, 0.42]] },
     error:    { notes: [[170, 0, 0.13, 1, 'triangle']] },
     boom:     { notes: [[140, 0, 0.22, 1, 'triangle']] },
     gift:     { notes: [[523, 0, 0.14, 0.7, 'triangle'], [659, 0.07, 0.18, 0.7, 'triangle']] },
@@ -935,12 +934,12 @@ function MinesGame() {
     if (amLastOne()) { holdGift(''); itemSay('🏁 只剩你一人，里程碑道具自動轉成禮物（在禮物鈕裡）！'); return; }
     var ni = Object.assign({}, itemsRef.current); ni[item] = (ni[item] || 0) + 1; itemsRef.current = ni; setMyItems(ni);
     itemSay(item === 'question' ? '🎁 里程碑道具：❓ 問號干擾 ×' + ni[item] : '🎁 里程碑道具：⏪ 回填 ×' + ni[item]);
-    try { platAudio().play('star'); } catch (e) {} // 獲得道具輕響（v1.65.5 孤兒裁示：三款統一 star）
+    try { platAudio().play('gift'); } catch (e) {} // 獲得道具（v1.65.5 孤兒裁示定版：三款統一 gift）
     maybeAutoFire();
   }
   function giftCandidates() { var B = boardRef.current; if (!B || !B.cells || !B.layout) return []; var cand = []; for (var i = 0; i < B.cells.length; i++) if (B.layout[i] && B.cells[i] === 'h') cand.push(i); return cand; }
   function holdGift(fromName) { // 禮物持有制：進禮物鈕、玩家自己按才發動（使用者 2026-11-02 指示，比照數獨禮物鈕）
-    try { platAudio().play('star'); } catch (e) {} // 收到禮物輕響（v1.65.5：與里程碑獲得同格）
+    try { platAudio().play('gift'); } catch (e) {} // 收到禮物（v1.65.5 裁示定版：gift）
     var ni = Object.assign({}, itemsRef.current); ni.gift = (ni.gift || 0) + 1; itemsRef.current = ni; setMyItems(ni);
     itemSay(fromName ? '🎁 ' + fromName + ' 送你一個禮物！點 🎁 按鈕使用' : '🎁 收到一個禮物！點 🎁 按鈕使用');
     maybeAutoGift();
@@ -997,7 +996,7 @@ function MinesGame() {
     if (autoItemIvRef.current) return;
     var startKind = itemsRef.current.question >= 3 ? 'question' : (itemsRef.current.backfill >= 3 ? 'backfill' : null);
     if (!startKind) return;
-    try { platAudio().play('star'); } catch (e) {} // 集滿自動發動輕響（v1.65.5）
+    try { platAudio().play('gift'); } catch (e) {} // 集滿自動發動（v1.65.5 裁示定版：gift）
     autoItemIvRef.current = setInterval(() => {
       var kind = (itemsRef.current[startKind] || 0) > 0 ? startKind : (itemsRef.current.question >= 3 ? 'question' : (itemsRef.current.backfill >= 3 ? 'backfill' : null));
       var hasTgt = unfinishedRacers().some(p => p.id !== myId);

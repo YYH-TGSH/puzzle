@@ -178,7 +178,7 @@
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.65.5';
+  var PLAT_VERSION = '1.65.6';
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -297,9 +297,8 @@
   window.PlatAudio = (function () {
     var RECIPES = {
       place:    { notes: [[880, 0, 0.07, 1, 'triangle']] },
-    count:    { notes: [[880, 0, 0.09, 0.5, 'square']] },
-    go:       { notes: [[1320, 0, 0.25, 0.55, 'square']] },
-    star:     { notes: [[1568, 0, 0.18, 0.35, 'sine']] },
+    count:    { notes: [[660, 0, 0.07, 0.8, 'triangle']] },
+    go:       { notes: [[523, 0, 0.16, 0.42], [659, 0.11, 0.22, 0.42]] },
       error:    { notes: [[170, 0, 0.13, 1, 'triangle']] },
       boom:     { notes: [[140, 0, 0.22, 1, 'triangle']] },
       gift:     { notes: [[523, 0, 0.14, 0.7, 'triangle'], [659, 0.07, 0.18, 0.7, 'triangle']] },
@@ -2834,7 +2833,7 @@
     h += '</div>';
     el.innerHTML = h;
     el.style.display = 'flex';
-    if (s.stars) { for (var sj = 0; sj < s.stars && sj < 3; sj++) (function (d) { setTimeout(function () { try { if (window.PlatAudio) window.PlatAudio.play('star'); } catch (e) {} }, d); })(200 + sj * 320); } // 星星逐顆輕響（v1.65.5 孤兒裁示復原）
+    if (s.stars) { for (var sj = 0; sj < s.stars && sj < 3; sj++) (function (d) { setTimeout(function () { try { if (window.PlatAudio) window.PlatAudio.play('gift'); } catch (e) {} }, d); })(200 + sj * 320); } // 星星逐顆輕響（v1.65.5 孤兒裁示復原）
   }
   window.PlatResults = {
     show: function (spec) {
