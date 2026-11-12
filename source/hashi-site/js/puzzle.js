@@ -244,25 +244,43 @@ window.HASHI_PUZZLE = (function () {
   // 產生「唯一解」題目：每一題都先經 solver 確認只有一組解才回傳。
   // rng 可傳 seeded（每日一題）— 同一個 seed 的重抽序列完全確定，所以每日題目不會亂跳。
   // 上限 300 次只是安全網：實測每題毫秒級、一次抽中唯一的機率高，正常 1~3 次就中。
-  function generateUniqueHashi(levelDef, rng, maxAttempts) {
+  // 可分片版（v1.66.0 甲・D2）：attempt 迴圈抽成 job——step() 跑一個 attempt、回傳是否完成。
+  // generateUniqueHashi 改為「同步跑完 job」，兩者共用同一份接受邏輯與 rng 消耗順序 → 同種子逐題相同（品質零漂移硬規則）。
+  function createUniqueJob(levelDef, rng, maxAttempts) {
     rng = rng || Math.random;
     const cap = maxAttempts || 300;
     let puzzle = null;
     let outOfBand = 0;
-    for (let attempts = 0; attempts < cap; attempts++) {
-      puzzle = generateRandomHashi(levelDef, rng);
-      let unique = false;
-      try {
-        unique = window.HASHI_SOLVER.countSolutions(puzzle, 2).count === 1;
-      } catch (e) { break; }
-      if (unique) {
-        if (!puzzleInBand(puzzle, levelDef)) { outOfBand++; continue; }
-        lastGenStats = { attempts: attempts + 1, outOfBand: outOfBand, capped: false };
-        return puzzle;
-      }
-    }
-    lastGenStats = { attempts: cap, outOfBand: outOfBand, capped: true };
-    return puzzle; // 理論上的最後防線（實務上到不了這裡）
+    let attempts = 0;
+    let done = false;
+    let broken = false;
+    return {
+      step: function () {
+        if (done) return true;
+        if (attempts >= cap) { lastGenStats = { attempts: cap, outOfBand: outOfBand, capped: true }; done = true; return true; }
+        puzzle = generateRandomHashi(levelDef, rng);
+        let unique = false;
+        try {
+          unique = window.HASHI_SOLVER.countSolutions(puzzle, 2).count === 1;
+        } catch (e) { broken = true; }
+        attempts++;
+        if (broken) { lastGenStats = { attempts: cap, outOfBand: outOfBand, capped: true }; done = true; return true; } // solver 例外路徑：與舊版 break 後落入 capped 收尾逐字一致
+        if (unique) {
+          if (!puzzleInBand(puzzle, levelDef)) { outOfBand++; return false; }
+          lastGenStats = { attempts: attempts, outOfBand: outOfBand, capped: false };
+          done = true; return true;
+        }
+        return false;
+      },
+      result: function () { return puzzle; },
+      get done() { return done; },
+      get attempts() { return attempts; }
+    };
+  }
+  function generateUniqueHashi(levelDef, rng, maxAttempts) {
+    const job = createUniqueJob(levelDef, rng, maxAttempts);
+    while (!job.step()) {}
+    return job.result();
   }
 
   return {
@@ -276,6 +294,7 @@ window.HASHI_PUZZLE = (function () {
     getDailySeed: getDailySeed,
     generateRandomHashi: generateRandomHashi,
     generateEmptyBridges: generateEmptyBridges,
-    generateUniqueHashi: generateUniqueHashi
+    generateUniqueHashi: generateUniqueHashi,
+    createUniqueJob: createUniqueJob
   };
 })();

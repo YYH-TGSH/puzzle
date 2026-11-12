@@ -2207,6 +2207,58 @@ function platAudio() {
         }, 100);
       };
 
+      // ===== 背景預生成＋分片生成（v1.66.0 甲/乙・D2 裁決）=====
+      // 預生成：僅單機、僅主畫面（非對局）閒置 ≥1.5s 為當前選定關卡預生一題（記憶體一格、不落盤）；
+      // drivePreGen 每片 ≤40ms 且逐片複檢 context——對局中（screen==='game'）絕不執行 step（守衛＋計數斷言在 test-pregen）。
+      const preGenRef = useRef({ key: null, job: null, puzzle: null, timer: null });
+      const preGenCtxRef = useRef({ screen: 'home' });
+      useEffect(() => { preGenCtxRef.current.screen = screen; }, [screen]);
+      const preGenStats = () => (typeof window !== 'undefined' && window.__HASHI_PREGEN_STATS) || (window.__HASHI_PREGEN_STATS = { jobs: 0, steps: 0, hits: 0 });
+      const preGenEligible = (lvlId) => typeof lvlId === 'number' && LEVELS.some(l => l.id === lvlId);
+      const preGenContextOk = () => engineRef.current === 'none' && preGenCtxRef.current.screen === 'home' && !isDailyModeRef.current;
+      const drivePreGen = () => {
+        const slot = preGenRef.current;
+        if (!slot.job) { slot.timer = null; return; }
+        if (!preGenContextOk()) { slot.timer = setTimeout(drivePreGen, 500); return; } // 上下文不符只暫停輪詢、不跑 step
+        const t0 = performance.now();
+        while (performance.now() - t0 < 40) { preGenStats().steps++; if (slot.job.step()) { slot.puzzle = slot.job.result(); slot.job = null; slot.timer = null; return; } }
+        slot.timer = setTimeout(drivePreGen, 0);
+      };
+      const startPreGen = (lvlId) => {
+        const slot = preGenRef.current;
+        if (slot.key === lvlId && (slot.job || slot.puzzle)) return;
+        if (slot.timer) clearTimeout(slot.timer);
+        const def = LEVELS.find(l => l.id === lvlId); if (!def) return;
+        preGenRef.current = { key: lvlId, job: HASHI_PUZZLE.createUniqueJob(def), puzzle: null, timer: null };
+        preGenStats().jobs++;
+        preGenRef.current.timer = setTimeout(drivePreGen, 0);
+      };
+      if (typeof window !== 'undefined') window.__HASHI_PREGEN_SLOT = () => { const sl = preGenRef.current; return { key: sl.key, hasPuzzle: !!sl.puzzle, hasJob: !!sl.job }; }; // 測試/稽核探針
+      const invalidatePreGen = () => { const slot = preGenRef.current; if (slot.timer) clearTimeout(slot.timer); preGenRef.current = { key: null, job: null, puzzle: null, timer: null }; };
+      useEffect(() => { // 閒置觸發＋組合變更作廢；回主畫面（完賽/離局）自動為同組合補生（slot 已消耗時）
+        if (!preGenContextOk()) return;
+        if (!preGenEligible(currentLevelId)) { invalidatePreGen(); return; }
+        if (preGenRef.current.key !== currentLevelId) invalidatePreGen();
+        const t = setTimeout(() => { if (preGenContextOk()) startPreGen(currentLevelId); }, 1500);
+        return () => clearTimeout(t);
+      }, [screen, currentLevelId, showSettingsModal]);
+      // 分片跑完一個 job（單機 miss／房主開局共用）：片長 ≤40ms、PlatGenerating 逾 300ms 顯示、放棄以 token 作廢待套用
+      const genRunRef = useRef(0);
+      const runJobToCompletion = (job, key, onDone, onAbort) => {
+        const token = ++genRunRef.current;
+        if (typeof window !== 'undefined' && window.PlatGenerating) window.PlatGenerating.begin(key, () => { if (genRunRef.current === token) { genRunRef.current++; if (onAbort) onAbort(); } });
+        const slice = () => {
+          if (genRunRef.current !== token) return;
+          const t0 = performance.now();
+          let done = false;
+          while (performance.now() - t0 < 40) { if (job.step()) { done = true; break; } }
+          if (done) { if (typeof window !== 'undefined' && window.PlatGenerating) window.PlatGenerating.end(); onDone(job.result()); return; }
+          setTimeout(slice, 0);
+        };
+        setTimeout(slice, 0);
+      };
+      const hostGenAbort = () => { if (typeof window !== 'undefined' && window.__PLAT_NOTIFY) window.__PLAT_NOTIFY('game-exit'); }; // 房主放棄＝不發 INIT/RACE_START、全員回房間頁（房間不變）
+
       const handleLevelChange = (newLevelId) => {
         if (isDailyModeRef.current) return;
         if (engineRef.current !== 'none' && !isHostRef.current) return;
@@ -2224,13 +2276,21 @@ function platAudio() {
                 setIsGenerating(false);
                 return;
             }
-            const newRandomData = HASHI_PUZZLE.generateUniqueHashi(targetLevelDef);
-            const empty = HASHI_PUZZLE.generateEmptyBridges(newRandomData);
-            syncState({ levelId: newLevelId, randomLevelData: newRandomData, bridges: empty, strokes: [], showSolution: false, startTime: Date.now() });
-            setIsWon(false); setHistory([]); setEndTime(null);
-            resetWinMeta();
-            setBoardFadeKey(k => k + 1); scheduleFitZoom();
-            setIsGenerating(false);
+            const applyData = (newRandomData) => {
+                const empty = HASHI_PUZZLE.generateEmptyBridges(newRandomData);
+                syncState({ levelId: newLevelId, randomLevelData: newRandomData, bridges: empty, strokes: [], showSolution: false, startTime: Date.now() });
+                setIsWon(false); setHistory([]); setEndTime(null);
+                resetWinMeta();
+                setBoardFadeKey(k => k + 1); scheduleFitZoom();
+                setIsGenerating(false);
+            };
+            const abort = () => { setIsGenerating(false); if (engineRef.current !== 'none') hostGenAbort(); };
+            if (engineRef.current === 'none') { // 單機：先吃預生成快取（多人永不吃、永遠現生）
+                const slot = preGenRef.current;
+                if (slot.key === newLevelId && slot.puzzle) { const data = slot.puzzle; invalidatePreGen(); preGenStats().hits++; applyData(data); return; }
+                if (slot.key === newLevelId && slot.job) { const job = slot.job; if (slot.timer) clearTimeout(slot.timer); preGenRef.current = { key: null, job: null, puzzle: null, timer: null }; preGenStats().hits++; runJobToCompletion(job, 'hashi-gen', applyData, abort); return; }
+            }
+            runJobToCompletion(HASHI_PUZZLE.createUniqueJob(targetLevelDef), 'hashi-gen', applyData, abort);
         }, 100);
       };
 
@@ -2645,9 +2705,10 @@ function platAudio() {
                 const coopDef = st.sizeId === 'custom' ? { id: 'custom', name: '⚙️ 自訂', width: (customDimsRef.current || {}).w || 15, height: (customDimsRef.current || {}).h || 15 } : (LEVELS.find(l => l.id === st.sizeId) || null);
                 if (coopDef) setTimeout(() => {
                   if (!isHostRef.current) return;
-                  const data = HASHI_PUZZLE.generateUniqueHashi(coopDef);
-                  const empty = HASHI_PUZZLE.generateEmptyBridges(data);
-                  syncState({ levelId: coopDef.id, randomLevelData: data, bridges: empty, strokes: [], showSolution: false, startTime: Date.now() });
+                  runJobToCompletion(HASHI_PUZZLE.createUniqueJob(coopDef), 'hashi-coop', (data) => {
+                    const empty = HASHI_PUZZLE.generateEmptyBridges(data);
+                    syncState({ levelId: coopDef.id, randomLevelData: data, bridges: empty, strokes: [], showSolution: false, startTime: Date.now() });
+                  }, hostGenAbort);
                 }, 250);
               }
             } else if (sess.tourn && sess.isHost) {
@@ -3154,13 +3215,14 @@ function platAudio() {
         const def = LEVELS.find(l => l.id === st.sizeId) || LEVELS[1];
         const cdims = (st.sizeId === 'custom' && customDimsRef.current) ? customDimsRef.current : null;
         const targetLevelDef = { id: def.id, name: def.name, width: cdims ? cdims.w : def.width, height: cdims ? cdims.h : def.height, description: "🏁 大亂鬥專用題目，祝好運！" };
-        const newRandomData = HASHI_PUZZLE.generateUniqueHashi(targetLevelDef);
-        const empty = HASHI_PUZZLE.generateEmptyBridges(newRandomData);
-        const startAt = Date.now() + 3500;
-        const payload = { randomLevelData: newRandomData, bridges: empty, levelId: def.id, showSolution: false, startTime: startAt, strokes: [] };
-        const racersIds = racers.map(p => p.id);
-        connsRef.current.forEach(c => { if (c.open) c.send({ type: 'RACE_START', data: payload, startAt: startAt, racers: racersIds, settings: st }); });
-        beginRace(payload, startAt, racersIds, st);
+        runJobToCompletion(HASHI_PUZZLE.createUniqueJob(targetLevelDef), 'hashi-race', (newRandomData) => {
+          const empty = HASHI_PUZZLE.generateEmptyBridges(newRandomData);
+          const startAt = Date.now() + 3500;
+          const payload = { randomLevelData: newRandomData, bridges: empty, levelId: def.id, showSolution: false, startTime: startAt, strokes: [] };
+          const racersIds = racers.map(p => p.id);
+          connsRef.current.forEach(c => { if (c.open) c.send({ type: 'RACE_START', data: payload, startAt: startAt, racers: racersIds, settings: st }); });
+          beginRace(payload, startAt, racersIds, st);
+        }, hostGenAbort);
       };
 
       // 回等待室（房主廣播全員；來賓收到 TO_LOBBY 也走這支本地版）

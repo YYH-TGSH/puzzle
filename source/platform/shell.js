@@ -2741,6 +2741,61 @@
     };
   })();
 
+  // ---------- 共用出題等待提示 PlatGenerating（v1.66.0 乙・D2 裁決）：開局生成逾 300ms 未就緒才顯示的小晶片 ----------
+  // 落點：畫面頂部中央（倒數/結算在其後、不與底部 Toast 佇列與置中聊天面板打架、不推移版面）；就緒即退場；滿 5 秒出「返回」可乾淨放棄本次開局（onAbort 由呼叫端定義：單機＝取消待套用、房主＝不發 INIT 並全員回房間頁）。
+  window.PlatGenerating = (function () {
+    var el = null, secEl = null, btnEl = null, cur = null;
+    function ensure() {
+      if (el) return;
+      el = document.createElement('div');
+      el.id = 'plat-generating';
+      el.style.cssText = 'position:fixed;top:calc(env(safe-area-inset-top,0px) + 58px);left:50%;transform:translateX(-50%);z-index:340;display:none;align-items:center;gap:8px;background:rgba(15,23,42,.92);color:#fff;border:2px solid rgba(255,255,255,.35);border-radius:999px;padding:7px 14px;font-weight:900;font-size:.85rem;box-shadow:0 6px 24px rgba(15,23,42,.35);white-space:nowrap';
+      var dot = document.createElement('span');
+      dot.style.cssText = 'width:9px;height:9px;border-radius:99px;background:#fbbf24;display:inline-block;animation:platCountPulse .5s ease-in-out infinite alternate';
+      var tx = document.createElement('span'); tx.textContent = '出題中…';
+      secEl = document.createElement('span'); secEl.style.cssText = 'font-family:monospace;opacity:.85;min-width:2.2em;text-align:left'; secEl.textContent = '0s';
+      btnEl = document.createElement('button');
+      btnEl.textContent = '返回';
+      btnEl.style.cssText = 'display:none;background:#f87171;color:#0f172a;border:2px solid #fff;border-radius:999px;padding:2px 12px;font-weight:900;font-size:.8rem;cursor:pointer';
+      btnEl.addEventListener('click', function () { var c = cur; end(); if (c && c.onAbort) { try { c.onAbort(); } catch (e) {} } });
+      el.appendChild(dot); el.appendChild(tx); el.appendChild(secEl); el.appendChild(btnEl);
+      document.body.appendChild(el);
+    }
+    function show() {
+      if (!cur) return;
+      ensure();
+      el.style.display = 'flex';
+      el.style.animation = ''; el.classList.remove('plat-gen-in'); void el.offsetWidth; el.classList.add('plat-gen-in');
+      tick();
+    }
+    function tick() {
+      if (!cur || el.style.display === 'none') return;
+      var secs = Math.floor((Date.now() - cur.t0) / 1000);
+      secEl.textContent = secs + 's';
+      if (secs >= 5 && cur.onAbort) btnEl.style.display = 'inline-block';
+    }
+    function begin(key, onAbort) {
+      if (cur && cur.key === key) return;
+      end();
+      cur = { key: key, onAbort: onAbort || null, t0: Date.now(), showTimer: null, tickTimer: null };
+      cur.showTimer = setTimeout(show, 300);
+      cur.tickTimer = setInterval(tick, 250);
+    }
+    function end() {
+      if (!cur) { if (el) el.style.display = 'none'; return; }
+      if (cur.showTimer) clearTimeout(cur.showTimer);
+      if (cur.tickTimer) clearInterval(cur.tickTimer);
+      cur = null;
+      if (el) { el.style.display = 'none'; btnEl.style.display = 'none'; }
+    }
+    return {
+      begin: begin,
+      end: end,
+      _visible: function () { return !!(el && el.style.display === 'flex'); },
+      _abort: function () { if (btnEl && cur) btnEl.click(); } // 測試/稽核用：等同按下返回
+    };
+  })();
+
   // ---------- 共用結算畫面 PlatResults（數獨/數橋大亂鬥共用同一框架；遊戲只餵 spec：條目/判定/按鈕） ----------
   var PR2 = { spec: null, json: '' };
   function pr2El() {

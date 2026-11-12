@@ -2323,6 +2323,8 @@ body.plat-room-on[data-view="mines"] {
 .pcal-in-prev { animation: pcalInPrev 150ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 @media (prefers-reduced-motion: reduce) { .pcal-out-next, .pcal-out-prev, .pcal-in-next, .pcal-in-prev { animation: none; } }
 @keyframes platStarPop { 0% { transform: scale(0) rotate(-30deg); opacity: 0; } 70% { transform: scale(1.25) rotate(6deg); opacity: 1; } 100% { transform: scale(1) rotate(0deg); opacity: 1; } }
+@keyframes platGenIn { from { opacity: 0; transform: translateX(-50%) scale(.85); } to { opacity: 1; transform: translateX(-50%) scale(1); } }
+.plat-gen-in { animation: platGenIn .18s cubic-bezier(.22,1,.36,1) both; }
   </style>
 </head>
 <body data-view="home">
@@ -2996,25 +2998,43 @@ window.HASHI_PUZZLE = (function () {
   // 產生「唯一解」題目：每一題都先經 solver 確認只有一組解才回傳。
   // rng 可傳 seeded（每日一題）— 同一個 seed 的重抽序列完全確定，所以每日題目不會亂跳。
   // 上限 300 次只是安全網：實測每題毫秒級、一次抽中唯一的機率高，正常 1~3 次就中。
-  function generateUniqueHashi(levelDef, rng, maxAttempts) {
+  // 可分片版（v1.66.0 甲・D2）：attempt 迴圈抽成 job——step() 跑一個 attempt、回傳是否完成。
+  // generateUniqueHashi 改為「同步跑完 job」，兩者共用同一份接受邏輯與 rng 消耗順序 → 同種子逐題相同（品質零漂移硬規則）。
+  function createUniqueJob(levelDef, rng, maxAttempts) {
     rng = rng || Math.random;
     const cap = maxAttempts || 300;
     let puzzle = null;
     let outOfBand = 0;
-    for (let attempts = 0; attempts < cap; attempts++) {
-      puzzle = generateRandomHashi(levelDef, rng);
-      let unique = false;
-      try {
-        unique = window.HASHI_SOLVER.countSolutions(puzzle, 2).count === 1;
-      } catch (e) { break; }
-      if (unique) {
-        if (!puzzleInBand(puzzle, levelDef)) { outOfBand++; continue; }
-        lastGenStats = { attempts: attempts + 1, outOfBand: outOfBand, capped: false };
-        return puzzle;
-      }
-    }
-    lastGenStats = { attempts: cap, outOfBand: outOfBand, capped: true };
-    return puzzle; // 理論上的最後防線（實務上到不了這裡）
+    let attempts = 0;
+    let done = false;
+    let broken = false;
+    return {
+      step: function () {
+        if (done) return true;
+        if (attempts >= cap) { lastGenStats = { attempts: cap, outOfBand: outOfBand, capped: true }; done = true; return true; }
+        puzzle = generateRandomHashi(levelDef, rng);
+        let unique = false;
+        try {
+          unique = window.HASHI_SOLVER.countSolutions(puzzle, 2).count === 1;
+        } catch (e) { broken = true; }
+        attempts++;
+        if (broken) { lastGenStats = { attempts: cap, outOfBand: outOfBand, capped: true }; done = true; return true; } // solver 例外路徑：與舊版 break 後落入 capped 收尾逐字一致
+        if (unique) {
+          if (!puzzleInBand(puzzle, levelDef)) { outOfBand++; return false; }
+          lastGenStats = { attempts: attempts, outOfBand: outOfBand, capped: false };
+          done = true; return true;
+        }
+        return false;
+      },
+      result: function () { return puzzle; },
+      get done() { return done; },
+      get attempts() { return attempts; }
+    };
+  }
+  function generateUniqueHashi(levelDef, rng, maxAttempts) {
+    const job = createUniqueJob(levelDef, rng, maxAttempts);
+    while (!job.step()) {}
+    return job.result();
   }
 
   return {
@@ -3028,7 +3048,8 @@ window.HASHI_PUZZLE = (function () {
     getDailySeed: getDailySeed,
     generateRandomHashi: generateRandomHashi,
     generateEmptyBridges: generateEmptyBridges,
-    generateUniqueHashi: generateUniqueHashi
+    generateUniqueHashi: generateUniqueHashi,
+    createUniqueJob: createUniqueJob
   };
 })();
   </script>
@@ -3139,7 +3160,7 @@ function countSolutions(grid, size, boxW, boxH, limit = 2, budget = null) {
 }
 
 function shuffleRng(arr, rng) { for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); const t = arr[i]; arr[i] = arr[j]; arr[j] = t; } return arr; } // Fisher-Yates（稽核 D-04：取代有偏的 sort 隨機比較器；rng 可注入種子版，跨引擎結果一致）
-async function generateSudokuAsync(sizeId, diffId, onProgress, rng) {
+async function generateSudokuAsync(sizeId, diffId, onProgress, rng, abortRef) { // abortRef（v1.66.0 預生成專用）：{aborted:true} 時在下一個讓出點中止並回 null；不傳＝既有行為逐字不變
     rng = rng || Math.random; // 每日題傳入種子 rng（稽核 D-02：不再覆寫全域 Math.random，避免非同步生成期間污染其他呼叫端）
     const sizeDef = SIZES.find(s => s.id === sizeId);
     const diffDef = DIFFICULTIES.find(d => d.id === diffId);
@@ -3156,6 +3177,7 @@ async function generateSudokuAsync(sizeId, diffId, onProgress, rng) {
     let isTimedOut = false; let lastTick = 0;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        if (abortRef && abortRef.aborted) return null;
         if (isTimedOut) break;
         // 16×16 單次嘗試上限 8 秒：挖到高原期（怎麼挖都破壞唯一解）就換新盤重挖，別把全域 30 秒磨在一張盤上
         const attemptDeadline = Date.now() + 8000;
@@ -3215,7 +3237,7 @@ async function generateSudokuAsync(sizeId, diffId, onProgress, rng) {
                 }
                 if (currentClues <= targetMax && failCount > 25) break;
             }
-            if (size === 16 || i % 15 === 0) await new Promise(r => setTimeout(r, 0));
+            if (size === 16 || i % 15 === 0) { await new Promise(r => setTimeout(r, 0)); if (abortRef && abortRef.aborted) return null; }
         }
         if (currentClues <= targetMax || isTimedOut) break;
     }
@@ -8120,9 +8142,106 @@ function SudokuGame() {
       return _ref9.apply(this, arguments);
     };
   }();
+
+  // ===== 背景預生成（v1.66.0 甲・D2 裁決）：僅單機、非對局畫面閒置 ≥1.5s 為當前 版型×難度 預生一題（記憶體一格、不落盤）=====
+  // 產生器本來就是 async 分片（逐洞 await 讓出）；預生成 promise 以 abortRef 守衛：任何開局/進對局即中止（下一個讓出點生效）、不與對局搶主執行緒。
+  var preGenRef = useRef({
+    key: null,
+    result: null,
+    promise: null,
+    abortRef: null
+  });
+  var genTokenRef = useRef(0);
+  var sudokuPreGenStats = function sudokuPreGenStats() {
+    return typeof window !== 'undefined' && window.__SUDOKU_PREGEN_STATS || (window.__SUDOKU_PREGEN_STATS = {
+      jobs: 0,
+      hits: 0,
+      aborts: 0
+    });
+  };
+  var preGenContextOk = function preGenContextOk() {
+    return engineRef.current !== 'peerjs' && !platHubRef.current && !(typeof window !== 'undefined' && window.__PLAT_NET && window.__PLAT_NET.inMatch) && (screenRef.current === 'home' || screenRef.current === 'game' && stateRef.current.matchPhase === 'waiting');
+  };
+  var startPreGen = function startPreGen(sId, dId) {
+    var key = sId + 'x' + dId;
+    var slot = preGenRef.current;
+    if (slot.key === key && (slot.result || slot.promise)) return;
+    if (slot.abortRef) slot.abortRef.aborted = true;
+    var abortRef = {
+      aborted: false
+    };
+    var promise = generateSudokuAsync(sId, dId, null, undefined, abortRef);
+    preGenRef.current = {
+      key: key,
+      result: null,
+      promise: promise,
+      abortRef: abortRef
+    };
+    sudokuPreGenStats().jobs++;
+    promise.then(function (r) {
+      if (preGenRef.current.promise === promise) {
+        preGenRef.current.result = r;
+        preGenRef.current.promise = null;
+      }
+    });
+  };
+  if (typeof window !== 'undefined') window.__SUDOKU_PREGEN_SLOT = function () {
+    var sl = preGenRef.current;
+    return {
+      key: sl.key,
+      hasResult: !!sl.result,
+      hasPromise: !!sl.promise
+    };
+  }; // 測試/稽核探針
+  var abortPreGen = function abortPreGen() {
+    var slot = preGenRef.current;
+    if (slot.abortRef && slot.promise) {
+      slot.abortRef.aborted = true;
+      sudokuPreGenStats().aborts++;
+    }
+    preGenRef.current = {
+      key: null,
+      result: null,
+      promise: null,
+      abortRef: null
+    };
+  };
+  useEffect(function () {
+    // 閒置觸發＋組合變更作廢；離開 context（進對局/切去別款）即中止在飛的預生成
+    if (!preGenContextOk()) {
+      if (preGenRef.current.promise) abortPreGen();
+      return;
+    }
+    var key = sizeId + 'x' + diffId;
+    if (preGenRef.current.key !== key) abortPreGen();
+    var t = setTimeout(function () {
+      if (preGenContextOk()) startPreGen(sizeId, diffId);
+    }, 1500);
+    return function () {
+      return clearTimeout(t);
+    };
+  }, [screen, sizeId, diffId, matchPhase]);
   var generateAndSync = function generateAndSync(sId, dId, nextMode) {
     var skipLobby = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : false;
     if (isAutoFillingRef.current) return;
+    var adoptedPreGen = null; // 同步認領預生成快取：必須在 preamble 改 phase 前完成——phase 一變，閒置守衛 effect 就會中止在飛的預生成（認領後它就是本局自己的生成）
+    if (engineRef.current !== 'peerjs' && !platHubRef.current) {
+      var key0 = sId + 'x' + dId;
+      var slot0 = preGenRef.current;
+      if (slot0.key === key0 && (slot0.result || slot0.promise)) {
+        adoptedPreGen = {
+          result: slot0.result,
+          promise: slot0.promise
+        };
+        preGenRef.current = {
+          key: null,
+          result: null,
+          promise: null,
+          abortRef: null
+        };
+        sudokuPreGenStats().hits++;
+      }
+    }
     setIsGenerating(true);
     setWinner(null);
     isWinnerDeclaredRef.current = false;
@@ -8173,38 +8292,75 @@ function SudokuGame() {
       });
       return nList;
     });
-    setTimeout(function () {
-      generateSudokuAsync(sId, dId, setGenProgress).then(function (newData) {
-        var solution = null;
-        if (isGR) solution = getSolutionGrid(newData.cells, newData.sizeDef);
-        var initLocalCells = JSON.parse(JSON.stringify(newData.cells));
+    var myToken = ++genTokenRef.current;
+    var applyGenData = function applyGenData(newData) {
+      var solution = null;
+      if (isGR) solution = getSolutionGrid(newData.cells, newData.sizeDef);
+      var initLocalCells = JSON.parse(JSON.stringify(newData.cells));
+      syncState({
+        sizeId: sId,
+        diffId: dId,
+        levelData: newData,
+        cells: initLocalCells,
+        localCells: initLocalCells,
+        strokes: [],
+        startTime: Date.now(),
+        isBrawlMode: isBrawl,
+        winner: null,
+        matchEndTime: null,
+        solutionGrid: solution,
+        isGenerating: false,
+        selectedChar: null,
+        keyMapping: newData.sizeDef.chars,
+        finishViewMode: 'my'
+      }, true);
+      setIsWon(false);
+      setHistory([]);
+      if (sId !== sizeId) {
+        setZoomLevel(1);
+        setZoomModeIdx(0);
+      }
+      setEndTime(null);
+      setHideVictoryModal(false);
+      setSelectedChar(null);
+      setGenProgress("");
+    };
+    var abortCurrentGen = function abortCurrentGen() {
+      // PlatGenerating 返回：作廢待套用（單機回設定 modal；房主不發 INIT 並全員回房間頁、房間不變）
+      genTokenRef.current++;
+      if (typeof window !== 'undefined' && window.PlatGenerating) window.PlatGenerating.end();
+      setGenProgress("");
+      if (engineRef.current === 'peerjs') {
         syncState({
-          sizeId: sId,
-          diffId: dId,
-          levelData: newData,
-          cells: initLocalCells,
-          localCells: initLocalCells,
-          strokes: [],
-          startTime: Date.now(),
-          isBrawlMode: isBrawl,
-          winner: null,
-          matchEndTime: null,
-          solutionGrid: solution,
-          isGenerating: false,
-          selectedChar: null,
-          keyMapping: newData.sizeDef.chars,
-          finishViewMode: 'my'
+          isGenerating: false
         }, true);
-        setIsWon(false);
-        setHistory([]);
-        if (sId !== sizeId) {
-          setZoomLevel(1);
-          setZoomModeIdx(0);
+        if (typeof window !== 'undefined' && window.__PLAT_NOTIFY) window.__PLAT_NOTIFY('game-exit');
+      } else syncState({
+        isGenerating: false,
+        matchPhase: 'waiting'
+      }, true);
+    };
+    setTimeout(function () {
+      if (genTokenRef.current !== myToken) return;
+      if (adoptedPreGen) {
+        // 單機快取消費（多人/每日永不吃——認領只發生在 engine none 且非 hub）
+        if (adoptedPreGen.result) {
+          applyGenData(adoptedPreGen.result);
+          return;
         }
-        setEndTime(null);
-        setHideVictoryModal(false);
-        setSelectedChar(null);
-        setGenProgress("");
+        if (typeof window !== 'undefined' && window.PlatGenerating) window.PlatGenerating.begin('sudoku-gen', abortCurrentGen);
+        adoptedPreGen.promise.then(function (data) {
+          if (typeof window !== 'undefined' && window.PlatGenerating) window.PlatGenerating.end();
+          if (genTokenRef.current !== myToken || !data) return;
+          applyGenData(data);
+        });
+        return;
+      }
+      if (typeof window !== 'undefined' && window.PlatGenerating) window.PlatGenerating.begin(engineRef.current === 'peerjs' ? 'sudoku-host' : 'sudoku-gen', abortCurrentGen);
+      generateSudokuAsync(sId, dId, setGenProgress).then(function (newData) {
+        if (typeof window !== 'undefined' && window.PlatGenerating) window.PlatGenerating.end();
+        if (genTokenRef.current !== myToken) return;
+        applyGenData(newData);
       });
     }, 100);
   };
@@ -14508,6 +14664,101 @@ function HashiGame() {
     }, 100);
   };
 
+  // ===== 背景預生成＋分片生成（v1.66.0 甲/乙・D2 裁決）=====
+  // 預生成：僅單機、僅主畫面（非對局）閒置 ≥1.5s 為當前選定關卡預生一題（記憶體一格、不落盤）；
+  // drivePreGen 每片 ≤40ms 且逐片複檢 context——對局中（screen==='game'）絕不執行 step（守衛＋計數斷言在 test-pregen）。
+  var preGenRef = useRef({ key: null, job: null, puzzle: null, timer: null });
+  var preGenCtxRef = useRef({ screen: 'home' });
+  useEffect(function () {
+    preGenCtxRef.current.screen = screen;
+  }, [screen]);
+  var preGenStats = function preGenStats() {
+    return typeof window !== 'undefined' && window.__HASHI_PREGEN_STATS || (window.__HASHI_PREGEN_STATS = { jobs: 0, steps: 0, hits: 0 });
+  };
+  var preGenEligible = function preGenEligible(lvlId) {
+    return typeof lvlId === 'number' && LEVELS.some(function (l) {
+      return l.id === lvlId;
+    });
+  };
+  var preGenContextOk = function preGenContextOk() {
+    return engineRef.current === 'none' && preGenCtxRef.current.screen === 'home' && !isDailyModeRef.current;
+  };
+  var drivePreGen = function drivePreGen() {
+    var slot = preGenRef.current;
+    if (!slot.job) {
+      slot.timer = null;return;
+    }
+    if (!preGenContextOk()) {
+      slot.timer = setTimeout(drivePreGen, 500);return;
+    } // 上下文不符只暫停輪詢、不跑 step
+    var t0 = performance.now();
+    while (performance.now() - t0 < 40) {
+      preGenStats().steps++;if (slot.job.step()) {
+        slot.puzzle = slot.job.result();slot.job = null;slot.timer = null;return;
+      }
+    }
+    slot.timer = setTimeout(drivePreGen, 0);
+  };
+  var startPreGen = function startPreGen(lvlId) {
+    var slot = preGenRef.current;
+    if (slot.key === lvlId && (slot.job || slot.puzzle)) return;
+    if (slot.timer) clearTimeout(slot.timer);
+    var def = LEVELS.find(function (l) {
+      return l.id === lvlId;
+    });if (!def) return;
+    preGenRef.current = { key: lvlId, job: HASHI_PUZZLE.createUniqueJob(def), puzzle: null, timer: null };
+    preGenStats().jobs++;
+    preGenRef.current.timer = setTimeout(drivePreGen, 0);
+  };
+  if (typeof window !== 'undefined') window.__HASHI_PREGEN_SLOT = function () {
+    var sl = preGenRef.current;return { key: sl.key, hasPuzzle: !!sl.puzzle, hasJob: !!sl.job };
+  }; // 測試/稽核探針
+  var invalidatePreGen = function invalidatePreGen() {
+    var slot = preGenRef.current;if (slot.timer) clearTimeout(slot.timer);preGenRef.current = { key: null, job: null, puzzle: null, timer: null };
+  };
+  useEffect(function () {
+    // 閒置觸發＋組合變更作廢；回主畫面（完賽/離局）自動為同組合補生（slot 已消耗時）
+    if (!preGenContextOk()) return;
+    if (!preGenEligible(currentLevelId)) {
+      invalidatePreGen();return;
+    }
+    if (preGenRef.current.key !== currentLevelId) invalidatePreGen();
+    var t = setTimeout(function () {
+      if (preGenContextOk()) startPreGen(currentLevelId);
+    }, 1500);
+    return function () {
+      return clearTimeout(t);
+    };
+  }, [screen, currentLevelId, showSettingsModal]);
+  // 分片跑完一個 job（單機 miss／房主開局共用）：片長 ≤40ms、PlatGenerating 逾 300ms 顯示、放棄以 token 作廢待套用
+  var genRunRef = useRef(0);
+  var runJobToCompletion = function runJobToCompletion(job, key, onDone, onAbort) {
+    var token = ++genRunRef.current;
+    if (typeof window !== 'undefined' && window.PlatGenerating) window.PlatGenerating.begin(key, function () {
+      if (genRunRef.current === token) {
+        genRunRef.current++;if (onAbort) onAbort();
+      }
+    });
+    var slice = function slice() {
+      if (genRunRef.current !== token) return;
+      var t0 = performance.now();
+      var done = false;
+      while (performance.now() - t0 < 40) {
+        if (job.step()) {
+          done = true;break;
+        }
+      }
+      if (done) {
+        if (typeof window !== 'undefined' && window.PlatGenerating) window.PlatGenerating.end();onDone(job.result());return;
+      }
+      setTimeout(slice, 0);
+    };
+    setTimeout(slice, 0);
+  };
+  var hostGenAbort = function hostGenAbort() {
+    if (typeof window !== 'undefined' && window.__PLAT_NOTIFY) window.__PLAT_NOTIFY('game-exit');
+  }; // 房主放棄＝不發 INIT/RACE_START、全員回房間頁（房間不變）
+
   var handleLevelChange = function handleLevelChange(newLevelId) {
     if (isDailyModeRef.current) return;
     if (engineRef.current !== 'none' && !isHostRef.current) return;
@@ -14527,15 +14778,30 @@ function HashiGame() {
         setIsGenerating(false);
         return;
       }
-      var newRandomData = HASHI_PUZZLE.generateUniqueHashi(targetLevelDef);
-      var empty = HASHI_PUZZLE.generateEmptyBridges(newRandomData);
-      syncState({ levelId: newLevelId, randomLevelData: newRandomData, bridges: empty, strokes: [], showSolution: false, startTime: Date.now() });
-      setIsWon(false);setHistory([]);setEndTime(null);
-      resetWinMeta();
-      setBoardFadeKey(function (k) {
-        return k + 1;
-      });scheduleFitZoom();
-      setIsGenerating(false);
+      var applyData = function applyData(newRandomData) {
+        var empty = HASHI_PUZZLE.generateEmptyBridges(newRandomData);
+        syncState({ levelId: newLevelId, randomLevelData: newRandomData, bridges: empty, strokes: [], showSolution: false, startTime: Date.now() });
+        setIsWon(false);setHistory([]);setEndTime(null);
+        resetWinMeta();
+        setBoardFadeKey(function (k) {
+          return k + 1;
+        });scheduleFitZoom();
+        setIsGenerating(false);
+      };
+      var abort = function abort() {
+        setIsGenerating(false);if (engineRef.current !== 'none') hostGenAbort();
+      };
+      if (engineRef.current === 'none') {
+        // 單機：先吃預生成快取（多人永不吃、永遠現生）
+        var slot = preGenRef.current;
+        if (slot.key === newLevelId && slot.puzzle) {
+          var data = slot.puzzle;invalidatePreGen();preGenStats().hits++;applyData(data);return;
+        }
+        if (slot.key === newLevelId && slot.job) {
+          var job = slot.job;if (slot.timer) clearTimeout(slot.timer);preGenRef.current = { key: null, job: null, puzzle: null, timer: null };preGenStats().hits++;runJobToCompletion(job, 'hashi-gen', applyData, abort);return;
+        }
+      }
+      runJobToCompletion(HASHI_PUZZLE.createUniqueJob(targetLevelDef), 'hashi-gen', applyData, abort);
     }, 100);
   };
 
@@ -15069,9 +15335,10 @@ function HashiGame() {
             }) || null;
             if (coopDef) setTimeout(function () {
               if (!isHostRef.current) return;
-              var data = HASHI_PUZZLE.generateUniqueHashi(coopDef);
-              var empty = HASHI_PUZZLE.generateEmptyBridges(data);
-              syncState({ levelId: coopDef.id, randomLevelData: data, bridges: empty, strokes: [], showSolution: false, startTime: Date.now() });
+              runJobToCompletion(HASHI_PUZZLE.createUniqueJob(coopDef), 'hashi-coop', function (data) {
+                var empty = HASHI_PUZZLE.generateEmptyBridges(data);
+                syncState({ levelId: coopDef.id, randomLevelData: data, bridges: empty, strokes: [], showSolution: false, startTime: Date.now() });
+              }, hostGenAbort);
             }, 250);
           }
         } else if (sess.tourn && sess.isHost) {
@@ -15768,17 +16035,18 @@ function HashiGame() {
     }) || LEVELS[1];
     var cdims = st.sizeId === 'custom' && customDimsRef.current ? customDimsRef.current : null;
     var targetLevelDef = { id: def.id, name: def.name, width: cdims ? cdims.w : def.width, height: cdims ? cdims.h : def.height, description: "🏁 大亂鬥專用題目，祝好運！" };
-    var newRandomData = HASHI_PUZZLE.generateUniqueHashi(targetLevelDef);
-    var empty = HASHI_PUZZLE.generateEmptyBridges(newRandomData);
-    var startAt = Date.now() + 3500;
-    var payload = { randomLevelData: newRandomData, bridges: empty, levelId: def.id, showSolution: false, startTime: startAt, strokes: [] };
-    var racersIds = racers.map(function (p) {
-      return p.id;
-    });
-    connsRef.current.forEach(function (c) {
-      if (c.open) c.send({ type: 'RACE_START', data: payload, startAt: startAt, racers: racersIds, settings: st });
-    });
-    beginRace(payload, startAt, racersIds, st);
+    runJobToCompletion(HASHI_PUZZLE.createUniqueJob(targetLevelDef), 'hashi-race', function (newRandomData) {
+      var empty = HASHI_PUZZLE.generateEmptyBridges(newRandomData);
+      var startAt = Date.now() + 3500;
+      var payload = { randomLevelData: newRandomData, bridges: empty, levelId: def.id, showSolution: false, startTime: startAt, strokes: [] };
+      var racersIds = racers.map(function (p) {
+        return p.id;
+      });
+      connsRef.current.forEach(function (c) {
+        if (c.open) c.send({ type: 'RACE_START', data: payload, startAt: startAt, racers: racersIds, settings: st });
+      });
+      beginRace(payload, startAt, racersIds, st);
+    }, hostGenAbort);
   };
 
   // 回等待室（房主廣播全員；來賓收到 TO_LOBBY 也走這支本地版）
@@ -26969,6 +27237,61 @@ ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createEl
         } catch (e) {} }, // v1.53.0：Roll 換位（下滾入＋spring 落定）後接呼吸脈衝；v1.65.5 補倒數音
       hide: function () { if (el) el.style.display = 'none'; if (cdArmed) { cdArmed = false; try { if (window.PlatAudio) window.PlatAudio.play('go'); } catch (e) {} } cdLast = null; },
       _visible: function () { return !!(el && el.style.display === 'flex'); }
+    };
+  })();
+
+  // ---------- 共用出題等待提示 PlatGenerating（v1.66.0 乙・D2 裁決）：開局生成逾 300ms 未就緒才顯示的小晶片 ----------
+  // 落點：畫面頂部中央（倒數/結算在其後、不與底部 Toast 佇列與置中聊天面板打架、不推移版面）；就緒即退場；滿 5 秒出「返回」可乾淨放棄本次開局（onAbort 由呼叫端定義：單機＝取消待套用、房主＝不發 INIT 並全員回房間頁）。
+  window.PlatGenerating = (function () {
+    var el = null, secEl = null, btnEl = null, cur = null;
+    function ensure() {
+      if (el) return;
+      el = document.createElement('div');
+      el.id = 'plat-generating';
+      el.style.cssText = 'position:fixed;top:calc(env(safe-area-inset-top,0px) + 58px);left:50%;transform:translateX(-50%);z-index:340;display:none;align-items:center;gap:8px;background:rgba(15,23,42,.92);color:#fff;border:2px solid rgba(255,255,255,.35);border-radius:999px;padding:7px 14px;font-weight:900;font-size:.85rem;box-shadow:0 6px 24px rgba(15,23,42,.35);white-space:nowrap';
+      var dot = document.createElement('span');
+      dot.style.cssText = 'width:9px;height:9px;border-radius:99px;background:#fbbf24;display:inline-block;animation:platCountPulse .5s ease-in-out infinite alternate';
+      var tx = document.createElement('span'); tx.textContent = '出題中…';
+      secEl = document.createElement('span'); secEl.style.cssText = 'font-family:monospace;opacity:.85;min-width:2.2em;text-align:left'; secEl.textContent = '0s';
+      btnEl = document.createElement('button');
+      btnEl.textContent = '返回';
+      btnEl.style.cssText = 'display:none;background:#f87171;color:#0f172a;border:2px solid #fff;border-radius:999px;padding:2px 12px;font-weight:900;font-size:.8rem;cursor:pointer';
+      btnEl.addEventListener('click', function () { var c = cur; end(); if (c && c.onAbort) { try { c.onAbort(); } catch (e) {} } });
+      el.appendChild(dot); el.appendChild(tx); el.appendChild(secEl); el.appendChild(btnEl);
+      document.body.appendChild(el);
+    }
+    function show() {
+      if (!cur) return;
+      ensure();
+      el.style.display = 'flex';
+      el.style.animation = ''; el.classList.remove('plat-gen-in'); void el.offsetWidth; el.classList.add('plat-gen-in');
+      tick();
+    }
+    function tick() {
+      if (!cur || el.style.display === 'none') return;
+      var secs = Math.floor((Date.now() - cur.t0) / 1000);
+      secEl.textContent = secs + 's';
+      if (secs >= 5 && cur.onAbort) btnEl.style.display = 'inline-block';
+    }
+    function begin(key, onAbort) {
+      if (cur && cur.key === key) return;
+      end();
+      cur = { key: key, onAbort: onAbort || null, t0: Date.now(), showTimer: null, tickTimer: null };
+      cur.showTimer = setTimeout(show, 300);
+      cur.tickTimer = setInterval(tick, 250);
+    }
+    function end() {
+      if (!cur) { if (el) el.style.display = 'none'; return; }
+      if (cur.showTimer) clearTimeout(cur.showTimer);
+      if (cur.tickTimer) clearInterval(cur.tickTimer);
+      cur = null;
+      if (el) { el.style.display = 'none'; btnEl.style.display = 'none'; }
+    }
+    return {
+      begin: begin,
+      end: end,
+      _visible: function () { return !!(el && el.style.display === 'flex'); },
+      _abort: function () { if (btnEl && cur) btnEl.click(); } // 測試/稽核用：等同按下返回
     };
   })();
 

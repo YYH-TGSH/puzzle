@@ -104,7 +104,7 @@ function countSolutions(grid, size, boxW, boxH, limit = 2, budget = null) {
 }
 
 function shuffleRng(arr, rng) { for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); const t = arr[i]; arr[i] = arr[j]; arr[j] = t; } return arr; } // Fisher-Yates（稽核 D-04：取代有偏的 sort 隨機比較器；rng 可注入種子版，跨引擎結果一致）
-async function generateSudokuAsync(sizeId, diffId, onProgress, rng) {
+async function generateSudokuAsync(sizeId, diffId, onProgress, rng, abortRef) { // abortRef（v1.66.0 預生成專用）：{aborted:true} 時在下一個讓出點中止並回 null；不傳＝既有行為逐字不變
     rng = rng || Math.random; // 每日題傳入種子 rng（稽核 D-02：不再覆寫全域 Math.random，避免非同步生成期間污染其他呼叫端）
     const sizeDef = SIZES.find(s => s.id === sizeId);
     const diffDef = DIFFICULTIES.find(d => d.id === diffId);
@@ -121,6 +121,7 @@ async function generateSudokuAsync(sizeId, diffId, onProgress, rng) {
     let isTimedOut = false; let lastTick = 0;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        if (abortRef && abortRef.aborted) return null;
         if (isTimedOut) break;
         // 16×16 單次嘗試上限 8 秒：挖到高原期（怎麼挖都破壞唯一解）就換新盤重挖，別把全域 30 秒磨在一張盤上
         const attemptDeadline = Date.now() + 8000;
@@ -180,7 +181,7 @@ async function generateSudokuAsync(sizeId, diffId, onProgress, rng) {
                 }
                 if (currentClues <= targetMax && failCount > 25) break;
             }
-            if (size === 16 || i % 15 === 0) await new Promise(r => setTimeout(r, 0));
+            if (size === 16 || i % 15 === 0) { await new Promise(r => setTimeout(r, 0)); if (abortRef && abortRef.aborted) return null; }
         }
         if (currentClues <= targetMax || isTimedOut) break;
     }

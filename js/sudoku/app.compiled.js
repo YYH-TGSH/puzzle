@@ -4645,9 +4645,106 @@ function SudokuGame() {
       return _ref9.apply(this, arguments);
     };
   }();
+
+  // ===== 背景預生成（v1.66.0 甲・D2 裁決）：僅單機、非對局畫面閒置 ≥1.5s 為當前 版型×難度 預生一題（記憶體一格、不落盤）=====
+  // 產生器本來就是 async 分片（逐洞 await 讓出）；預生成 promise 以 abortRef 守衛：任何開局/進對局即中止（下一個讓出點生效）、不與對局搶主執行緒。
+  var preGenRef = useRef({
+    key: null,
+    result: null,
+    promise: null,
+    abortRef: null
+  });
+  var genTokenRef = useRef(0);
+  var sudokuPreGenStats = function sudokuPreGenStats() {
+    return typeof window !== 'undefined' && window.__SUDOKU_PREGEN_STATS || (window.__SUDOKU_PREGEN_STATS = {
+      jobs: 0,
+      hits: 0,
+      aborts: 0
+    });
+  };
+  var preGenContextOk = function preGenContextOk() {
+    return engineRef.current !== 'peerjs' && !platHubRef.current && !(typeof window !== 'undefined' && window.__PLAT_NET && window.__PLAT_NET.inMatch) && (screenRef.current === 'home' || screenRef.current === 'game' && stateRef.current.matchPhase === 'waiting');
+  };
+  var startPreGen = function startPreGen(sId, dId) {
+    var key = sId + 'x' + dId;
+    var slot = preGenRef.current;
+    if (slot.key === key && (slot.result || slot.promise)) return;
+    if (slot.abortRef) slot.abortRef.aborted = true;
+    var abortRef = {
+      aborted: false
+    };
+    var promise = generateSudokuAsync(sId, dId, null, undefined, abortRef);
+    preGenRef.current = {
+      key: key,
+      result: null,
+      promise: promise,
+      abortRef: abortRef
+    };
+    sudokuPreGenStats().jobs++;
+    promise.then(function (r) {
+      if (preGenRef.current.promise === promise) {
+        preGenRef.current.result = r;
+        preGenRef.current.promise = null;
+      }
+    });
+  };
+  if (typeof window !== 'undefined') window.__SUDOKU_PREGEN_SLOT = function () {
+    var sl = preGenRef.current;
+    return {
+      key: sl.key,
+      hasResult: !!sl.result,
+      hasPromise: !!sl.promise
+    };
+  }; // 測試/稽核探針
+  var abortPreGen = function abortPreGen() {
+    var slot = preGenRef.current;
+    if (slot.abortRef && slot.promise) {
+      slot.abortRef.aborted = true;
+      sudokuPreGenStats().aborts++;
+    }
+    preGenRef.current = {
+      key: null,
+      result: null,
+      promise: null,
+      abortRef: null
+    };
+  };
+  useEffect(function () {
+    // 閒置觸發＋組合變更作廢；離開 context（進對局/切去別款）即中止在飛的預生成
+    if (!preGenContextOk()) {
+      if (preGenRef.current.promise) abortPreGen();
+      return;
+    }
+    var key = sizeId + 'x' + diffId;
+    if (preGenRef.current.key !== key) abortPreGen();
+    var t = setTimeout(function () {
+      if (preGenContextOk()) startPreGen(sizeId, diffId);
+    }, 1500);
+    return function () {
+      return clearTimeout(t);
+    };
+  }, [screen, sizeId, diffId, matchPhase]);
   var generateAndSync = function generateAndSync(sId, dId, nextMode) {
     var skipLobby = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : false;
     if (isAutoFillingRef.current) return;
+    var adoptedPreGen = null; // 同步認領預生成快取：必須在 preamble 改 phase 前完成——phase 一變，閒置守衛 effect 就會中止在飛的預生成（認領後它就是本局自己的生成）
+    if (engineRef.current !== 'peerjs' && !platHubRef.current) {
+      var key0 = sId + 'x' + dId;
+      var slot0 = preGenRef.current;
+      if (slot0.key === key0 && (slot0.result || slot0.promise)) {
+        adoptedPreGen = {
+          result: slot0.result,
+          promise: slot0.promise
+        };
+        preGenRef.current = {
+          key: null,
+          result: null,
+          promise: null,
+          abortRef: null
+        };
+        sudokuPreGenStats().hits++;
+      }
+    }
     setIsGenerating(true);
     setWinner(null);
     isWinnerDeclaredRef.current = false;
@@ -4698,38 +4795,75 @@ function SudokuGame() {
       });
       return nList;
     });
-    setTimeout(function () {
-      generateSudokuAsync(sId, dId, setGenProgress).then(function (newData) {
-        var solution = null;
-        if (isGR) solution = getSolutionGrid(newData.cells, newData.sizeDef);
-        var initLocalCells = JSON.parse(JSON.stringify(newData.cells));
+    var myToken = ++genTokenRef.current;
+    var applyGenData = function applyGenData(newData) {
+      var solution = null;
+      if (isGR) solution = getSolutionGrid(newData.cells, newData.sizeDef);
+      var initLocalCells = JSON.parse(JSON.stringify(newData.cells));
+      syncState({
+        sizeId: sId,
+        diffId: dId,
+        levelData: newData,
+        cells: initLocalCells,
+        localCells: initLocalCells,
+        strokes: [],
+        startTime: Date.now(),
+        isBrawlMode: isBrawl,
+        winner: null,
+        matchEndTime: null,
+        solutionGrid: solution,
+        isGenerating: false,
+        selectedChar: null,
+        keyMapping: newData.sizeDef.chars,
+        finishViewMode: 'my'
+      }, true);
+      setIsWon(false);
+      setHistory([]);
+      if (sId !== sizeId) {
+        setZoomLevel(1);
+        setZoomModeIdx(0);
+      }
+      setEndTime(null);
+      setHideVictoryModal(false);
+      setSelectedChar(null);
+      setGenProgress("");
+    };
+    var abortCurrentGen = function abortCurrentGen() {
+      // PlatGenerating 返回：作廢待套用（單機回設定 modal；房主不發 INIT 並全員回房間頁、房間不變）
+      genTokenRef.current++;
+      if (typeof window !== 'undefined' && window.PlatGenerating) window.PlatGenerating.end();
+      setGenProgress("");
+      if (engineRef.current === 'peerjs') {
         syncState({
-          sizeId: sId,
-          diffId: dId,
-          levelData: newData,
-          cells: initLocalCells,
-          localCells: initLocalCells,
-          strokes: [],
-          startTime: Date.now(),
-          isBrawlMode: isBrawl,
-          winner: null,
-          matchEndTime: null,
-          solutionGrid: solution,
-          isGenerating: false,
-          selectedChar: null,
-          keyMapping: newData.sizeDef.chars,
-          finishViewMode: 'my'
+          isGenerating: false
         }, true);
-        setIsWon(false);
-        setHistory([]);
-        if (sId !== sizeId) {
-          setZoomLevel(1);
-          setZoomModeIdx(0);
+        if (typeof window !== 'undefined' && window.__PLAT_NOTIFY) window.__PLAT_NOTIFY('game-exit');
+      } else syncState({
+        isGenerating: false,
+        matchPhase: 'waiting'
+      }, true);
+    };
+    setTimeout(function () {
+      if (genTokenRef.current !== myToken) return;
+      if (adoptedPreGen) {
+        // 單機快取消費（多人/每日永不吃——認領只發生在 engine none 且非 hub）
+        if (adoptedPreGen.result) {
+          applyGenData(adoptedPreGen.result);
+          return;
         }
-        setEndTime(null);
-        setHideVictoryModal(false);
-        setSelectedChar(null);
-        setGenProgress("");
+        if (typeof window !== 'undefined' && window.PlatGenerating) window.PlatGenerating.begin('sudoku-gen', abortCurrentGen);
+        adoptedPreGen.promise.then(function (data) {
+          if (typeof window !== 'undefined' && window.PlatGenerating) window.PlatGenerating.end();
+          if (genTokenRef.current !== myToken || !data) return;
+          applyGenData(data);
+        });
+        return;
+      }
+      if (typeof window !== 'undefined' && window.PlatGenerating) window.PlatGenerating.begin(engineRef.current === 'peerjs' ? 'sudoku-host' : 'sudoku-gen', abortCurrentGen);
+      generateSudokuAsync(sId, dId, setGenProgress).then(function (newData) {
+        if (typeof window !== 'undefined' && window.PlatGenerating) window.PlatGenerating.end();
+        if (genTokenRef.current !== myToken) return;
+        applyGenData(newData);
       });
     }, 100);
   };
