@@ -660,8 +660,7 @@ function MinesGame() {
 
   function onCellAction(idx) {
     if (lpFiredRef.current) { lpFiredRef.current = false; return; } // 這次 click 是長按插旗的尾巴
-    var lc = lpCellRef.current; lpCellRef.current = null;
-    if (lc && lc.idx !== idx && Date.now() - lc.t < 800) return; // 按壓起點不在這格：手指滑移/畫面微捲讓 click 落到鄰格（常見是旗那格）→ 整下忽略，旗不會被誤取消
+    // （舊「click 落點≠按下格」lc 守衛已移除：onCellUp 結算前即清空 lpCellRef、此處永遠讀到 null 的死碼——跨格尾隨 click 由 onCellUp 的全域抑制窗處理，v1.66.1）
     if (mpRef.current.on) {
       if (mpRef.current.phase !== 'playing' || iAmSpecRef.current || !cells) return;
       if (mpRef.current.mode === 'coop') {
@@ -671,7 +670,7 @@ function MinesGame() {
         if (cells[idx] === 'o') { // 合作和弦：把鄰格挖開拆成單格動作依序送出（房主定序，踩雷後後續的會被擋下）
           if (!nums || nums[idx] <= 0) return;
           var sp2 = specRef.current, nb2 = neighborsOf(sp2.w, sp2.h, idx), f2 = 0, j2;
-          for (j2 = 0; j2 < nb2.length; j2++) if (cells[nb2[j2]] === 'f') f2++;
+          for (j2 = 0; j2 < nb2.length; j2++) if (cells[nb2[j2]] === 'f' || cells[nb2[j2]] === 'L' || cells[nb2[j2]] === 'x') f2++; // 對齊單機/競速 chord：鎖定旗與容錯 ✗ 也算已知雷（v1.66.1）
           if (f2 !== nums[idx]) return;
           for (j2 = 0; j2 < nb2.length; j2++) if (cells[nb2[j2]] === 'h') mpSendAct('reveal', nb2[j2]);
           return;
@@ -739,7 +738,7 @@ function MinesGame() {
       var res = upTrk.up(e.clientX, e.clientY, Date.now());
       if (res.type !== 'tap') return;
     } else if (upTrk) upTrk.cancel();
-    supTrk().markSuppress(Date.now(), lc.idx);
+    supTrk().markSuppress(Date.now()); // 不帶 tag（v1.66.1）：放開點偏進鄰格時尾隨 click 落在別格也要吞——帶 tag 只吞同格，跨格 click 會對旗子格再執行一次完整動作（拔旗/誤挖）；比照數獨全域窗
     onCellAction(lc.idx);
   }
   function onCellCancel() { if (lpRef.current) { clearTimeout(lpRef.current); lpRef.current = null; } lpPtRef.current = null; downPtRef.current = null; lpCellRef.current = null; if (cellTrkRef.current) { cellTrkRef.current.cancel(); cellTrkRef.current = null; } } // pointercancel：瀏覽器接管手勢（捲動）→ 整下作廢；tracker 只清本次、不污染下次基準
