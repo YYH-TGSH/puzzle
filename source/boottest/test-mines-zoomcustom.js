@@ -46,9 +46,9 @@ async function soloPart() {
   let snap = dbg(P);
   ok(snap && snap.sizeId === 'custom', 'sizeId = custom', snap && String(snap.sizeId));
   ok(snap && snap.layout && snap.layout.filter(Boolean).length === 20, '雷數 = 20');
-  ok([...d.querySelectorAll('#mines-root span')].some(s => s.textContent.includes('12×10・20 雷')), '頂欄規格標籤顯示 12×10・20 雷');
-  let saved = null; try { saved = JSON.parse(w.localStorage.getItem('mines_custom_cfg') || 'null'); } catch (e) {}
-  ok(saved && saved.w === 12 && saved.h === 10 && saved.mines === 20, '自訂設定已持久化', JSON.stringify(saved));
+  ok([...d.querySelectorAll('#mines-root span, #mines-root button')].some(s => s.textContent.includes('12×10・20 雷')), '頂欄規格標籤顯示 12×10・20 雷'); // 單機時標籤是設定 button（非 span），選擇器須含 button
+  let saved = null; try { saved = w.PlatSave.read('mines_custom_cfg', { fallback: null }); } catch (e) {}
+  ok(saved && saved.w === 12 && saved.h === 10 && saved.mines === 20, '自訂設定已持久化', JSON.stringify(saved)); // 走 PlatSave.read 解 envelope（同 test-mines-solo 診斷，2026-11-15）
 
   // --- PlatBar 縮放（左下角，本次修復主角） ---
   const cellW = () => parseFloat((cellEls()[0] && cellEls()[0].style.width) || '0');

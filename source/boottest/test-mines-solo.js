@@ -187,9 +187,10 @@ async function main() {
     cellEls()[t].click(); await new Promise(r => setTimeout(r, 12));
   }
   ok(dbg() && dbg().status === 'won', '每日一題完成');
-  const rec = JSON.parse(w.localStorage.getItem('mines_daily_records') || '{}');
+  // 讀法須走遊戲自己的 PlatSave.read（S1 起落盤是 envelope {__psv,t,data}；裸 JSON.parse 讀到的是外殼、值在 .data 裡——2026-11-15 診斷定案：產品寫入正確、舊測試裸讀法自 v1.62.0 起脫節）
+  const rec = w.PlatSave.read('mines_daily_records', { fallback: {} });
   ok(typeof rec[today] === 'number', '今日紀錄寫入（' + rec[today] + ' 秒）');
-  const streak = JSON.parse(w.localStorage.getItem('mines_daily_streak') || '{}');
+  const streak = w.PlatSave.read('mines_daily_streak', { fallback: { last: '', count: 0 } });
   ok(streak.last === today && streak.count >= 1, '連勝紀錄（' + streak.count + ' 天）');
   ok(clickBtn(b => b.textContent.includes('回主選單'), d.querySelector('#mines-root')), '每日後回主選單');
   await waitFor(() => d.querySelector('#mines-root h1'), 5000, 'home4');
