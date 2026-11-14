@@ -1935,7 +1935,7 @@ function MinesGame() {
             </div>
           </div>
           <div className="flex items-center justify-between gap-2 w-full">
-            {mpOn ? (<span className="bg-white px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] whitespace-nowrap shrink-0">⚙️ {spec.name}・{spec.mines} 雷</span>) : (<button onClick={() => setShowSettingsModal(true)} title="設定盤面（換大小重開）" className="plat-btn-hard plat-btn-hard-1 bg-white px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] whitespace-nowrap shrink-0">⚙️ {spec.name}・{spec.mines} 雷 ▾</button>)}
+            {mpOn ? (<span className="bg-white px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] whitespace-nowrap shrink-0">⚙️ {spec.short}・{spec.mines} 雷</span>) : (<button onClick={() => setShowSettingsModal(true)} title="設定盤面（換大小重開）" className="plat-btn-hard plat-btn-hard-1 bg-white px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] whitespace-nowrap shrink-0">⚙️ {spec.short}・{spec.mines} 雷 ▾</button>)}
             <div className="flex gap-1 items-center shrink-0">
               <button onClick={() => setZoomOpen(!zoomOpen)} className={hbtn} title="調整盤面大小（比照數獨的縮放）">🔍{zoom > 1 && (<span className="ml-0.5 text-[10px]">{Math.round(zoom * 100)}%</span>)}</button>
               <span className={"plat-collapse-x" + (zoomOpen ? " open" : "")}><span className="flex gap-1 items-center whitespace-nowrap">

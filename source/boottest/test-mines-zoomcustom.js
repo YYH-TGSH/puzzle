@@ -46,7 +46,7 @@ async function soloPart() {
   let snap = dbg(P);
   ok(snap && snap.sizeId === 'custom', 'sizeId = custom', snap && String(snap.sizeId));
   ok(snap && snap.layout && snap.layout.filter(Boolean).length === 20, '雷數 = 20');
-  ok([...d.querySelectorAll('#mines-root span, #mines-root button')].some(s => s.textContent.includes('12×10・20 雷')), '頂欄規格標籤顯示 12×10・20 雷'); // 單機時標籤是設定 button（非 span），選擇器須含 button
+  ok([...d.querySelectorAll('#mines-root span, #mines-root button')].some(s => { const t = s.textContent || ''; return t.includes('12×10・20 雷') && (t.match(/雷/g) || []).length === 1; }), '頂欄規格標籤顯示 12×10・20 雷（雷數只印一次）'); // 單機時標籤是設定 button（非 span），選擇器須含 button；v1.66.2 雷數不得重複印
   let saved = null; try { saved = w.PlatSave.read('mines_custom_cfg', { fallback: null }); } catch (e) {}
   ok(saved && saved.w === 12 && saved.h === 10 && saved.mines === 20, '自訂設定已持久化', JSON.stringify(saved)); // 走 PlatSave.read 解 envelope（同 test-mines-solo 診斷，2026-11-15）
 

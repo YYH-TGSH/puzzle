@@ -41,6 +41,8 @@ async function main() {
 
   const clickBtn = (pred, scope) => { const b = [...(scope || d).querySelectorAll('button')].find(pred); if (b) { b.click(); return true; } return false; };
   const cellEls = () => [...d.querySelectorAll('#mines-root button[data-cell]')];
+  const specLabel = () => { const el = [...d.querySelectorAll('#mines-root span, #mines-root button')].find(e => (e.textContent || '').includes('⚙️')); return el ? (el.textContent || '').trim() : ''; };
+  const labelOk = (want) => { const t = specLabel(); return t.includes(want) && (t.match(/雷/g) || []).length === 1; }; // v1.66.2：雷數只印一次
 
   // --- 主畫面同款結構：四顆鈕、難度不在主畫面 ---
   const homeTexts = [...d.querySelectorAll('#mines-root button')].map(b => b.textContent);
@@ -65,6 +67,7 @@ async function main() {
   await new Promise(r => setTimeout(r, 250));
   ok(clickBtn(b => b.textContent.includes('9×9'), d.querySelector('#mines-root')), '難度頁點 9×9');
   ok(!!(await waitFor(() => cellEls().length === 81, 15000, '81 cells')), '9×9 盤面 81 格');
+  ok(labelOk('9×9・10 雷'), '頂欄標籤 9×9・10 雷（雷數只印一次）: ' + specLabel());
   ok(!!(await waitFor(() => d.querySelector('#mines-root [data-pb="mode-press"]'), 10000, 'bar on game')), '對局畫面有底部列（模式鈕）');
   ok([...d.querySelectorAll('#mines-root button')].some(b => b.textContent.includes('🔊') || b.textContent.includes('🔇')), '對局畫面頂欄有靜音鈕');
   let snap = dbg();
@@ -161,6 +164,7 @@ async function main() {
   await new Promise(r => setTimeout(r, 250));
   ok(clickBtn(b => b.textContent.includes('16×16'), d.querySelector('#mines-root')), '難度頁點 16×16');
   ok(!!(await waitFor(() => cellEls().length === 256, 15000, '256 cells')), '16×16 盤面 256 格');
+  ok(labelOk('16×16・40 雷'), '頂欄標籤 16×16・40 雷（雷數只印一次）: ' + specLabel());
   snap = dbg();
   ok(snap && snap.layout.filter(Boolean).length === 40, '16×16 雷數 = 40');
 
@@ -179,6 +183,7 @@ async function main() {
   ok(clickBtn(b => b.textContent.includes('關閉'), d.querySelector('#plat-calendar')), '關月曆');
   ok(clickBtn(b => b.textContent.includes('每日一題'), d.querySelector('#mines-root')), '點每日一題開局');
   ok(!!(await waitFor(() => cellEls().length === 81, 15000, 'daily cells')), '每日一題 9×9 盤面');
+  ok(labelOk('9×9・10 雷'), '每日一題頂欄標籤 9×9・10 雷（雷數只印一次）: ' + specLabel());
   // 逐格重讀盤面點安全格（不可用整批舊快照：第一下整圈保護會搬雷，舊快照會踩到剛搬走的雷——AGENTS.md 測試假象備註）
   for (let step = 0; step < 90; step++) {
     snap = dbg(); if (!snap || snap.status === 'won' || snap.status === 'lost') break;

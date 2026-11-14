@@ -4754,13 +4754,13 @@ function MinesGame() {
     className: "flex items-center justify-between gap-2 w-full"
   }, mpOn ? /*#__PURE__*/React.createElement("span", {
     className: "bg-white px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] whitespace-nowrap shrink-0"
-  }, "\u2699\uFE0F ", spec.name, "\u30FB", spec.mines, " \u96F7") : /*#__PURE__*/React.createElement("button", {
+  }, "\u2699\uFE0F ", spec["short"], "\u30FB", spec.mines, " \u96F7") : /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       return setShowSettingsModal(true);
     },
     title: "\u8A2D\u5B9A\u76E4\u9762\uFF08\u63DB\u5927\u5C0F\u91CD\u958B\uFF09",
     className: "plat-btn-hard plat-btn-hard-1 bg-white px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] whitespace-nowrap shrink-0"
-  }, "\u2699\uFE0F ", spec.name, "\u30FB", spec.mines, " \u96F7 \u25BE"), /*#__PURE__*/React.createElement("div", {
+  }, "\u2699\uFE0F ", spec["short"], "\u30FB", spec.mines, " \u96F7 \u25BE"), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-1 items-center shrink-0"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
