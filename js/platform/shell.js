@@ -144,7 +144,7 @@
       var N2 = window.__PLAT_NET;
       if (N2 && N2.active) {
         var fromView = document.body.getAttribute('data-view');
-        if ((fromView === 'sudoku' || fromView === 'hashi' || fromView === 'mines') && !N2.inMatch) N2.armed.game = fromView; // 從哪款按多人連線，房間頁就先停在那款的分頁
+        if ((fromView === 'sudoku' || fromView === 'hashi' || fromView === 'mines' || fromView === 'akari') && !N2.inMatch) N2.armed.game = fromView; // 從哪款按多人連線，房間頁就先停在那款的分頁
         if (N2.inMatch) { window.PLAT_show(N2.inMatch); return; }
         if (window.__PLAT_SHOW_HUB) { window.__PLAT_SHOW_HUB(); return; }
       }
@@ -178,7 +178,7 @@
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.67.0';
+  var PLAT_VERSION = '1.68.0';
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -401,7 +401,7 @@
   }
   var Net = {
     active: false, isHost: false, code: '', peer: null, myPid: '', hostPid: '', myUid: '', timeOffset: 0, // 來賓端估計的「房主時鐘 − 本地時鐘」毫秒差（D-05），房主恆 0
-    armed: { game: (function () { try { var g = localStorage.getItem('plat_armed_game'); return (g === 'hashi' || g === 'sudoku' || g === 'mines') ? g : 'sudoku'; } catch (e) { return 'sudoku'; } })(), mode: 'coop' }, armedByGame: { sudoku: 'coop', hashi: 'coop', mines: 'coop' }, roomTab: 'sudoku',
+    armed: { game: (function () { try { var g = localStorage.getItem('plat_armed_game'); return (g === 'hashi' || g === 'sudoku' || g === 'mines' || g === 'akari') ? g : 'sudoku'; } catch (e) { return 'sudoku'; } })(), mode: 'coop' }, armedByGame: { sudoku: 'coop', hashi: 'coop', mines: 'coop', akari: 'race' }, roomTab: 'sudoku',
     me: { name: '', color: PLAT_COLORS[2] },
     roster: [], conns: {}, gamePeer: null, inMatch: null, liveMatch: null, // liveMatch: 房主權威的「本房有對局進行中」快照 {game, mode, players:[uid], tourn}——回房間頁的選手靠它看到回到對局鈕
     lastSeen: {}, hostSeen: 0, _lastPing: 0, _hostWarned: false,
@@ -1013,11 +1013,13 @@
   var HUB_DIFFS = [{ id: 'easy', name: '🟢 簡單' }, { id: 'medium', name: '🟡 普通' }, { id: 'hard', name: '🔴 困難' }];
   var HUB_LEVELS = [{ id: 1, name: '5x5 幼幼班' }, { id: 2, name: '10x10 標準' }, { id: 3, name: '10x20 手機直式' }, { id: 4, name: '15x15 魔王' }, { id: 5, name: '20x20 史詩' }, { id: 'custom', name: '⚙️ 自訂尺寸' }];
   var HUB_MINES_SIZES = [{ id: 9, name: '9×9・10 雷' }, { id: 16, name: '16×16・40 雷' }, { id: 'custom', name: '⚙️ 自訂盤面' }];
+  var HUB_AKARI_SIZES = [{ id: 7, name: '7×7・小' }, { id: 10, name: '10×10・中' }, { id: 12, name: '12×12・大' }];
   function hubDefaults() {
     return {
       sudoku: { mode: 'coop', sizeId: 9, diffId: 'medium', winnersCount: 3, allowWeapons: true, allowGifts: true, allowYellowHint: false, showNumbersInGodMode: false, allowOthersToPlayAgain: true, allowQuickFill: false, allowTraversal: false, weaponStartTime: 60 },
       hashi: { mode: 'coop', sizeId: 2, itemsEnabled: true, godNumbers: true, customW: 15, customH: 15 },
-      mines: { mode: 'coop', sizeId: 9, allowItems: true, itemStartTime: 60, customW: 16, customH: 16, customMines: 40 }
+      mines: { mode: 'coop', sizeId: 9, allowItems: true, itemStartTime: 60, customW: 16, customH: 16, customMines: 40 },
+      akari: { mode: 'race', sizeId: 10, allowItems: true, itemStartTime: 60 }
     };
   }
   function ensureHub() {
@@ -1028,7 +1030,7 @@
     return Net.hub;
   }
   function hubSaveCfg() { var H = ensureHub(); try { storeSet('plat_hub_cfg', JSON.stringify(H.cfg)); } catch (e) {} }
-  function hubAccent() { return Net.roomTab === 'tourn' ? '#f59e0b' : (Net.armed.game === 'hashi' ? '#4ade80' : (Net.armed.game === 'mines' ? '#f97316' : '#ffcc00')); }
+  function hubAccent() { return Net.roomTab === 'tourn' ? '#f59e0b' : (Net.armed.game === 'hashi' ? '#4ade80' : (Net.armed.game === 'mines' ? '#f97316' : (Net.armed.game === 'akari' ? '#f59e0b' : '#ffcc00'))); }
   function hubGameMode(game) { var H = ensureHub(); return H.cfg[game].mode; }
   function hubStateBroadcast() { platBroadcast({ kind: 'hubstate', ready: ensureHub().ready, spec: ensureHub().spec }); }
   function hubCfgBroadcast(game) { platBroadcast({ kind: 'hubcfg', game: game, cfg: ensureHub().cfg[game] }); }
@@ -1046,6 +1048,8 @@
     if (game === 'mines') { var wt2 = Number(c.itemStartTime); if (isNaN(wt2)) wt2 = 60; wt2 = Math.max(0, Math.min(600, wt2));
       if (String(c.sizeId) === 'custom') return { mode: c.mode, sizeId: 'custom', custom: hubMinesCustom(c), allowItems: c.allowItems !== false, itemStartTime: wt2, brawl: {} }; // 自訂盤：sizeId 保持字串 'custom'（Number() 會變 NaN 被吞成 9），規格走 custom 欄位給遊戲註冊
       return { mode: c.mode, sizeId: Number(c.sizeId) || 9, allowItems: c.allowItems !== false, itemStartTime: wt2, brawl: {} }; }
+    if (game === 'akari') { var wt3 = Number(c.itemStartTime); if (isNaN(wt3)) wt3 = 60; wt3 = Math.max(0, Math.min(600, wt3));
+      return { mode: 'race', sizeId: [7, 10, 12].indexOf(Number(c.sizeId)) >= 0 ? Number(c.sizeId) : 10, allowItems: c.allowItems !== false, itemStartTime: wt3, brawl: {} }; }
     return { mode: c.mode, sizeId: c.sizeId === 'custom' ? 'custom' : (Number(c.sizeId) || 2), customW: Math.max(5, Math.min(100, Number(c.customW) || 15)), customH: Math.max(5, Math.min(100, Number(c.customH) || 15)), brawl: { itemsEnabled: c.itemsEnabled !== false, godNumbers: c.godNumbers !== false } };
   }
   function hubRacers() { return Net.roster.slice(); } // 房間頁不分觀戰：進房的都是選手（觀戰是對局內的事）
@@ -1097,7 +1101,7 @@
   function hubModeBtns(game, mode, cur) {
     var dis = Net.isHost ? '' : ' disabled';
     var on = 'background:#1e293b;color:#fff';
-    return '<button data-hub-mode="' + mode + '" data-hub-game="' + game + '"' + dis + ' class="flex-1 px-2 py-2 rounded-lg border-2 border-slate-800 font-black text-sm" style="' + (cur === mode ? on : 'background:#f1f5f9;color:#64748b') + '">' + (mode === 'coop' ? '🤝 合作模式' : (game === 'mines' ? '⚔️ 競速模式' : '⚔️ 大亂鬥模式')) + '</button>';
+    return '<button data-hub-mode="' + mode + '" data-hub-game="' + game + '"' + dis + ' class="flex-1 px-2 py-2 rounded-lg border-2 border-slate-800 font-black text-sm" style="' + (cur === mode ? on : 'background:#f1f5f9;color:#64748b') + '">' + (mode === 'coop' ? '🤝 合作模式' : ((game === 'mines' || game === 'akari') ? '⚔️ 競速模式' : '⚔️ 大亂鬥模式')) + '</button>';
   }
   function hubSel(game, key, val, opts) {
     var dis = Net.isHost ? '' : ' disabled';
@@ -1119,7 +1123,7 @@
     var game = Net.armed.game, c = H.cfg[game] || hubDefaults()[game] || hubDefaults().sudoku;
     var h = '<div class="bg-white border-[3px] border-slate-800 rounded-xl p-4 mb-4 flex flex-col gap-2.5 text-left shadow-[4px_4px_0px_#1e293b]' + (Net.isHost ? '' : ' hub-locked') + '">'; // 來賓端反灰：hub-locked 的 CSS 把整卡控制項壓灰，一眼看出只有房主能改
     h += '<h3 class="font-black border-b-2 border-slate-100 pb-2">⚙️ 對局設定' + (Net.isHost ? '' : '（房主設定）') + '</h3>';
-    h += '<div class="flex gap-2 items-center"><span class="font-bold text-slate-500 w-10 text-sm shrink-0">模式</span>' + hubModeBtns(game, 'coop', c.mode) + hubModeBtns(game, game === 'sudoku' ? 'brawl' : 'race', c.mode) + '</div>';
+    h += '<div class="flex gap-2 items-center"><span class="font-bold text-slate-500 w-10 text-sm shrink-0">模式</span>' + (game === 'akari' ? hubModeBtns(game, 'race', 'race') : (hubModeBtns(game, 'coop', c.mode) + hubModeBtns(game, game === 'sudoku' ? 'brawl' : 'race', c.mode))) + '</div>'; // 美術燈無合作模式：只給競速鈕
     if (game === 'sudoku') {
       h += '<div class="flex gap-2 items-center"><span class="font-bold text-slate-500 w-10 text-sm shrink-0">題目</span>' + hubSel('sudoku', 'sizeId', c.sizeId, HUB_SIZES) + hubSel('sudoku', 'diffId', c.diffId, HUB_DIFFS) + '</div>';
       if (c.mode === 'brawl') {
@@ -1146,6 +1150,11 @@
         h += '<div class="text-xs font-bold text-slate-400">競速規則：同一個盤面各玩各的，最快排完的人贏；踩到雷直接出局，照當時進度排名。</div>';
       }
       else h += '<div class="text-xs font-bold text-slate-400">合作規則：共用同一個盤面一起排雷，踩到雷全隊失敗。</div>';
+    } else if (game === 'akari') {
+      h += '<div class="flex gap-2 items-center"><span class="font-bold text-slate-500 w-10 text-sm shrink-0">盤面</span>' + hubSel('akari', 'sizeId', c.sizeId, HUB_AKARI_SIZES) + '</div>';
+      h += hubChk('akari', 'allowItems', c.allowItems, '開啟道具與禮物（🎁鎖定燈禮物／⚡斷電陷阱）');
+      h += '<div class="flex gap-2 items-center"><span class="font-bold text-slate-500 text-sm shrink-0">道具延遲</span>' + hubSel('akari', 'itemStartTime', c.itemStartTime, [0, 30, 60, 90, 120, 180].map(function (n) { return { id: n, name: n + ' 秒' }; })) + '</div>';
+      h += '<div class="text-xs font-bold text-slate-400">競速規則：同一題各玩各的，最快點亮全盤的人贏；數字牆湊滿會累積禮物額度送給較弱的對手。</div>';
     } else {
       h += '<div class="flex gap-2 items-center"><span class="font-bold text-slate-500 w-10 text-sm shrink-0">關卡</span>' + hubSel('hashi', 'sizeId', c.sizeId, HUB_LEVELS) + '</div>';
       if (String(c.sizeId) === 'custom') {
@@ -1180,6 +1189,7 @@
     set('th-size', H.cfg.hashi.sizeId);
     set('th-items', H.cfg.hashi.itemsEnabled, 1); set('th-god', H.cfg.hashi.godNumbers, 1);
     set('tm-size', H.cfg.mines.sizeId);
+    set('ta-size', (H.cfg.akari || {}).sizeId);
   }
   function hubRender() {
     if (!window.PlatRoom) return;
@@ -1274,7 +1284,7 @@
         return;
       }
       var tid = t.id || '';
-      var TKEYS = { 'ts-size': ['sudoku', 'sizeId', 0], 'ts-diff': ['sudoku', 'diffId', 0], 'ts-weapons': ['sudoku', 'allowWeapons', 1], 'ts-gifts': ['sudoku', 'allowGifts', 1], 'ts-yellow': ['sudoku', 'allowYellowHint', 1], 'ts-god': ['sudoku', 'showNumbersInGodMode', 1], 'ts-quick': ['sudoku', 'allowQuickFill', 1], 'ts-trav': ['sudoku', 'allowTraversal', 1], 'ts-wtime': ['sudoku', 'weaponStartTime', 0], 'th-size': ['hashi', 'sizeId', 0], 'th-items': ['hashi', 'itemsEnabled', 1], 'th-god': ['hashi', 'godNumbers', 1], 'tm-size': ['mines', 'sizeId', 0] };
+      var TKEYS = { 'ts-size': ['sudoku', 'sizeId', 0], 'ts-diff': ['sudoku', 'diffId', 0], 'ts-weapons': ['sudoku', 'allowWeapons', 1], 'ts-gifts': ['sudoku', 'allowGifts', 1], 'ts-yellow': ['sudoku', 'allowYellowHint', 1], 'ts-god': ['sudoku', 'showNumbersInGodMode', 1], 'ts-quick': ['sudoku', 'allowQuickFill', 1], 'ts-trav': ['sudoku', 'allowTraversal', 1], 'ts-wtime': ['sudoku', 'weaponStartTime', 0], 'th-size': ['hashi', 'sizeId', 0], 'th-items': ['hashi', 'itemsEnabled', 1], 'th-god': ['hashi', 'godNumbers', 1], 'tm-size': ['mines', 'sizeId', 0], 'ta-size': ['akari', 'sizeId', 0] };
       if (TKEYS[tid]) {
         var tk = TKEYS[tid];
         H2.cfg[tk[0]][tk[1]] = tk[2] ? t.checked : (isNaN(Number(t.value)) ? t.value : Number(t.value));
@@ -1472,6 +1482,7 @@
         platSend(c, { kind: 'hubcfg', game: 'sudoku', cfg: ensureHub().cfg.sudoku });
         platSend(c, { kind: 'hubcfg', game: 'hashi', cfg: ensureHub().cfg.hashi });
         platSend(c, { kind: 'hubcfg', game: 'mines', cfg: ensureHub().cfg.mines });
+        platSend(c, { kind: 'hubcfg', game: 'akari', cfg: ensureHub().cfg.akari });
         // 進房同步房主目前選的遊戲/分頁：不送的話來賓只拿到三款設定、roomTab 停在預設數獨（房主在踩地雷、來賓看數獨）
         if (Net.roomTab === 'tourn' || Net.tourn) platSend(c, { kind: 'tab', tab: 'tourn' }); else platSend(c, { kind: 'arm', game: Net.armed.game });
         if (Net.tourn) { platSend(c, { kind: 'tourn-setup', cfg: tournPublicCfg() }); var tsm = tournStateMsg(); if (tsm) platSend(c, tsm); }
@@ -1543,7 +1554,7 @@
         renderVideos();
         break;
       }
-      case 'arm': if (fromHost && ['sudoku', 'hashi', 'mines'].indexOf(d.game) >= 0) { Net.armed.game = d.game; Net.roomTab = d.game; renderRoomTabs(); prRenderRegions(); if (hubVisible()) hubRender(); platPreload(); } break; // 未知 game 不寫入 armed，否則房主按開始時 hubLaunchCfg 會讀到 undefined 設定丟例外
+      case 'arm': if (fromHost && ['sudoku', 'hashi', 'mines', 'akari'].indexOf(d.game) >= 0) { Net.armed.game = d.game; Net.roomTab = d.game; renderRoomTabs(); prRenderRegions(); if (hubVisible()) hubRender(); platPreload(); } break; // 未知 game 不寫入 armed，否則房主按開始時 hubLaunchCfg 會讀到 undefined 設定丟例外
       case 'tab': if (fromHost) { Net.roomTab = d.tab; renderTourn(); renderRoomTabs(); if (hubVisible()) hubRender(); } break;
       case 'ready': case 'spec': {
         if (!Net.isHost) return;
@@ -1563,7 +1574,7 @@
       case 'identity-denied': if (!fromHost) break; lobbyMsg(d.msg || '⚠️ 修改失敗'); break;
       case 'launch': {
         if (!fromHost) break; // 開局只能由房主發起（接管重播走 restored 分支，寄件者仍是新房主連線）
-        if (['sudoku', 'hashi', 'mines'].indexOf(d.game) < 0) break; // 未知 game（跨版/損毀訊息）不可把畫面切成整面空白
+        if (['sudoku', 'hashi', 'mines', 'akari'].indexOf(d.game) < 0) break; // 未知 game（跨版/損毀訊息）不可把畫面切成整面空白
         if (Net.restored) { Net.restored = false; Net.inMatch = d.game; Net.matchMode = d.mode || 'coop'; window.PLAT_show(d.game); renderLobby(); }
         else if (!Net.isHost) {
           var dupLaunch = Net.inMatch === d.game && !d.resume && (!d.tourn || (Net.tourn && Net.tourn.round === d.tourn.round));
@@ -1859,8 +1870,8 @@
   // ---------- 混合大亂鬥賽程 PlatTourn（房主權威；嗅探遊戲訊息計分；設計見 phase-d-design.md） ----------
   var TOURN_PTS = [10, 7, 5, 3, 2];
   function tournPts(rank) { return rank <= 5 ? TOURN_PTS[rank - 1] : 1; }
-  function tournGameName(g) { return g === 'sudoku' ? '🔢 數獨' : (g === 'mines' ? '💣 踩地雷' : '🌉 數橋'); }
-  function tournGameLabel(g) { return tournGameName(g) + (g === 'mines' ? '競速' : '大亂鬥'); } // 地雷錦標賽是純競速（無道具），不叫大亂鬥
+  function tournGameName(g) { return g === 'sudoku' ? '🔢 數獨' : (g === 'mines' ? '💣 踩地雷' : (g === 'akari' ? '💡 美術燈' : '🌉 數橋')); }
+  function tournGameLabel(g) { return tournGameName(g) + ((g === 'mines' || g === 'akari') ? '競速' : '大亂鬥'); } // 地雷/美術燈錦標賽是純競速，不叫大亂鬥
   function tournUidByName(name) {
     var t = Net.tourn; if (!t || !name) return null;
     var n = normName(name);
@@ -1884,41 +1895,43 @@
     else if (t.curGame === 'hashi') settings = { mode: 'brawl', sizeId: t.hashi.sizeId,
       brawl: { itemsEnabled: t.hashi.itemsEnabled !== false, godNumbers: t.hashi.godNumbers !== false } };
     else if (t.curGame === 'mines') settings = { mode: 'brawl', sizeId: t.mines.sizeId, custom: t.mines.custom || undefined, allowItems: true, itemStartTime: 60, brawl: {} };
+    else if (t.curGame === 'akari') settings = { mode: 'race', sizeId: t.akari.sizeId, allowItems: true, itemStartTime: 60, brawl: {} };
     return { round: t.round, total: t.totalRounds, playoff: t.phase === 'playoff', entrants: t.entrants.length,
       roster: t.entrants.map(function (e) { return { uid: e.uid, name: e.name, color: e.color }; }),
-      sizeId: t.curGame === 'sudoku' ? t.sudoku.sizeId : (t.curGame === 'mines' ? t.mines.sizeId : t.hashi.sizeId), diffId: t.sudoku.diffId, roundSecs: t.roundSecs, settings: settings };
+      sizeId: t.curGame === 'sudoku' ? t.sudoku.sizeId : (t.curGame === 'mines' ? t.mines.sizeId : (t.curGame === 'akari' ? t.akari.sizeId : t.hashi.sizeId)), diffId: t.sudoku.diffId, roundSecs: t.roundSecs, settings: settings };
   }
   function tournBuildRounds(order, n) {
     n = n || 5;
     var rounds = [], i;
-    var games = ['sudoku', 'hashi', 'mines']; // 三款循環（數獨→數橋→地雷），以選定的起頭款為首
-    if (order === 'random') { for (i = 0; i < n; i++) rounds.push(games[Math.floor(Math.random() * 3)]); return rounds; }
-    var first = order === 'alt-h' ? 'hashi' : (order === 'alt-m' ? 'mines' : 'sudoku');
+    var games = ['sudoku', 'hashi', 'mines', 'akari']; // 四款循環（數獨→數橋→地雷→美術燈），以選定的起頭款為首
+    if (order === 'random') { for (i = 0; i < n; i++) rounds.push(games[Math.floor(Math.random() * games.length)]); return rounds; }
+    var first = order === 'alt-h' ? 'hashi' : (order === 'alt-m' ? 'mines' : (order === 'alt-a' ? 'akari' : 'sudoku'));
     var start = games.indexOf(first);
-    for (i = 0; i < n; i++) rounds.push(games[(start + i) % 3]);
+    for (i = 0; i < n; i++) rounds.push(games[(start + i) % games.length]);
     return rounds;
   }
   // （v1.11.0 起錦標賽設定改讀房間框架的表單 hub cfg，不再讀各遊戲的等待室——遊戲在開賽前根本不載入）
   function tournPublicCfg() {
     var t = Net.tourn;
-    return { rounds: t.rounds, order: t.order, sudoku: t.sudoku, hashi: t.hashi, mines: t.mines, roundSecs: t.roundSecs, totalRounds: t.totalRounds, entrants: t.entrants };
+    return { rounds: t.rounds, order: t.order, sudoku: t.sudoku, hashi: t.hashi, mines: t.mines, akari: t.akari, roundSecs: t.roundSecs, totalRounds: t.totalRounds, entrants: t.entrants };
   }
   function tournNewState(cfg, phase) {
     Net._podiumKey = '';
     var totals = {}, wins = {};
     cfg.entrants.forEach(function (e) { totals[e.uid] = 0; wins[e.uid] = 0; });
     return { phase: phase, round: 1, totalRounds: cfg.totalRounds, order: cfg.order, rounds: cfg.rounds,
-      sudoku: cfg.sudoku, hashi: cfg.hashi, mines: cfg.mines, roundSecs: cfg.roundSecs, entrants: cfg.entrants,
+      sudoku: cfg.sudoku, hashi: cfg.hashi, mines: cfg.mines, akari: cfg.akari || { sizeId: 10 }, roundSecs: cfg.roundSecs, entrants: cfg.entrants,
       totals: totals, wins: wins, history: [], curGame: null, settled: false, startedAt: 0, endsAt: 0,
       progress: {}, finishOrder: [], boom: {}, uidMap: {}, cellTrack: {}, totalBlanks: 0, disc: {}, acks: {}, timer: null, armTimer: null, tiedPids: null, champion: null, endNote: '' };
   }
   function tournCreate() {
     if (!Net.isHost || Net.tourn) return;
-    var sC = ensureHub().cfg.sudoku, hC = ensureHub().cfg.hashi, mC = ensureHub().cfg.mines;
+    var sC = ensureHub().cfg.sudoku, hC = ensureHub().cfg.hashi, mC = ensureHub().cfg.mines, aC = ensureHub().cfg.akari || { sizeId: 10 };
     var cfg = { order: ($('t-order') || {}).value || 'alt-s',
       sudoku: { sizeId: Number(sC.sizeId) || 9, diffId: sC.diffId || 'medium', allowWeapons: sC.allowWeapons !== false, allowGifts: sC.allowGifts !== false, allowYellowHint: !!sC.allowYellowHint, showNumbersInGodMode: !!sC.showNumbersInGodMode, allowQuickFill: !!sC.allowQuickFill, allowTraversal: !!sC.allowTraversal, weaponStartTime: (function () { var w = Number(sC.weaponStartTime); return isNaN(w) ? 60 : Math.max(0, Math.min(600, w)); })() },
       hashi: { sizeId: Number(hC.sizeId) || 2, itemsEnabled: hC.itemsEnabled !== false, godNumbers: hC.godNumbers !== false },
       mines: { sizeId: String(mC.sizeId) === 'custom' ? 'custom' : (Number(mC.sizeId) || 9), custom: String(mC.sizeId) === 'custom' ? hubMinesCustom(mC) : null }, // 錦標賽地雷回合沿用對局設定的盤面（含自訂）
+      akari: { sizeId: [7, 10, 12].indexOf(Number(aC.sizeId)) >= 0 ? Number(aC.sizeId) : 10 },
       roundSecs: Number(($('t-secs') || {}).value) || 300, totalRounds: Number(($('t-rounds') || {}).value) || 5, rounds: null,
       entrants: Net.roster.map(function (p) { return { pid: p.pid, uid: p.uid || p.pid, name: p.name, color: p.color }; }) };
     cfg.rounds = tournBuildRounds(cfg.order, cfg.totalRounds);
@@ -2040,12 +2053,12 @@
       var dim = (tournLive && id !== 'tourn' && !on) || !Net.isHost; // 來賓端：四顆分頁全反灰（只有房主能選遊戲）
       return '<button data-rtab="' + id + '" class="lob-tab' + (on ? ' lob-tab-on' : '') + '" style="flex:1' + (dim ? ';opacity:.45' : '') + '">' + label + '</button>';
     }
-    var h = '<div class="flex gap-1.5 plat-seg" data-seg="roomtabs">' + tabBtn('sudoku', '🔢 數獨') + tabBtn('hashi', '🌉 數橋') + tabBtn('mines', '💣 踩地雷') + tabBtn('tourn', '🏆 錦標賽') + '</div>';
+    var h = '<div class="flex gap-1.5 plat-seg" data-seg="roomtabs">' + tabBtn('sudoku', '🔢 數獨') + tabBtn('hashi', '🌉 數橋') + tabBtn('mines', '💣 踩地雷') + tabBtn('akari', '💡 美術燈') + tabBtn('tourn', '🏆 錦標賽') + '</div>';
     // 模式（合作/大亂鬥）不在這裡切：兩款的「對局設定」裡本來就有，殼只負責換遊戲（使用者指示刪除重複的模式列）
     if (Net.roomTab !== 'tourn') {
       if (tournLive) h += '<div class="text-center text-[11px] font-black text-amber-600 mt-1.5">🏆 賽程進行中・本局由賽程決定</div>';
       else if (Net.armed.game && Net.inMatch && Net.armed.game !== Net.inMatch) {
-        var gn2 = Net.armed.game === 'hashi' ? '數橋' : (Net.armed.game === 'mines' ? '踩地雷' : '數獨');
+        var gn2 = Net.armed.game === 'hashi' ? '數橋' : (Net.armed.game === 'mines' ? '踩地雷' : (Net.armed.game === 'akari' ? '美術燈' : '數獨'));
         h += '<div class="text-center text-[11px] font-black text-sky-700 mt-1.5">' + (Net.isHost ? ('已選「' + gn2 + '」・按下方開始鈕帶大家過去') : ('房主已選「' + gn2 + '」・等房主開始後一起過去')) + '</div>';
       }
       else if (!Net.isHost) h += '<div class="text-center text-[11px] font-black text-slate-400 mt-1.5">遊戲由房主選擇，跟著房主走</div>';
@@ -2204,6 +2217,13 @@
       } else if (d.type === 'MINE_PROGRESS') { var p5 = pidOf(d.uid); if (p5) { t.progress[p5] = Math.round((d.progress || 0) * 100); tournSnapshot(false); } }
       else if (d.type === 'MINE_FINISH') tournMarkFinished(pidOf(d.uid));
       else if (d.type === 'MINE_BOOM') { var p6 = pidOf(d.uid); if (p6) { t.progress[p6] = Math.round((d.progress || 0) * 100); (t.boom = t.boom || {})[p6] = true; tournSnapshot(true); tournCheckDone(); } }
+    } else if (t.curGame === 'akari') {
+      // 美術燈：進度同地雷尺度（0–1 → %）；無出局，完賽走 finishOrder
+      if (d.type === 'AKARI_START' && !t.startedAt) {
+        t.startedAt = d.startAt || Date.now();
+        if (t.roundSecs > 0) { t.endsAt = t.startedAt + t.roundSecs * 1000; tournArmTimer(); }
+      } else if (d.type === 'AKARI_PROGRESS') { var p7 = pidOf(d.uid); if (p7) { t.progress[p7] = Math.round((d.progress || 0) * 100); tournSnapshot(false); } }
+      else if (d.type === 'AKARI_FINISH') tournMarkFinished(pidOf(d.uid));
     }
   }
   // 錦標賽局中「結束本局」：v1.11.1 起不再有浮動鈕（太容易誤觸）——改藏進兩款遊戲標頭的「退出」選單裡，
@@ -2608,7 +2628,7 @@
     var dk = prRegion('dock'); if (dk) dk.innerHTML = prDockHtml(ac);
     if (Net.isHost && !Net.tourn && Net.armed.game && Net.inMatch && Net.armed.game !== Net.inMatch) {
       var sb2 = PR.el.querySelector('[data-pr="start"]');
-      if (sb2) { sb2.disabled = false; sb2.textContent = '🚀 帶大家去' + (Net.armed.game === 'hashi' ? '數橋' : (Net.armed.game === 'mines' ? '踩地雷' : '數獨')); var np2 = sb2.nextElementSibling; if (np2 && np2.tagName === 'P') np2.style.display = 'none'; }
+      if (sb2) { sb2.disabled = false; sb2.textContent = '🚀 帶大家去' + (Net.armed.game === 'hashi' ? '數橋' : (Net.armed.game === 'mines' ? '踩地雷' : (Net.armed.game === 'akari' ? '美術燈' : '數獨'))); var np2 = sb2.nextElementSibling; if (np2 && np2.tagName === 'P') np2.style.display = 'none'; }
     }
     renderRoomTabs();
   }

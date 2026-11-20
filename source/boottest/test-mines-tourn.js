@@ -1,7 +1,7 @@
-// 踩地雷第三段（錦標賽三款輪替）驗證：
-// - 出局順序 alt-m → 局序 [mines, sudoku, hashi] 三款循環
+// 踩地雷第三段（錦標賽輪替）驗證：
+// - 出局順序 alt-m → 局序 [mines, akari, sudoku]（v1.68 起四款循環：數獨→數橋→地雷→美術燈）
 // - 地雷局真打：來賓踩雷出局、房主完賽 → 結算名次/分數：房主 10 分、來賓 7 分且 progress=出局當時進度（不是 100）
-// - 數獨/數橋局用房主「結束本局」帶過 → 全程結束、總冠軍正確、頒獎台標籤是「💣 踩地雷競速」
+// - 美術燈/數獨局用房主「結束本局」帶過 → 全程結束、總冠軍正確、頒獎台標籤是「💣 踩地雷競速」
 const { JSDOM, VirtualConsole } = require('jsdom');
 const fs = require('fs');
 let html = fs.readFileSync('/home/hatch/workspace/platform/platform-v1-test.html', 'utf8');
@@ -59,7 +59,7 @@ const hubRoom = (p) => { const rm = p.document.querySelector('#lob-step-room'); 
   clickEl(H, tCardStart);
   const t0 = await waitFor(() => H.window.__PLAT_NET.tourn, 30000, 'tourn created');
   check('錦標賽建立', !!t0);
-  check('局序三款輪替 [mines,sudoku,hashi]', JSON.stringify(H.window.__PLAT_NET.tourn.rounds) === JSON.stringify(['mines', 'sudoku', 'hashi']), JSON.stringify(H.window.__PLAT_NET.tourn.rounds));
+  check('局序四款輪替 [mines,akari,sudoku]', JSON.stringify(H.window.__PLAT_NET.tourn.rounds) === JSON.stringify(['mines', 'akari', 'sudoku']), JSON.stringify(H.window.__PLAT_NET.tourn.rounds));
   const gTourn = await waitFor(() => (G.window.__PLAT_NET.tourn && G.window.__PLAT_NET.tourn.mines) ? G.window.__PLAT_NET.tourn : null, 30000, 'guest tourn cfg');
   check('來賓端也有 mines 設定（tourn cfg）', !!gTourn && gTourn.mines.sizeId === 9, JSON.stringify(gTourn && gTourn.mines));
 
@@ -104,8 +104,8 @@ const hubRoom = (p) => { const rm = p.document.querySelector('#lob-step-room'); 
   const podTxt = (H.document.querySelector('#plat-podium') || { textContent: '' }).textContent;
   check('地雷局：頒獎台標籤「💣 踩地雷競速」', podTxt.includes('踩地雷競速'), podTxt.slice(0, 60));
 
-  // ===== 第 2、3 局：數獨/數橋（房主結束本局帶過） =====
-  const seq = ['sudoku', 'hashi'];
+  // ===== 第 2、3 局：美術燈/數獨（房主結束本局帶過；v1.68 起四款輪替，alt-m 三局＝地雷→美術燈→數獨） =====
+  const seq = ['akari', 'sudoku'];
   for (let r = 0; r < 2; r++) {
     const g = seq[r];
     const nb = await waitFor(() => { const b = H.document.querySelector('#t-next'); return b && !b.disabled ? b : null; }, 60000, 't-next ' + g);

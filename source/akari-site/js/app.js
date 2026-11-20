@@ -49,6 +49,13 @@ function platSave() {
 }
 platSave().register('akari_daily_records', function (p) { return !!p && typeof p === 'object' && !Array.isArray(p); });
 platSave().register('akari_daily_streak', function (p) { return !!p && typeof p === 'object' && typeof p.count === 'number'; });
+platSave().register('akari_resume', function (p) { return !!p && typeof p === 'object' && typeof p.cells === 'string' && typeof p.ts === 'number' && (Date.now() - p.ts) <= 3 * 3600 * 1000; });
+
+// ---------- 多人（比照地雷競速架構：殼 Peer 連線 shim＋遊戲層 uid） ----------
+const MP_COLORS = ['#ef4444', '#3b82f6', '#22c55e', '#eab308', '#a855f7', '#ec4899', '#06b6d4', '#f97316'];
+function akariUid() { let u = sGet('plat_uid_akari'); if (!u) { u = 'a' + Math.random().toString(36).slice(2, 10); sSet('plat_uid_akari', u); } return u; }
+function normName(n) { return String(n || '').replace(/\s+/g, ' ').trim().toLowerCase(); }
+function fmtMS(ms) { const s = Math.max(0, Math.floor(ms / 1000)); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); }
 // PlatAudio：平台模式用殼的 window.PlatAudio；獨立開啟退化為靜音 no-op（配方由殼統一持有、不另抄一份避免漂移）
 function platAudio() {
   if (typeof window !== 'undefined' && window.PlatAudio) return window.PlatAudio;
@@ -133,6 +140,49 @@ function AkariGame() {
   const downRef = useRef(null); // {idx, trk, painting:bool}
   const platBarRef = useRef(null);
   const newBulbRef = useRef(-1);
+  // ---------- 多人狀態 ----------
+  const myId = akariUid();
+  const [mpOn, setMpOn] = useState(false);
+  const [mpPhase, setMpPhase] = useState('waiting'); // waiting | countdown | playing | done
+  const [players, setPlayers] = useState([]);
+  const [godBoards, setGodBoards] = useState({});
+  const [raceFinal, setRaceFinal] = useState(null);
+  const [myOutcome, setMyOutcome] = useState(null); // 'finished'
+  const [cdNum, setCdNum] = useState(null);
+  const [itemToast, setItemToast] = useState(null);
+  const [myItems, setMyItems] = useState({ trap: 0 });
+  const [outageUntil, setOutageUntil] = useState(0);
+  const [specUid, setSpecUid] = useState(null);
+  const [myReadySt, setMyReadySt] = useState(false);
+  const [leaveArm, setLeaveArm] = useState(false);
+  const [waitTick, setWaitTick] = useState(0);
+  const mpRef = useRef({ on: false, isHost: false, mode: 'race', tourn: null, tournInfo: null, hub: false, code: '', sizeId: 10, seed: 0, startAt: 0, phase: 'waiting', itemsAllow: true, itemDelay: 60 });
+  const playersRef = useRef([]); playersRef.current = players;
+  const godRef = useRef({});
+  const finalRef = useRef(null);
+  const outcomeRef = useRef(null);
+  const sessRef = useRef(null);
+  const hubColorRef = useRef(null);
+  const peerRef = useRef(null), connsRef = useRef([]), hostConnRef = useRef(null);
+  const itemsRef = useRef({ trap: 0 });
+  const giftCreditRef = useRef(0);
+  const milestoneRef = useRef(0);
+  const countedWallsRef = useRef({});
+  const lastProgRef = useRef(-1);
+  const lastStateRef = useRef(0);
+  const dismissRef = useRef(null);
+  const cdIvRef = useRef(null);
+  const autoIvRef = useRef(null);
+  const autoFireIvRef = useRef(null);
+  const lastOneDoneRef = useRef(false);
+  const iAmSpecRef = useRef(false);
+  const myReadyRef = useRef(false);
+  const waitSinceRef = useRef(0);
+  const itemToastTimerRef = useRef(null);
+  const outageRef = useRef(0);
+  function setPlayersBoth(list) { playersRef.current = list; setPlayers(list); }
+  function godSet(uid, patch) { const g = Object.assign({}, godRef.current); g[uid] = Object.assign({}, g[uid] || { progress: 0, state: 'playing' }, patch); godRef.current = g; setGodBoards(g); }
+  function itemSay(msg) { setItemToast(msg); if (itemToastTimerRef.current) clearTimeout(itemToastTimerRef.current); itemToastTimerRef.current = setTimeout(() => setItemToast(null), 4200); }
 
   const P = puzzle ? arraysToSets(puzzle) : null;
 
@@ -222,7 +272,7 @@ function AkariGame() {
   }, [screen, sizeId]);
 
   // ---------- 遊玩 ----------
-  function placedBulbs(cs) { const s = new Set(); for (let i = 0; i < cs.length; i++) if (cs[i] === 1) s.add(i); return s; }
+  function placedBulbs(cs) { const s = new Set(); for (let i = 0; i < cs.length; i++) if (cs[i] === 1 || cs[i] === 3) s.add(i); return s; } // 3＝禮物鎖定燈（計入放燈）
   function doWin(secs) {
     try { platAudio().play('complete'); } catch (e) {}
     setTimeout(() => { try { platAudio().play('win'); } catch (e) {} }, 350);
@@ -242,6 +292,7 @@ function AkariGame() {
   function applyCells(next) {
     const pz = puzzleRef.current; if (!pz) return;
     setCells(next); cellsRef.current = next;
+    if (mpRef.current.on) { mpAfterCells(next); return; } // 多人：同步/里程碑/禮物/完賽走 MP 路徑
     if (statusRef.current === 'ready') { setStatus('playing'); statusRef.current = 'playing'; startedAtRef.current = Date.now(); }
     if (statusRef.current === 'playing') {
       const bulbs = placedBulbs(next);
@@ -255,7 +306,9 @@ function AkariGame() {
   }
   function cycleCell(idx) {
     if (statusRef.current === 'won') return;
+    if (mpRef.current.on && (mpRef.current.phase !== 'playing' || iAmSpecRef.current || outcomeRef.current)) return;
     const pz = puzzleRef.current; if (!pz || pz.walls.has(idx)) return;
+    if (cellsRef.current[idx] === 3) return; // 鎖定燈不可點掉
     const next = cellsRef.current.slice();
     const cur = next[idx];
     let nv;
@@ -273,8 +326,9 @@ function AkariGame() {
   }
   function paintCross(idx) {
     if (statusRef.current === 'won') return;
+    if (mpRef.current.on && (mpRef.current.phase !== 'playing' || iAmSpecRef.current || outcomeRef.current)) return;
     const pz = puzzleRef.current; if (!pz || pz.walls.has(idx)) return;
-    if (cellsRef.current[idx] !== 0) return;
+    if (cellsRef.current[idx] !== 0) return; // 燈/叉/鎖定燈都不覆寫
     const next = cellsRef.current.slice(); next[idx] = 2;
     applyCells(next);
   }
@@ -313,6 +367,456 @@ function AkariGame() {
     cycleCell(idx);
   }
 
+  // ---------- 多人競速（比照地雷：房主權威名單/里程碑仲裁、來賓中繼） ----------
+  function platTimeOffset() { try { return (window.__PLAT_NET && window.__PLAT_NET.timeOffset) || 0; } catch (e) { return 0; } }
+  function myPlayer() { return playersRef.current.find(p => p.id === myId) || null; }
+  function iAmSpec() { const mp = myPlayer(); return !!mp && !!mp.spectator; }
+  function itemsLive() { return mpRef.current.on && mpRef.current.itemsAllow; }
+  function progOf(uid) { const g = godRef.current[uid]; return g ? (g.progress || 0) : 0; }
+  function unfinishedRacers() { return playersRef.current.filter(p => { if (p.spectator || p.pending) return false; if (p.id === myId) return !outcomeRef.current; const g = godRef.current[p.id]; return !g || g.state === 'playing'; }); }
+  function amLastOne() { const u = unfinishedRacers(); return u.length === 1 && u[0].id === myId && playersRef.current.filter(p => !p.spectator && !p.pending).length > 1; }
+  function pickWeighted(list, wfn) { let tot = 0; const ws = list.map(p => { const w = Math.max(0.0001, wfn(p)); tot += w; return w; }); let r = Math.random() * tot; for (let i = 0; i < list.length; i++) { r -= ws[i]; if (r <= 0) return list[i]; } return list[list.length - 1]; }
+  function hostBroadcast(msg, exceptConn) { connsRef.current.forEach(c => { if (c !== exceptConn && c.open) { try { c.send(msg); } catch (e) {} } }); }
+  function mpSend(msg) { if (mpRef.current.isHost) hostBroadcast(msg); else if (hostConnRef.current && hostConnRef.current.open) { try { hostConnRef.current.send(msg); } catch (e) {} } }
+  function sendItemMsg(m) { if (mpRef.current.isHost) { hostBroadcast(m); processItemMsg(m); } else mpSend(m); }
+  function cleanupMp() {
+    if (cdIvRef.current) { clearInterval(cdIvRef.current); cdIvRef.current = null; }
+    if (autoIvRef.current) { clearInterval(autoIvRef.current); autoIvRef.current = null; }
+    if (autoFireIvRef.current) { clearInterval(autoFireIvRef.current); autoFireIvRef.current = null; }
+    if (peerRef.current) { try { peerRef.current.destroy(); } catch (e) {} peerRef.current = null; }
+    connsRef.current = []; hostConnRef.current = null;
+    mpRef.current.on = false; mpRef.current.phase = 'waiting';
+    setMpOn(false); setMpPhase('waiting'); setPlayersBoth([]); godRef.current = {}; setGodBoards({});
+    setRaceFinal(null); finalRef.current = null; setMyOutcome(null); outcomeRef.current = null;
+    setCdNum(null); iAmSpecRef.current = false; itemsRef.current = { trap: 0 }; setMyItems({ trap: 0 });
+    giftCreditRef.current = 0; milestoneRef.current = 0; countedWallsRef.current = {}; lastOneDoneRef.current = false;
+    setOutageUntil(0); outageRef.current = 0; dismissRef.current = null; setSpecUid(null);
+  }
+  // 數字牆「正確滿足」：相鄰燈數＝數字，且相鄰燈全是解答燈（規格第 5 節禮物額度來源）
+  function correctWallsNow(cs) {
+    const pz = puzzleRef.current; if (!pz) return [];
+    const bulbs = placedBulbs(cs), out = [];
+    pz.numbers.forEach((num, wi) => {
+      const x = wi % pz.w, y = Math.floor(wi / pz.w);
+      const nb = [];
+      if (x > 0) nb.push(wi - 1); if (x < pz.w - 1) nb.push(wi + 1);
+      if (y > 0) nb.push(wi - pz.w); if (y < pz.h - 1) nb.push(wi + pz.w);
+      let cnt = 0, allSol = true;
+      nb.forEach(j => { if (bulbs.has(j)) { cnt++; if (!pz.solution.has(j)) allSol = false; } });
+      if (cnt === num && allSol) out.push(wi);
+    });
+    return out;
+  }
+  function akariResumeKey() { return 'akari_resume_' + (mpRef.current.code || '') + '_' + myId; }
+  function saveResume() {
+    if (!mpRef.current.on || iAmSpecRef.current || outcomeRef.current || mpRef.current.phase !== 'playing') return;
+    if (!puzzleRef.current || !mpRef.current.seed) return;
+    platSave().write(akariResumeKey(), { seed: mpRef.current.seed, sizeId: mpRef.current.sizeId, startAt: mpRef.current.startAt, cells: cellsRef.current.join(''), items: { trap: itemsRef.current.trap || 0 }, giftCredit: giftCreditRef.current, milestone: milestoneRef.current, countedWalls: Object.keys(countedWallsRef.current).map(Number), ts: Date.now() });
+  }
+  function loadResumeAny() {
+    try { return platSave().read(akariResumeKey(), { fallback: null, validate: (p) => !!p && typeof p.seed === 'number' && typeof p.cells === 'string' }); } catch (e) { return null; }
+  }
+  // ----- 競速同步：進度小訊息＋god 快照節流＋里程碑逐格補報＋禮物額度 -----
+  function raceSync(next) {
+    const pz = puzzleRef.current; if (!pz) return;
+    const bulbs = placedBulbs(next);
+    const prog = window.Akari.progressOf(pz.solution, bulbs);
+    godSet(myId, { progress: prog });
+    const pi = Math.floor(prog * 100);
+    if (pi !== lastProgRef.current) { lastProgRef.current = pi; mpSend({ type: 'AKARI_PROGRESS', uid: myId, progress: prog }); }
+    // 里程碑只認「自己放的」正確燈（不含禮物鎖定燈）：一盞燈≈10% 進度（7×7），禮物燈若也鑄里程碑會自我連鎖（禮物→里程碑→禮物…數秒完賽雙邊，實測抓到）；官方進度/完賽仍計全部正確燈
+    let selfCorrect = 0; for (let si = 0; si < next.length; si++) if (next[si] === 1 && pz.solution.has(si)) selfCorrect++;
+    const selfProg = pz.solution.size ? selfCorrect / pz.solution.size : 0;
+    const band = Math.floor(selfProg * 20); // 每 5% 一格
+    while (milestoneRef.current < band) { milestoneRef.current++; if (mpRef.current.isHost) hostHandleMilestone(myId); else mpSend({ type: 'AKARI_MILESTONE', uid: myId }); }
+    if (itemsLive()) {
+      let gained = false;
+      correctWallsNow(next).forEach(wi => { if (!countedWallsRef.current[wi]) { countedWallsRef.current[wi] = 1; giftCreditRef.current += 0.5; gained = true; } });
+      if (gained) trySendGift();
+    }
+    const now = Date.now();
+    if (now - lastStateRef.current > 800) { lastStateRef.current = now; const cs = next.join(''); godSet(myId, { cells: cs }); mpSend({ type: 'AKARI_STATE', uid: myId, cells: cs, progress: prog }); }
+    saveResume();
+  }
+  function mpAfterCells(next) {
+    if (mpRef.current.phase !== 'playing' || iAmSpecRef.current || outcomeRef.current) return;
+    const pz = puzzleRef.current; if (!pz) return;
+    const bulbs = placedBulbs(next);
+    if (window.Akari.isSolved(pz.w, pz.h, pz.walls, pz.numbers, bulbs)) { mpFinish(next); return; }
+    raceSync(next);
+  }
+  function mpFinish(next) {
+    outcomeRef.current = 'finished'; setMyOutcome('finished');
+    setStatus('won'); statusRef.current = 'won';
+    const tms = Math.max(0, Date.now() - mpRef.current.startAt);
+    setElapsed(Math.floor(tms / 1000));
+    try { platAudio().play('complete'); } catch (e) {}
+    setTimeout(() => { try { platAudio().play('win'); } catch (e) {} }, 350);
+    const cs = next.join('');
+    godSet(myId, { state: 'finished', timeMs: tms, progress: 1, cells: cs });
+    mpSend({ type: 'AKARI_STATE', uid: myId, cells: cs, progress: 1 });
+    mpSend({ type: 'AKARI_FINISH', uid: myId, timeMs: tms });
+    itemSay('🏁 你完賽了！自動轉觀戰，看大家的盤面');
+    checkRaceEnd();
+  }
+  // ----- 道具（房主仲裁里程碑；禮物即時生效；斷電純視覺） -----
+  function hostHandleMilestone(fromUid) {
+    if (!mpRef.current.isHost || !itemsLive()) return;
+    if (Date.now() - (mpRef.current.startAt || 0) < (mpRef.current.itemDelay || 0) * 1000) return; // 延遲內跨的里程碑不發（比照地雷/數獨）
+    const pool = unfinishedRacers(); if (!pool.length) return;
+    if (pool.length === 1) { sendItemMsg({ type: 'AKARI_GIFT', uid: myId, fromUid: fromUid, fromName: '里程碑', toUid: pool[0].id }); return; } // 只剩一人：里程碑直接發禮物
+    // 種類以「里程碑達成者」自己的進度 p 擲骰（定版公式：禮物 (1−p)²+0.1／陷阱 p²+0.1）——落後者多拿禮物線、領先者多拿陷阱（與數獨武器/禮物同語意；若以收禮者 p 擲，收禮者恆為弱者、陷阱永遠擲不出）
+    const pe = progOf(fromUid);
+    const giftW = Math.pow(1 - pe, 2) + 0.1, trapW = Math.pow(pe, 2) + 0.1;
+    if (Math.random() < giftW / (giftW + trapW)) {
+      const tgt = pickWeighted(pool, p => Math.pow(1 - progOf(p.id), 2) + 0.1); // 禮物送給較弱者（扶弱加權；可為達成者自己）
+      sendItemMsg({ type: 'AKARI_GIFT', uid: myId, fromUid: fromUid, fromName: '里程碑', toUid: tgt.id });
+    } else {
+      sendItemMsg({ type: 'AKARI_GRANT', uid: myId, toUid: fromUid, item: 'trap' }); // 陷阱進達成者的庫存，由他發動
+    }
+  }
+  function processItemMsg(m) {
+    if (m.type === 'AKARI_GRANT' && m.toUid === myId) applyItemGrant(m.item);
+    else if (m.type === 'AKARI_GIFT' && m.toUid === myId) { applyGiftEffect(m.fromName || ''); try { if (window.PlatFly) window.PlatFly.fly(window.PlatFly.byUid('akari', m.fromUid), window.PlatFly.me('akari'), '🎁'); } catch (e) {} }
+    else if (m.type === 'AKARI_HIT' && m.toUid === myId) applyOutage(m.fromName || '');
+    saveResume();
+  }
+  function applyItemGrant(item) {
+    if (!itemsLive() || outcomeRef.current || iAmSpecRef.current) return;
+    if (item === 'gift') { applyGiftEffect('里程碑'); return; }
+    if (amLastOne()) { applyGiftEffect(''); itemSay('🏁 只剩你一人，里程碑陷阱自動轉成禮物！'); return; }
+    const ni = { trap: (itemsRef.current.trap || 0) + 1 }; itemsRef.current = ni; setMyItems(ni);
+    try { platAudio().play('star'); } catch (e) {}
+    itemSay('🎁 里程碑道具：⚡ 斷電陷阱 ×' + ni.trap + (ni.trap >= 3 ? '（集滿 3 自動發動！）' : ''));
+    maybeAutoFire();
+  }
+  function giftCandidates() { const pz = puzzleRef.current; if (!pz) return []; const out = []; pz.solution.forEach(i => { const c = cellsRef.current[i]; if (c === 0 || c === 2) out.push(i); }); return out; }
+  function applyGiftEffect(fromName) {
+    if (!itemsLive() || outcomeRef.current || iAmSpecRef.current || mpRef.current.phase !== 'playing') return;
+    const cand = giftCandidates();
+    if (!cand.length) { itemSay('🎁 禮物落空：正確位置都已經放好燈了'); return; }
+    const idx = cand[Math.floor(Math.random() * cand.length)];
+    const next = cellsRef.current.slice(); next[idx] = 3; // 鎖定燈（不可移除）
+    try { platAudio().play('gift'); } catch (e) {}
+    itemSay(fromName === '里程碑' ? '🎁 里程碑禮物：一盞燈已幫你放好並鎖定！' : ('🎁 ' + (fromName ? fromName + ' 送的禮物' : '禮物') + '：一盞燈已幫你放好並鎖定！'));
+    applyCells(next);
+  }
+  function trySendGift() {
+    if (!itemsLive() || outcomeRef.current || iAmSpecRef.current || mpRef.current.phase !== 'playing') return;
+    if (Date.now() - (mpRef.current.startAt || 0) < (mpRef.current.itemDelay || 0) * 1000) return; // 延遲內先存額度
+    while (giftCreditRef.current >= 1) {
+      const myP = progOf(myId);
+      const weaker = unfinishedRacers().filter(p => p.id !== myId && progOf(p.id) < myP);
+      if (!weaker.length) return; // 沒有較弱的對象就存著
+      const tgt = pickWeighted(weaker, p => Math.sqrt((myP - progOf(p.id)) * 100 + 1));
+      giftCreditRef.current -= 1;
+      sendItemMsg({ type: 'AKARI_GIFT', uid: myId, fromUid: myId, fromName: (myPlayer() || {}).name || '', toUid: tgt.id });
+      try { if (window.PlatFly) window.PlatFly.fly(window.PlatFly.me('akari'), window.PlatFly.byUid('akari', tgt.id), '🎁'); } catch (e) {}
+      // 送出不提示（比照地雷：避免間接洩漏自己剛滿足了數字牆）
+    }
+  }
+  function fireTrap() {
+    if (!itemsLive() || outcomeRef.current || iAmSpecRef.current) return;
+    if ((itemsRef.current.trap || 0) <= 0) return;
+    const tgts = unfinishedRacers().filter(p => p.id !== myId);
+    if (!tgts.length) { itemSay('目前沒有可斷電的對手'); return; }
+    const tgt = pickWeighted(tgts, p => Math.pow(progOf(p.id), 2) + 0.1); // 攻擊權重（打強者）定版公式
+    const ni = { trap: itemsRef.current.trap - 1 }; itemsRef.current = ni; setMyItems(ni);
+    sendItemMsg({ type: 'AKARI_HIT', uid: myId, fromUid: myId, fromName: (myPlayer() || {}).name || '', toUid: tgt.id, kind: 'outage' });
+    itemSay('⚡ 已讓 ' + tgt.name + ' 斷電 5 秒！');
+  }
+  function maybeAutoFire() {
+    if (autoFireIvRef.current) return;
+    if ((itemsRef.current.trap || 0) < 3) return;
+    try { platAudio().play('star'); } catch (e) {}
+    autoFireIvRef.current = setInterval(() => {
+      const hasTgt = unfinishedRacers().some(p => p.id !== myId);
+      if ((itemsRef.current.trap || 0) <= 0 || !hasTgt || outcomeRef.current || !itemsLive()) { clearInterval(autoFireIvRef.current); autoFireIvRef.current = null; return; }
+      fireTrap();
+    }, 550);
+  }
+  function tryConvertLastOne() {
+    if (lastOneDoneRef.current || !itemsLive()) return;
+    if (!amLastOne()) return;
+    lastOneDoneRef.current = true;
+    const held = itemsRef.current.trap || 0;
+    if (held > 0) {
+      itemsRef.current = { trap: 0 }; setMyItems({ trap: 0 });
+      itemSay('🏁 只剩你一人，未用的斷電陷阱全部轉成禮物！');
+      for (let i = 0; i < held; i++) setTimeout(() => applyGiftEffect(''), 550 * (i + 1));
+    }
+  }
+  function applyOutage(fromName) {
+    if (!itemsLive() || outcomeRef.current || iAmSpecRef.current) return;
+    if (amLastOne()) { applyGiftEffect(''); itemSay('🏁 只剩你一人，' + (fromName || '對手') + ' 的斷電自動轉成禮物！'); return; }
+    const until = Date.now() + 5000;
+    outageRef.current = until; setOutageUntil(until);
+    try { platAudio().play('error'); } catch (e) {}
+    itemSay('⚡ ' + (fromName || '對手') + ' 讓你斷電 5 秒！燈都還在，只是光暈暫時消失');
+  }
+  function checkRaceEnd() {
+    if (finalRef.current || !mpRef.current.on) return;
+    const racers = playersRef.current.filter(p => !p.spectator && !p.pending);
+    if (!racers.length) return;
+    const allDone = racers.every(p => { if (p.offline) return true; const g = godRef.current[p.id]; return g && g.state === 'finished'; });
+    if (!allDone) return;
+    const fins = [], rest = [];
+    racers.forEach(p => {
+      const g = godRef.current[p.id] || { progress: 0, state: 'playing' };
+      const e = { key: p.id, name: p.name, color: p.color, isMe: p.id === myId, uid: p.id, g: g, offline: !!p.offline };
+      if (g.state === 'finished') fins.push(e); else rest.push(e);
+    });
+    fins.sort((a, b) => (a.g.timeMs || 0) - (b.g.timeMs || 0));
+    rest.sort((a, b) => (b.g.progress || 0) - (a.g.progress || 0));
+    const entries = fins.concat(rest).map(e => ({
+      key: e.key, name: e.name, color: e.color, isMe: e.isMe,
+      right: e.g.state === 'finished' ? ('⏱ ' + fmtMS(e.g.timeMs || 0)) : ('未完成・' + Math.floor((e.g.progress || 0) * 100) + '%')
+    }));
+    const fin = { entries: entries, winnerUid: fins.length ? fins[0].key : null };
+    finalRef.current = fin; setRaceFinal(fin);
+    mpRef.current.phase = 'done'; setMpPhase('done');
+  }
+
+  // ----- 開局／連線（房主種子開局；同 seed 全端同題——引擎確定性） -----
+  function derivePuzzle(seed, szId) {
+    const spec = SIZES[szId] || SIZES[10];
+    let sd = seed >>> 0;
+    for (let t = 0; t < 6; t++) { const p = window.Akari.generate(spec.w, spec.h, { wallTarget: spec.wallTarget, stripRatio: spec.stripRatio }, sd); if (p) return { puzzle: p, seed: sd }; sd = (sd + 1) >>> 0; }
+    return null;
+  }
+  function applyMpPuzzle(p, startAt) {
+    const arr = puzzleArrays(p);
+    puzzleRef.current = arraysToSets(arr);
+    setPuzzle(arr);
+    setCells(new Array(p.w * p.h).fill(0)); cellsRef.current = new Array(p.w * p.h).fill(0);
+    setIsDaily(false); setDailyDate(null);
+    setStatus('ready'); statusRef.current = 'ready';
+    startedAtRef.current = startAt; setElapsed(0);
+    setWinInfo(null); setShowRules(false); setZoom(1);
+    setScreen('game');
+  }
+  function startMatchLocal(seed, szId, startAt) {
+    startAt = startAt - platTimeOffset();
+    const d = derivePuzzle(seed, szId); if (!d) return;
+    mpRef.current.seed = d.seed; mpRef.current.sizeId = szId; mpRef.current.startAt = startAt; mpRef.current.phase = 'countdown';
+    setRaceFinal(null); finalRef.current = null; setMyOutcome(null); outcomeRef.current = null;
+    godRef.current = {}; setGodBoards({}); dismissRef.current = null; setSpecUid(null);
+    itemsRef.current = { trap: 0 }; setMyItems({ trap: 0 }); giftCreditRef.current = 0; milestoneRef.current = 0; countedWallsRef.current = {}; lastOneDoneRef.current = false; lastProgRef.current = -1; lastStateRef.current = 0;
+    setOutageUntil(0); outageRef.current = 0;
+    setMyReadySt(false); myReadyRef.current = false;
+    const spec2 = iAmSpec(); iAmSpecRef.current = spec2;
+    if (!spec2) applyMpPuzzle(d.puzzle, startAt);
+    else { const arrS = puzzleArrays(d.puzzle); puzzleRef.current = arraysToSets(arrS); setPuzzle(arrS); setCells([]); cellsRef.current = []; setScreen('game'); } // 觀戰者留題目給觀戰盤面渲染（自己不下場）
+    setMpPhase('countdown');
+    if (cdIvRef.current) clearInterval(cdIvRef.current);
+    cdIvRef.current = setInterval(() => {
+      const rem = startAt - Date.now();
+      if (rem <= 0) {
+        clearInterval(cdIvRef.current); cdIvRef.current = null;
+        setCdNum('GO!'); setTimeout(() => setCdNum(null), 650);
+        mpRef.current.phase = 'playing'; setMpPhase('playing');
+        if (!iAmSpecRef.current) { setStatus('playing'); statusRef.current = 'playing'; }
+      } else setCdNum(Math.ceil(rem / 1000));
+    }, 100);
+  }
+  function startMatch() {
+    if (!mpRef.current.isHost) return;
+    if (mpRef.current.phase !== 'waiting' && mpRef.current.phase !== 'done') return;
+    if (autoIvRef.current) { clearInterval(autoIvRef.current); autoIvRef.current = null; }
+    const seed = (Math.random() * 4294967296) >>> 0, startAt = Date.now() + 3500;
+    const szId = mpRef.current.sizeId;
+    if (!derivePuzzle(seed, szId)) return;
+    setPlayersBoth(playersRef.current.filter(p => !p.pending).map(p => Object.assign({}, p, { ready: false })));
+    hostBroadcast({ type: 'PLAYERS_UPDATE', players: playersRef.current });
+    hostBroadcast({ type: 'AKARI_START', seed: seed, sizeId: szId, startAt: startAt });
+    startMatchLocal(seed, szId, startAt);
+  }
+  function hostOnJoin(m, conn) {
+    conn.__uid = m.uid;
+    const phase = mpRef.current.phase;
+    const lateSpec = (phase === 'countdown' || phase === 'playing');
+    let list = playersRef.current.slice();
+    const ex = list.find(p => p.id === m.uid);
+    if (ex) list = list.map(p => p.id === m.uid ? Object.assign({}, p, { name: m.pName, offline: false }) : p);
+    else {
+      const pend = list.findIndex(p => p.pending && normName(p.name) === normName(m.pName || ''));
+      const color = (typeof m.color === 'string' && m.color) ? m.color : MP_COLORS[list.filter(p => !p.pending).length % MP_COLORS.length];
+      const entry = { id: m.uid, name: m.pName || '玩家', color: pend >= 0 ? list[pend].color : color, isHost: false, spectator: lateSpec, ready: false, offline: false };
+      if (pend >= 0) list[pend] = entry; else list.push(entry);
+    }
+    setPlayersBoth(list);
+    hostBroadcast({ type: 'PLAYERS_UPDATE', players: list }, conn);
+    const myEntry = list.find(p => p.id === m.uid);
+    try { conn.send({ type: 'INIT', players: list, sizeId: mpRef.current.sizeId, phase: phase, seed: (myEntry && myEntry.spectator) ? undefined : mpRef.current.seed, startAt: mpRef.current.startAt, god: godRef.current, youSpec: !!(myEntry && myEntry.spectator), puzzle: (myEntry && myEntry.spectator && puzzleRef.current) ? { w: puzzleRef.current.w, h: puzzleRef.current.h, walls: Array.from(puzzleRef.current.walls), numbers: Array.from(puzzleRef.current.numbers.entries()), solution: Array.from(puzzleRef.current.solution) } : undefined }); } catch (e) {}
+  }
+  function guestOnInit(m) {
+    setPlayersBoth(m.players || []);
+    mpRef.current.sizeId = m.sizeId || mpRef.current.sizeId;
+    setSizeId(m.sizeId || 10);
+    iAmSpecRef.current = !!m.youSpec;
+    if (m.god) { godRef.current = m.god; setGodBoards(m.god); }
+    if (m.phase === 'countdown' || m.phase === 'playing') {
+      mpRef.current.seed = m.seed; mpRef.current.startAt = m.startAt;
+      if (m.youSpec) {
+        if (m.puzzle) { puzzleRef.current = arraysToSets(m.puzzle); setPuzzle(m.puzzle); }
+        setCells([]); cellsRef.current = [];
+        mpRef.current.phase = m.phase; setMpPhase(m.phase); setScreen('game');
+        if (m.phase === 'countdown' && m.startAt) {
+          const specDelay = Math.max(0, m.startAt - Date.now()) + 60;
+          setTimeout(() => { if (mpRef.current.phase === 'countdown' && iAmSpecRef.current) { mpRef.current.phase = 'playing'; setMpPhase('playing'); } }, specDelay);
+        }
+      } else {
+        startMatchLocal(m.seed, m.sizeId, m.startAt);
+        resumeRestore(m);
+      }
+    }
+  }
+  function resumeRestore(m) {
+    const sp = SIZES[m.sizeId] || SIZES[10], total = sp.w * sp.h;
+    let save = null;
+    try { save = platSave().read(akariResumeKey(), { fallback: null, validate: (p) => !!p && p.seed === m.seed && p.sizeId === m.sizeId && !!p.cells && p.cells.length === total }); } catch (e) {}
+    let cellsArr = null;
+    if (save) cellsArr = save.cells.split('').map(Number);
+    else if (m.god && m.god[myId] && typeof m.god[myId].cells === 'string' && m.god[myId].cells.length === total) cellsArr = m.god[myId].cells.split('').map(Number);
+    if (!cellsArr || cellsArr.some(v => !(v >= 0 && v <= 3))) return;
+    if (save) {
+      itemsRef.current = { trap: (save.items && save.items.trap) || 0 }; setMyItems(itemsRef.current);
+      giftCreditRef.current = save.giftCredit || 0; milestoneRef.current = save.milestone || 0;
+      countedWallsRef.current = {}; (save.countedWalls || []).forEach(wi => { countedWallsRef.current[wi] = 1; });
+    }
+    setCells(cellsArr); cellsRef.current = cellsArr;
+    const myGod = m.god && m.god[myId];
+    if (myGod && myGod.state === 'finished') {
+      outcomeRef.current = 'finished'; setMyOutcome('finished');
+      setStatus('won'); statusRef.current = 'won';
+      godSet(myId, { state: 'finished', timeMs: myGod.timeMs, progress: 1 });
+      return;
+    }
+    lastStateRef.current = 0;
+    raceSync(cellsArr);
+    itemSay('↩ 已接續中斷前的對局進度');
+  }
+  function onMpData(m, conn) {
+    if (!m || !m.type) return;
+    const H = mpRef.current.isHost;
+    if (H && conn && conn.__uid && m.uid && m.uid !== conn.__uid && ['AKARI_FINISH', 'AKARI_STATE', 'AKARI_PROGRESS', 'AKARI_MILESTONE', 'AKARI_GIFT', 'AKARI_HIT', 'READY', 'REQ_REMATCH'].indexOf(m.type) >= 0) return; // 房主驗寄件者（比照地雷）
+    switch (m.type) {
+      case 'JOIN': if (H) hostOnJoin(m, conn); break;
+      case 'INIT': if (!H) guestOnInit(m); break;
+      case 'PLAYERS_UPDATE': if (!H) { setPlayersBoth(m.players || []); const mp2 = myPlayer(); if (mp2) iAmSpecRef.current = !!mp2.spectator; } break;
+      case 'READY': if (H) { setPlayersBoth(playersRef.current.map(p => p.id === m.uid ? Object.assign({}, p, { ready: !!m.ready }) : p)); hostBroadcast({ type: 'PLAYERS_UPDATE', players: playersRef.current }); } break;
+      case 'AKARI_START': if (!H) startMatchLocal(m.seed, m.sizeId, m.startAt); break;
+      case 'AKARI_PROGRESS': godSet(m.uid, { progress: m.progress || 0 }); if (H) hostBroadcast(m, conn); break;
+      case 'AKARI_STATE': godSet(m.uid, { cells: m.cells, progress: m.progress || 0 }); if (H) hostBroadcast(m, conn); break;
+      case 'AKARI_FINISH': godSet(m.uid, { state: 'finished', timeMs: m.timeMs, progress: 1 }); if (H) hostBroadcast(m, conn); checkRaceEnd(); tryConvertLastOne(); break;
+      case 'AKARI_MILESTONE': if (H) hostHandleMilestone(m.uid); break;
+      case 'AKARI_GRANT': if (!H) processItemMsg(m); break; // 房主發出時已在 sendItemMsg 本地處理；來賓鍛造的 GRANT 房主不受理
+      case 'AKARI_GIFT': if (H) hostBroadcast(m, conn); processItemMsg(m); break;
+      case 'AKARI_HIT': if (H) hostBroadcast(m, conn); processItemMsg(m); break;
+      case 'REQ_LOBBY': if (H) { if (window.__PLAT_NOTIFY) window.__PLAT_NOTIFY('game-exit'); } break;
+      case 'REQ_REMATCH': if (H) startMatch(); break;
+      case 'HOST_LEFT': if (!H) onHostLeft(m); break;
+    }
+  }
+  function onHostLeft(m) {
+    const racers = playersRef.current.filter(p => !p.isHost && !p.offline && !p.spectator && !p.pending);
+    const pool = racers.length ? racers : playersRef.current.filter(p => !p.isHost && !p.offline && !p.pending);
+    if (pool.length && pool[0].id === myId) becomeHost(true);
+  }
+  function onConnClose(conn) {
+    if (!mpRef.current.isHost) return;
+    const uid = conn.__uid; if (!uid) return;
+    setPlayersBoth(playersRef.current.map(p => p.id === uid ? Object.assign({}, p, { offline: true }) : p));
+    hostBroadcast({ type: 'PLAYERS_UPDATE', players: playersRef.current });
+    godSet(uid, {});
+    checkRaceEnd();
+  }
+  function onHostConnClose() {
+    if (!mpRef.current.on || mpRef.current.isHost) return;
+    setTimeout(() => { if (mpRef.current.on && !mpRef.current.isHost && sessRef.current) guestSetup(sessRef.current); }, 1500);
+  }
+  function becomeHost(promoting) {
+    mpRef.current.isHost = true;
+    if (peerRef.current) { try { peerRef.current.destroy(); } catch (e) {} peerRef.current = null; }
+    connsRef.current = [];
+    const p = new Peer(mpRef.current.code + '-host');
+    peerRef.current = p;
+    p.on('connection', (c) => {
+      connsRef.current.push(c);
+      c.on('data', (m) => onMpData(m, c));
+      c.on('close', () => onConnClose(c));
+    });
+    p.on('error', () => {});
+    if (promoting) setPlayersBoth(playersRef.current.map(pl => Object.assign({}, pl, { isHost: pl.id === myId })));
+  }
+  function guestSetup(sess) {
+    if (peerRef.current) { try { peerRef.current.destroy(); } catch (e) {} peerRef.current = null; }
+    const p = new Peer();
+    peerRef.current = p;
+    p.on('open', () => {
+      const c = p.connect(sess.code + '-host');
+      hostConnRef.current = c;
+      c.on('open', () => { try { const jm = { type: 'JOIN', uid: myId, pName: sess.name }; if (hubColorRef.current) jm.color = hubColorRef.current; c.send(jm); } catch (e) {} });
+      c.on('data', (m) => onMpData(m, c));
+      c.on('close', () => onHostConnClose());
+    });
+    p.on('error', () => {});
+  }
+  function setupMp(sess) {
+    const st = sess.settings || {};
+    let itemDelayS = Number(st.itemStartTime); if (isNaN(itemDelayS)) itemDelayS = 60; itemDelayS = Math.max(0, Math.min(600, itemDelayS));
+    const szId = [7, 10, 12].indexOf(Number(st.sizeId)) >= 0 ? Number(st.sizeId) : 10;
+    mpRef.current = { on: true, isHost: !!sess.isHost, mode: 'race', tourn: !!sess.tourn, tournInfo: sess.tourn || null, hub: !!sess.hub, code: sess.code, sizeId: szId, seed: 0, startAt: 0, phase: 'waiting', itemsAllow: st.allowItems !== false, itemDelay: itemDelayS };
+    setMpOn(true); setMpPhase('waiting'); waitSinceRef.current = Date.now();
+    setScreen('mp');
+    if (sess.isHost) {
+      const list = [{ id: myId, name: sess.name, color: (sess.hub && hubColorRef.current) ? hubColorRef.current : MP_COLORS[0], isHost: true, spectator: false, ready: false, offline: false }];
+      if (sess.tourn && sess.tourn.roster) sess.tourn.roster.forEach(e => { if (e && e.name && normName(e.name) !== normName(sess.name)) list.push({ id: 'pending:' + e.name, name: e.name, color: e.color || MP_COLORS[list.length % MP_COLORS.length], isHost: false, spectator: false, ready: false, offline: false, pending: true }); });
+      setPlayersBoth(list);
+      becomeHost(false);
+      if (sess.resume) { // 房主回座：本地存檔有同場種子就接續（來賓重 JOIN 後 INIT 帶 phase/seed/god）
+        const save = loadResumeAny();
+        if (save && save.seed && save.sizeId === szId) {
+          startMatchLocal(save.seed, szId, save.startAt || Date.now());
+          if (typeof save.cells === 'string' && save.cells.length === (SIZES[szId].w * SIZES[szId].h)) {
+            const arr = save.cells.split('').map(Number);
+            if (!arr.some(v => !(v >= 0 && v <= 3))) { setCells(arr); cellsRef.current = arr; itemsRef.current = { trap: (save.items && save.items.trap) || 0 }; setMyItems(itemsRef.current); giftCreditRef.current = save.giftCredit || 0; milestoneRef.current = save.milestone || 0; countedWallsRef.current = {}; (save.countedWalls || []).forEach(wi => { countedWallsRef.current[wi] = 1; }); lastStateRef.current = 0; }
+          }
+          return;
+        }
+      }
+      if (sess.hub && !sess.tourn) {
+        if (autoIvRef.current) clearInterval(autoIvRef.current);
+        autoIvRef.current = setInterval(() => {
+          if (!mpRef.current.on || !mpRef.current.isHost || mpRef.current.phase !== 'waiting') return;
+          const N = window.__PLAT_NET; if (!N || !N.roster || N.roster.length < 2) return;
+          const joined = playersRef.current.filter(p => !p.pending);
+          const okAll = N.roster.every(r => joined.some(p => normName(p.name) === normName(r.name)));
+          if (okAll) startMatch();
+        }, 800);
+      }
+    } else {
+      setPlayersBoth([]);
+      guestSetup(sess);
+    }
+  }
+  function requestLobby() {
+    if (typeof window !== 'undefined' && window.__PLAT_PLATFORM) { if (window.__PLAT_NOTIFY) window.__PLAT_NOTIFY('game-exit'); return; }
+    if (mpRef.current.isHost) { if (window.__PLAT_NOTIFY) window.__PLAT_NOTIFY('game-exit'); }
+    else mpSend({ type: 'REQ_LOBBY', uid: myId });
+  }
+  function leaveMatch() {
+    if (typeof window !== 'undefined' && window.__PLAT_NOTIFY) window.__PLAT_NOTIFY('player-leave');
+    if (mpRef.current.isHost) mpSend({ type: 'HOST_LEFT', uid: myId });
+    cleanupMp();
+    setScreen('home');
+  }
+  function toggleMyReady() {
+    const v = !myReadyRef.current; myReadyRef.current = v; setMyReadySt(v);
+    if (mpRef.current.isHost) { setPlayersBoth(playersRef.current.map(p => p.id === myId ? Object.assign({}, p, { ready: v }) : p)); hostBroadcast({ type: 'PLAYERS_UPDATE', players: playersRef.current }); }
+    else mpSend({ type: 'READY', uid: myId, ready: v });
+  }
+
   // ---------- PlatBar（只掛對局畫面；自我修復 attach 比照 v1.55.1） ----------
   const platBarCfgStable = useRef(null);
   if (!platBarCfgStable.current) platBarCfgStable.current = {
@@ -326,6 +830,7 @@ function AkariGame() {
   };
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.PlatBar === 'undefined') return;
+    if (window.__PLAT_NET && window.__PLAT_NET.inMatch && window.__PLAT_NET.inMatch !== 'akari') return; // 底部列主人是另一款時不搶
     const el = platBarRef.current;
     if (el) {
       if (window.PlatBar._el() !== el || !window.PlatBar._elConnected()) window.PlatBar.attach(el, platBarCfgStable.current);
@@ -335,6 +840,7 @@ function AkariGame() {
   });
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.PlatBar === 'undefined' || !window.PlatBar.isAttached()) return;
+    if (window.__PLAT_NET && window.__PLAT_NET.inMatch && window.__PLAT_NET.inMatch !== 'akari') return;
     if (screen !== 'game') return;
     window.PlatBar.update({
       mode: mode === 'cross' ? 1 : 0,
@@ -346,17 +852,91 @@ function AkariGame() {
     });
   });
 
-  // ---------- hooks（測試探針＋P2 多人接點預留） ----------
+  // ---------- 斷電到期（復電提示＋重繪） ----------
+  useEffect(() => {
+    if (!outageUntil) return;
+    const left = outageUntil - Date.now();
+    if (left <= 0) return;
+    const t = setTimeout(() => { outageRef.current = 0; setOutageUntil(0); itemSay('💡 復電了！光暈回來了'); }, left + 30);
+    return () => clearTimeout(t);
+  }, [outageUntil]);
+  // ---------- 等待室秒針 ----------
+  useEffect(() => { if (screen !== 'mp') return; const iv = setInterval(() => setWaitTick(t => t + 1), 1000); return () => clearInterval(iv); }, [screen]);
+  // ---------- 平台倒數（PlatCountdown） ----------
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.PlatCountdown) return;
+    if (window.__PLAT_NET && window.__PLAT_NET.inMatch && window.__PLAT_NET.inMatch !== 'akari') return;
+    if (cdNum != null) window.PlatCountdown.show(cdNum); else window.PlatCountdown.hide();
+  }, [cdNum]);
+  // ---------- 平台結算（PlatResults，比照地雷：等待卡可關、關後觀戰面板常駐） ----------
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.PlatResults) return;
+    if (window.__PLAT_NET && window.__PLAT_NET.inMatch && window.__PLAT_NET.inMatch !== 'akari') return;
+    let stage = null;
+    if (mpOn && raceFinal) stage = 'fin';
+    else if (mpOn && myOutcome && mpPhase === 'playing') stage = 'wait';
+    if (!stage) { window.PlatResults.hide(); if (dismissRef.current) dismissRef.current = null; if (leaveArm) setLeaveArm(false); return; }
+    if (dismissRef.current === stage) { window.PlatResults.hide(); return; }
+    const acts = (id) => {
+      if (id === 'watch') { dismissRef.current = stage; setLeaveArm(false); try { window.PlatResults.hide(); } catch (e) {} }
+      else if (id === 'rematch') { dismissRef.current = null; try { window.PlatResults.hide(); } catch (e) {} if (mpRef.current.isHost) startMatch(); else mpSend({ type: 'REQ_REMATCH', uid: myId }); }
+      else if (id === 'lobby') { try { window.PlatResults.hide(); } catch (e) {} requestLobby(); }
+      else if (id === 'home') {
+        if (!leaveArm) { setLeaveArm(true); return; }
+        setLeaveArm(false); dismissRef.current = null; try { window.PlatResults.hide(); } catch (e) {} leaveMatch();
+      }
+    };
+    const homeBtn = leaveArm ? { id: 'home', label: '⚠️ 確定離開？', kind: 'danger' } : { id: 'home', label: '離開' };
+    const inTourn = !!mpRef.current.tourn;
+    const stdBtns = [{ id: 'watch', label: '👁️ 看盤面' }].concat(inTourn ? [{ id: 'lobby', label: '🏁 回等待室', kind: 'primary' }] : [{ id: 'rematch', label: '🔁 再來一局', kind: 'primary' }, { id: 'lobby', label: '🏁 回等待室' }]).concat([homeBtn]);
+    let specR = null;
+    if (stage === 'fin') {
+      specR = { accent: ACCENT, title: '競速結果', entries: raceFinal.entries,
+        verdict: raceFinal.winnerUid === myId ? '🎉 你贏了！' : (myOutcome === 'finished' ? '完賽了，本場名次如上！' : '本場比賽結束，名次如上。'),
+        buttons: stdBtns, onAction: acts };
+    } else {
+      const res2 = playersRef.current.filter(p => !p.spectator && !p.pending).map(p => ({ p: p, g: godRef.current[p.id] || { progress: 0, state: 'playing' } })).filter(e => e.g.state === 'finished');
+      res2.sort((a, b) => (a.g.timeMs || 0) - (b.g.timeMs || 0));
+      specR = { accent: ACCENT, title: '本場成績', waitingText: '等待其他玩家完成…',
+        entries: res2.map(e => ({ key: e.p.id, name: e.p.name, color: e.p.color, isMe: e.p.id === myId, right: '⏱ ' + fmtMS(e.g.timeMs || 0) })),
+        verdict: '🏁 你已完賽，先看看大家的盤面吧',
+        buttons: [{ id: 'watch', label: '👁️ 轉變為上帝模式（觀戰）', kind: 'primary' }, homeBtn], onAction: acts };
+    }
+    window.PlatResults.show(specR);
+  });
+
+  // ---------- 平台 hooks ----------
   useEffect(() => {
     window.__PLAT_HOOKS_akari = {
+      enter: (sess) => {
+        sessRef.current = sess || null;
+        hubColorRef.current = (sess && typeof sess.color === 'string' && sess.color) ? sess.color : null;
+        cleanupMp(); // 開新局先清掉上一局的結算暫存（站規）
+        setRaceFinal(null); finalRef.current = null; setMyOutcome(null); outcomeRef.current = null;
+        godRef.current = {}; setGodBoards({});
+        setStatus('ready'); statusRef.current = 'ready'; setPuzzle(null); puzzleRef.current = null; setCells([]); cellsRef.current = [];
+        setIsDaily(false); setDailyDate(null);
+        if (sess) setupMp(sess);
+      },
+      exit: () => { cleanupMp(); sessRef.current = null; hubColorRef.current = null; setScreen('home'); },
+      identity: (d) => {
+        if (!d || typeof d.color !== 'string' || !d.color) return;
+        if (d.self) setPlayersBoth(playersRef.current.map(p => p.id === myId ? Object.assign({}, p, { color: d.color }) : p));
+        else setPlayersBoth(playersRef.current.map(p => normName(p.name) === normName(d.name || '') ? Object.assign({}, p, { color: d.color }) : p));
+        if (mpRef.current.isHost) hostBroadcast({ type: 'PLAYERS_UPDATE', players: playersRef.current });
+      },
+      migrate: () => { if (mpRef.current.on && !mpRef.current.isHost && typeof window !== 'undefined' && window.__PLAT_NET && window.__PLAT_NET.isHost) becomeHost(true); },
       debug: () => ({
         screen: screenRef.current, sizeId: sizeIdRef.current, status: statusRef.current,
         isDaily: isDailyRef.current, dailyDate: dailyDateRef.current,
         puzzle: puzzleRef.current ? { w: puzzleRef.current.w, h: puzzleRef.current.h, walls: Array.from(puzzleRef.current.walls), numbers: Array.from(puzzleRef.current.numbers.entries()), solution: Array.from(puzzleRef.current.solution) } : null,
         cells: cellsRef.current.slice(),
-        mode: modeRef.current, zoom: zoomRef.current
-      }),
-      notify: () => {} // P2 多人接點（本批未接線）
+        mode: modeRef.current, zoom: zoomRef.current,
+        mp: { on: mpRef.current.on, isHost: mpRef.current.isHost, phase: mpRef.current.phase, tourn: mpRef.current.tourn, seed: mpRef.current.seed, sizeId: mpRef.current.sizeId },
+        players: playersRef.current, god: godRef.current, final: finalRef.current,
+        items: Object.assign({}, itemsRef.current), giftCredit: giftCreditRef.current, milestone: milestoneRef.current,
+        outageUntil: outageRef.current, myOutcome: outcomeRef.current
+      })
     };
     window.__AKARI_PREGEN_STATS = preGenStatsRef.current;
     window.__AKARI_PREGEN_SLOT = () => { const s = preGenRef.current; return s ? { sizeId: s.sizeId, hasPuzzle: !!s.puzzle, hasJob: !!s.job } : null; };
@@ -374,6 +954,8 @@ function AkariGame() {
     let nonWall = 0; for (let i = 0; i < P.w * P.h; i++) if (!P.walls.has(i)) nonWall++;
     litPct = nonWall ? Math.round(100 * litSet.size / nonWall) : 0;
   }
+  const outaged = mpOn && outageUntil > Date.now();
+  const litVis = outaged ? new Set() : litSet; // 斷電：光暈視覺消失（狀態不變）
   const mm = String(Math.floor(elapsed / 60)).padStart(2, '0'), ss = String(elapsed % 60).padStart(2, '0');
   const spec = puzzle ? SIZES[puzzle.w] : SIZES[sizeId];
   const openDailyCal = () => { if (window.PlatCalendar) window.PlatCalendar.show({ accent: ACCENT, records: readDailyRecords(), selected: dailySel, onPick: (ds) => { setDailySel(ds); startDaily(ds); } }); };
@@ -416,6 +998,65 @@ function AkariGame() {
     );
   }
 
+  if (screen === 'mp') {
+    const M = mpRef.current;
+    const szName = (SIZES[M.sizeId] || SIZES[10]).name;
+    if (!M.tourn) {
+      return (
+        <div className="min-h-screen w-full flex flex-col items-center p-4 relative">
+          <div className="flex-1 flex items-center justify-center w-full">
+            <div className="bg-white border-4 border-slate-800 rounded-2xl shadow-[10px_10px_0px_rgba(30,41,59,1)] p-8 text-center max-w-sm w-full animate-fadeIn">
+              <div className="text-5xl mb-3">⏳</div>
+              <div className="font-black text-2xl text-slate-800 animate-pulse">等房主開始對局…</div>
+              <div className="font-semibold text-slate-400 text-sm mt-2">準備和設定都在房間頁完成了，馬上開始</div>
+              <button onClick={leaveMatch} className="plat-btn-hard mt-5 px-4 py-2 bg-slate-100 border-[3px] border-slate-800 rounded-xl font-black text-slate-600 shadow-[2px_2px_0px_rgba(30,41,59,1)]">離開</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    const racersW = players.filter(p => !p.spectator && !p.pending);
+    const pendW = players.filter(p => p.pending);
+    const allReadyW = racersW.length > 0 && racersW.every(p => p.ready);
+    const waitedW = waitSinceRef.current ? Date.now() - waitSinceRef.current : 0;
+    const canStartW = M.isHost && racersW.length >= 2 && ((pendW.length === 0 && allReadyW) || waitedW >= 60000);
+    const startNoteW = !M.isHost ? '' : (racersW.length < 2 ? '等待選手加入（至少 2 位）…' : (canStartW ? (pendW.length ? '未到的選手將以觀戰身分加入' : '') : (pendW.length ? '等待全員到齊…' : '等待全員準備（或 ' + Math.max(0, 60 - Math.floor(waitedW / 1000)) + ' 秒後開放開始）')));
+    const myEntryW = players.find(p => p.id === myId);
+    const tInfo = M.tournInfo || {};
+    return (
+      <div className="min-h-screen w-full flex flex-col items-center p-4 relative">
+        <div className="flex-1 flex items-center justify-center w-full">
+        <div className="w-full max-w-md bg-[#fffaf0] border-4 border-slate-800 rounded-2xl shadow-[10px_10px_0px_rgba(30,41,59,1)] p-6 z-10 animate-fadeIn">
+          <div className="text-center text-4xl mb-1">🏆</div>
+          <div className="font-black text-2xl text-slate-800 text-center">錦標賽・第 {tInfo.round || '?'} 局</div>
+          <div className="font-semibold text-slate-400 text-sm text-center mt-1 mb-4">本局：美術燈競速・{szName}・全員準備好房主才能開始，或等滿 1 分鐘強制開始</div>
+          <div className="flex flex-col gap-2 mb-4">
+            {players.map(p => (
+              <div key={p.id} className="flex items-center gap-2 bg-slate-50 border-2 border-slate-800 rounded-xl px-3 py-2 font-black text-slate-800">
+                <span className="w-4 h-4 rounded-full border-2 border-slate-800 shrink-0" style={{ background: p.color }}></span>
+                <span className="truncate">{p.name}{p.isHost ? ' 👑' : ''}{p.id === myId ? '（你）' : ''}</span>
+                <span className="ml-auto shrink-0">{p.pending ? <span className="text-[10px] bg-slate-100 border border-slate-300 text-slate-400 px-1.5 py-0.5 rounded-md">未到</span> : p.offline ? <span className="text-[10px] bg-rose-100 border border-rose-400 text-rose-600 px-1.5 py-0.5 rounded-md">離線</span> : p.spectator ? <span className="text-[10px] bg-sky-100 border border-sky-400 text-sky-700 px-1.5 py-0.5 rounded-md">👁️ 觀戰</span> : (p.ready ? <span className="text-[10px] bg-emerald-100 border border-emerald-500 text-emerald-700 px-1.5 py-0.5 rounded-md">✅ 準備好了</span> : <span className="text-[10px] bg-slate-100 border border-slate-300 text-slate-400 px-1.5 py-0.5 rounded-md">未準備</span>)}</span>
+              </div>
+            ))}
+            {!players.length && <p className="font-bold text-slate-400 text-center py-2">連線中…</p>}
+          </div>
+          {myEntryW && !myEntryW.pending && !myEntryW.spectator && (
+            <button onClick={toggleMyReady} className={"plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 rounded-xl border-[3px] border-slate-800 font-black text-lg shadow-[3px_3px_0px_rgba(30,41,59,1)]" + (myReadySt ? ' bg-amber-400 text-slate-900' : ' bg-white text-slate-500')}>{myReadySt ? '✅ 已準備（點擊取消）' : '✋ 準備好了'}</button>
+          )}
+          {M.isHost ? (
+            <div>
+              <button disabled={!canStartW} onClick={startMatch} className="plat-btn-hard plat-btn-hard-3 w-full py-3 bg-red-500 text-white border-[3px] border-slate-800 rounded-xl font-black text-lg shadow-[3px_3px_0px_rgba(30,41,59,1)] disabled:opacity-40 disabled:shadow-none">🏁 開始本局</button>
+              {startNoteW && <p className="text-xs text-slate-500 font-semibold text-center mt-2">{startNoteW}</p>}
+            </div>
+          ) : (
+            <p className="font-black text-slate-700 animate-pulse text-center">等待房主開始...</p>
+          )}
+        </div>
+        </div>
+      </div>
+    );
+  }
+
   // game 畫面
   const cellPxBase = puzzle ? Math.max(24, Math.min(52, Math.floor((Math.min(window.innerWidth || 400, 560) - 24) / puzzle.w))) : 36;
   const cellPx = Math.round(cellPxBase * zoom);
@@ -425,7 +1066,12 @@ function AkariGame() {
         {/* 頂欄控制卡（整張有邊框、比照他款） */}
         <div className="bg-white border-[3px] border-slate-800 rounded-2xl shadow-[3px_3px_0px_rgba(30,41,59,1)] px-3 py-2 mb-3">
           <div className="flex items-center gap-2 flex-wrap">
-            <button onClick={() => { genTokenRef.current++; if (window.PlatGenerating) window.PlatGenerating.end(); setScreen('home'); setPuzzle(null); puzzleRef.current = null; }} className="plat-btn-hard bg-slate-100 px-2.5 py-1 rounded-lg border-2 border-slate-800 font-black text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)]">← 主選單</button>
+            {mpOn ? (
+              <button onClick={requestLobby} className="plat-btn-hard bg-slate-100 px-2.5 py-1 rounded-lg border-2 border-slate-800 font-black text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)]">← 回等待室</button>
+            ) : (
+              <button onClick={() => { genTokenRef.current++; if (window.PlatGenerating) window.PlatGenerating.end(); setScreen('home'); setPuzzle(null); puzzleRef.current = null; }} className="plat-btn-hard bg-slate-100 px-2.5 py-1 rounded-lg border-2 border-slate-800 font-black text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)]">← 主選單</button>
+            )}
+            {mpOn && <span className="bg-amber-400 text-slate-900 px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] whitespace-nowrap shrink-0">⚔️ 競速對戰</span>}
             <span className="bg-white px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] whitespace-nowrap shrink-0">⚙️ {isDaily ? '每日一題 ' + spec.short : spec.name}</span>
             <span className="font-black text-slate-700 text-sm md:text-base tabular-nums">⏱ {mm}:{ss}</span>
             <span className="font-black text-amber-600 text-sm md:text-base">💡 {correct}/{P ? P.solution.size : 0}</span>
@@ -443,9 +1089,32 @@ function AkariGame() {
               ① 在空格放燈，燈會照亮同行同列、直到撞牆。② 所有空格都要被照亮。③ 任何兩盞燈不能互相照到。④ 數字牆上下左右的燈數要剛好等於數字。點按循環：燈 → 叉（記號）→ 空白；按住拖曳可連續塗叉。
             </div>
           )}
+          {mpOn && (
+            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+              {players.filter(p => !p.pending).map(p => {
+                const g = godBoards[p.id] || { progress: p.id === myId ? progress : 0, state: 'playing' };
+                const pct = Math.floor((p.id === myId ? progress : (g.progress || 0)) * 100);
+                return (
+                  <span key={p.id} className="flex items-center gap-1 bg-slate-50 border-2 border-slate-800 rounded-full pl-1 pr-2 py-0.5 font-black text-[11px] text-slate-700">
+                    <span className="w-3 h-3 rounded-full border border-slate-800" style={{ background: p.color }}></span>
+                    <span className="max-w-[5.5rem] truncate">{p.name}{p.id === myId ? '（你）' : ''}</span>
+                    <span>{p.spectator ? '👁️' : (g.state === 'finished' ? '🏁' : pct + '%')}</span>
+                  </span>
+                );
+              })}
+              {itemsLive() && !iAmSpecRef.current && !myOutcome && mpPhase === 'playing' && (
+                <span className="ml-auto flex items-center gap-1.5">
+                  <span className="font-black text-[11px] text-amber-600" title="數字牆正確滿足累積的禮物額度（滿 1 自動送較弱的對手）">🎁 額度 {giftCreditRef.current.toFixed(1)}</span>
+                  <button onClick={fireTrap} disabled={(myItems.trap || 0) <= 0} className="plat-btn-hard px-2 py-0.5 bg-violet-100 border-2 border-slate-800 rounded-full font-black text-[11px] text-violet-800 shadow-[1px_1px_0px_rgba(30,41,59,1)] disabled:opacity-40 disabled:shadow-none" title="斷電陷阱：讓一位對手的燈光暈消失 5 秒">⚡ 斷電 ×{myItems.trap || 0}</button>
+                </span>
+              )}
+            </div>
+          )}
+          {outaged && <div className="mt-2 bg-slate-800 text-amber-300 font-black text-sm rounded-lg px-3 py-1.5 text-center animate-pulse">⚡ 斷電中…光暈暫時消失（燈都還在）</div>}
+          {itemToast && <div className="mt-2 bg-amber-50 border-2 border-amber-400 text-amber-800 font-black text-sm rounded-lg px-3 py-1.5 text-center">{itemToast}</div>}
         </div>
         {/* 盤面 */}
-        <div className="akari-board-scroll overflow-auto flex justify-center" onPointerMove={onBoardMove}>
+        <div className={"akari-board-scroll overflow-auto flex justify-center" + (mpOn && iAmSpecRef.current ? " hidden" : "")} onPointerMove={onBoardMove}>
           <div className="inline-grid gap-[3px] p-[6px] bg-amber-100 border-[3px] border-slate-800 rounded-2xl" style={{ gridTemplateColumns: 'repeat(' + (puzzle ? puzzle.w : 10) + ', ' + cellPx + 'px)' }}>
             {puzzle && cells.map((cv, i) => {
               const isWall = P.walls.has(i);
@@ -458,19 +1127,47 @@ function AkariGame() {
                   </div>
                 );
               }
-              const isBulb = cv === 1, isCross = cv === 2, lit = litSet.has(i), bad = confBad.has(i);
+              const isBulb = cv === 1, isLocked = cv === 3, isCross = cv === 2, lit = litVis.has(i), bad = confBad.has(i);
               return (
                 <button key={i} data-cell={i}
                   onPointerDown={e => onCellDown(i, e)} onPointerUp={e => onCellUp(i, e)} onClick={() => onCellClick(i)}
-                  className={"flex items-center justify-center rounded-[4px] border select-none touch-none" + (bad ? " border-red-500" : " border-amber-200") + (isBulb && newBulbRef.current === i ? " akari-bulb-new" : "")}
-                  style={{ width: cellPx, height: cellPx, fontSize: Math.round(cellPx * 0.52), background: isBulb ? '#fbbf24' : (lit ? '#fef3c7' : '#ffffff'), boxShadow: bad ? 'inset 0 0 0 2px #ef4444' : (isBulb ? '0 0 10px 2px rgba(245,158,11,0.55)' : 'none') }}>
-                  {isBulb ? '💡' : (isCross ? <span className="text-slate-400 font-black">✕</span> : '')}
+                  className={"relative flex items-center justify-center rounded-[4px] border select-none touch-none" + (bad ? " border-red-500" : " border-amber-200") + (isBulb && newBulbRef.current === i ? " akari-bulb-new" : "")}
+                  style={{ width: cellPx, height: cellPx, fontSize: Math.round(cellPx * 0.52), background: (isBulb || isLocked) ? '#fbbf24' : (lit ? '#fef3c7' : '#ffffff'), boxShadow: bad ? 'inset 0 0 0 2px #ef4444' : (isLocked ? 'inset 0 0 0 2px #b45309, 0 0 10px 2px rgba(245,158,11,0.55)' : (isBulb && !outaged ? '0 0 10px 2px rgba(245,158,11,0.55)' : 'none')) }}>
+                  {(isBulb || isLocked) ? '💡' : (isCross ? <span className="text-slate-400 font-black">✕</span> : '')}
+                  {isLocked && <span className="absolute bottom-0 right-0 leading-none" style={{ fontSize: Math.max(9, Math.round(cellPx * 0.3)) }}>🔒</span>}
                 </button>
               );
             })}
           </div>
         </div>
-        {status === 'won' && winInfo && (
+        {mpOn && (myOutcome || iAmSpecRef.current) && puzzle && (
+          <div className="mt-4 bg-white border-[3px] border-slate-800 rounded-2xl shadow-[3px_3px_0px_rgba(30,41,59,1)] p-4">
+            <div className="font-black text-slate-800 mb-2">👁️ 觀戰（點選手看他的盤面）</div>
+            <div className="flex gap-1.5 flex-wrap mb-3">
+              {players.filter(p => !p.spectator && !p.pending && p.id !== myId).map(p => {
+                const g = godBoards[p.id] || { progress: 0, state: 'playing' };
+                return (
+                  <button key={p.id} onClick={() => setSpecUid(p.id)} className={"plat-btn-hard px-2.5 py-1 rounded-full border-2 border-slate-800 font-black text-xs shadow-[1px_1px_0px_rgba(30,41,59,1)]" + (specUid === p.id ? " bg-amber-400 text-slate-900" : " bg-white text-slate-700")}>
+                    <span className="inline-block w-2.5 h-2.5 rounded-full border border-slate-800 mr-1" style={{ background: p.color }}></span>{p.name}・{g.state === 'finished' ? '🏁' : Math.floor((g.progress || 0) * 100) + '%'}
+                  </button>
+                );
+              })}
+            </div>
+            {specUid && godBoards[specUid] && typeof godBoards[specUid].cells === 'string' && P && (
+              <div className="flex justify-center">
+                <div className="inline-grid gap-[2px] p-[4px] bg-amber-100 border-2 border-slate-800 rounded-xl" style={{ gridTemplateColumns: 'repeat(' + puzzle.w + ', 18px)' }}>
+                  {godBoards[specUid].cells.split('').map((ch, i) => {
+                    if (P.walls.has(i)) { const n = P.numbers.has(i) ? P.numbers.get(i) : null; return <div key={i} className="flex items-center justify-center bg-slate-800 rounded-[3px] font-black text-amber-300" style={{ width: 18, height: 18, fontSize: 10 }}>{n != null ? n : ''}</div>; }
+                    const v = Number(ch);
+                    return <div key={i} className="flex items-center justify-center rounded-[3px] border border-amber-200" style={{ width: 18, height: 18, fontSize: 11, background: (v === 1 || v === 3) ? '#fbbf24' : '#ffffff', boxShadow: v === 3 ? 'inset 0 0 0 2px #b45309' : 'none' }}>{v === 1 || v === 3 ? '💡' : (v === 2 ? <span className="text-slate-400 font-black">✕</span> : '')}</div>;
+                  })}
+                </div>
+              </div>
+            )}
+            {specUid && !(godBoards[specUid] && typeof godBoards[specUid].cells === 'string') && <p className="text-center font-bold text-slate-400 text-sm">等他的盤面同步過來…</p>}
+          </div>
+        )}
+        {status === 'won' && winInfo && !mpOn && (
           <div className="mt-4 bg-white border-[3px] border-slate-800 rounded-2xl shadow-[3px_3px_0px_rgba(30,41,59,1)] p-4 text-center">
             <div className="text-3xl font-black text-slate-800 mb-1">🎉 全盤點亮！</div>
             <div className="font-bold text-slate-500 mb-3">{winInfo.isDaily ? '每日一題 ' + (winInfo.dateStr || '') + ' ' : ''}用時 {String(Math.floor(winInfo.secs / 60)).padStart(2, '0')}:{String(winInfo.secs % 60).padStart(2, '0')}{winInfo.isDaily && winInfo.dateStr === todayStr() && streakInfo.count > 0 ? '・🔥 連勝 ' + streakInfo.count + ' 天' : ''}</div>

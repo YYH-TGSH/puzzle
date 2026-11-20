@@ -151,6 +151,7 @@
                     <option value="alt-s">數獨先（輪替）</option>
                     <option value="alt-h">數橋先（輪替）</option>
                     <option value="alt-m">地雷先（輪替）</option>
+                    <option value="alt-a">美術燈先（輪替）</option>
                     <option value="random">隨機</option>
                   </select>
                 </label>
@@ -211,6 +212,17 @@
                     </select>
                   </label>
                   <div class="text-xs text-slate-400 font-bold">純競速（無道具）：最快排完的人贏，踩到雷出局照當時進度排名。</div>
+                </div>
+                <div class="border-2 border-slate-200 rounded-lg p-2 flex flex-col gap-1.5">
+                  <div class="font-black text-slate-700">💡 美術燈競速設定</div>
+                  <label class="flex items-center gap-2">盤面
+                    <select id="ta-size" class="flex-1 bg-white border-2 border-slate-800 rounded-lg px-2 py-1 font-black text-slate-800">
+                      <option value="7">7×7・小</option>
+                      <option value="10" selected>10×10・中</option>
+                      <option value="12">12×12・大</option>
+                    </select>
+                  </label>
+                  <div class="text-xs text-slate-400 font-bold">競速（道具固定開、延遲 60 秒）：最快點亮全盤的人贏。</div>
                 </div>
                 <label class="flex items-center gap-2">每局時間
                   <select id="t-secs" class="flex-1 bg-white border-2 border-slate-800 rounded-lg px-2 py-1.5 font-black text-slate-800">
