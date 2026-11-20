@@ -78,7 +78,7 @@
     })();
   }
   // 掛載失敗橫幅（v1.19.0）：遊戲 view 頂端亮出問題＋一顆「重新載入這款遊戲」鈕（走 __PLAT_REBOOT）
-  var GAME_TITLES = { sudoku: '🔢 數獨', hashi: '🌉 數橋', mines: '💣 踩地雷' };
+  var GAME_TITLES = { sudoku: '🔢 數獨', hashi: '🌉 數橋', mines: '💣 踩地雷', akari: '💡 美術燈' };
   function showBootErr(name) {
     var view = document.getElementById('view-' + name); if (!view) return;
     if (document.getElementById('plat-boot-err-' + name)) return;
@@ -150,7 +150,7 @@
       }
     }
     currentView = name;
-    ['home', 'sudoku', 'hashi', 'mines', 'lobby'].forEach(function (v) {
+    ['home', 'sudoku', 'hashi', 'mines', 'akari', 'lobby'].forEach(function (v) {
       var vel = document.getElementById('view-' + v); if (!vel) return; // 防空：混版快取（新殼+舊頁面缺某款 view）不能讓整個切換死掉（v1.14.1 實機事故：房主開數獨整面空白）
       if (v === name) { if (vel._outT) { clearTimeout(vel._outT); vel._outT = null; } vel.classList.remove('plat-view-out'); vel.classList.add('active'); }
       else if (vel.classList.contains('active')) { // 退場補強（v1.53.0）：舊畫面 90ms 淡出後才卸載，與新畫面淡入組成 crossfade，不再瞬斷
@@ -161,7 +161,7 @@
     });
     document.body.setAttribute('data-view', name);
     // 先 boot 遊戲、再做裝飾更新：dock/rejoin 只是外觀與探測，萬一丟錯絕不能擋住遊戲載入（v1.19.0 靈魂拷問盤點）
-    if (name === 'sudoku' || name === 'hashi' || name === 'mines') {
+    if (name === 'sudoku' || name === 'hashi' || name === 'mines' || name === 'akari') {
       try { boot(name); } catch (e) { status('❌ ' + name + ' 啟動例外: ' + (e && e.message ? e.message : e)); }
     }
     try { if (window.__PLAT_UPDATE_DOCK) window.__PLAT_UPDATE_DOCK(); } catch (e) { status('dock 更新失敗（不擋遊戲）: ' + (e && e.message ? e.message : e)); } // updateDock 在另一個 IIFE：舊版直接寫函數名永遠是 undefined、dock 在回主頁時不會收
@@ -178,7 +178,7 @@
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.66.2';
+  var PLAT_VERSION = '1.67.0';
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -1345,7 +1345,7 @@
     var H = ensureHub();
     if (!H.enteredAt) H.enteredAt = Date.now();
     hubWire();
-    ['home', 'sudoku', 'hashi', 'mines', 'lobby'].forEach(function (v) {
+    ['home', 'sudoku', 'hashi', 'mines', 'akari', 'lobby'].forEach(function (v) {
       var vel = document.getElementById('view-' + v); if (vel) vel.classList.toggle('active', v === 'lobby'); // 防空同 PLAT_show（混版快取）
     });
     document.body.setAttribute('data-view', 'lobby');

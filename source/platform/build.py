@@ -11,6 +11,7 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 HASHI = os.path.expanduser('~/workspace/hashi-site')
 SUDOKU = os.path.expanduser('~/workspace/sudoku-site')
 MINES = os.path.expanduser('~/workspace/mines-site')
+AKARI = os.path.expanduser('~/workspace/akari-site')
 _args = [a for a in sys.argv[1:] if not a.startswith('--')]
 DIAG = '--diag' in sys.argv
 OUT = _args[0] if _args else os.path.join(BASE, 'platform-v1-test.html')
@@ -28,17 +29,21 @@ def split_body_rule(css):
 sudoku_css = read(SUDOKU, 'css/style.css')
 hashi_css = read(HASHI, 'css/style.css')
 mines_css = read(MINES, 'css/style.css')
+akari_css = read(AKARI, 'css/style.css')
 s_body, sudoku_css = split_body_rule(sudoku_css)
 h_body, hashi_css = split_body_rule(hashi_css)
 m_body, mines_css = split_body_rule(mines_css)
+a_body, akari_css = split_body_rule(akari_css)
 shell_css = read(BASE, 'shell.css')
 platform_css = (
     '/* === 數獨 css === */\n' + sudoku_css.strip() + '\n\n'
     '/* === 數橋 css === */\n' + hashi_css.strip() + '\n\n'
     '/* === 踩地雷 css === */\n' + mines_css.strip() + '\n\n'
+    '/* === 美術燈 css === */\n' + akari_css.strip() + '\n\n'
     'body[data-view="sudoku"] {\n' + s_body + '\n}\n'
     'body[data-view="hashi"] {\n' + h_body + '\n}\n'
-    'body[data-view="mines"] {\n' + m_body + '\n}\n\n'
+    'body[data-view="mines"] {\n' + m_body + '\n}\n'
+    'body[data-view="akari"] {\n' + a_body + '\n}\n\n'
     '/* === 平台殼 css === */\n' + shell_css.strip()
 )
 
@@ -49,6 +54,7 @@ classics = '\n'.join([
     classic(read(HASHI, 'js/solver.js')),
     classic(read(HASHI, 'js/puzzle.js')),
     classic(read(SUDOKU, 'js/engine.js')),
+    classic(read(AKARI, 'js/engine.js')),
 ])
 
 # 兩款 app 改為 build 時預編譯（各自的 Babel 版本），手機端直接執行、不再即時編譯
@@ -59,7 +65,8 @@ def js_safe(code):
 sudoku_app = js_safe(open(os.path.join(BASE, '.build', 'plat-sudoku-compiled.js'), encoding='utf-8').read())
 hashi_app = js_safe(open(os.path.join(BASE, '.build', 'plat-hashi-compiled.js'), encoding='utf-8').read())
 mines_app = js_safe(open(os.path.join(BASE, '.build', 'plat-mines-compiled.js'), encoding='utf-8').read())
-assert 'sudoku-root' in sudoku_app and 'hashi-root' in hashi_app and 'mines-root' in mines_app
+akari_app = js_safe(open(os.path.join(BASE, '.build', 'plat-akari-compiled.js'), encoding='utf-8').read())
+assert 'sudoku-root' in sudoku_app and 'hashi-root' in hashi_app and 'mines-root' in mines_app and 'akari-root' in akari_app
 
 
 # === v1.19.0 單一檔案部署：函式庫全 vendor 化 inline ===
@@ -91,24 +98,29 @@ def build_site(outdir):
     os.makedirs(os.path.join(outdir, 'js/sudoku'), exist_ok=True)
     os.makedirs(os.path.join(outdir, 'js/hashi'), exist_ok=True)
     os.makedirs(os.path.join(outdir, 'js/mines'), exist_ok=True)
+    os.makedirs(os.path.join(outdir, 'js/akari'), exist_ok=True)
     os.makedirs(os.path.join(outdir, 'js/platform'), exist_ok=True)
     # css: body-stripped game css + platform css with data-view body rules
     open(os.path.join(outdir, 'css/sudoku.css'), 'w', encoding='utf-8').write(sudoku_css.strip() + '\n')
     open(os.path.join(outdir, 'css/hashi.css'), 'w', encoding='utf-8').write(hashi_css.strip() + '\n')
     open(os.path.join(outdir, 'css/mines.css'), 'w', encoding='utf-8').write(mines_css.strip() + '\n')
+    open(os.path.join(outdir, 'css/akari.css'), 'w', encoding='utf-8').write(akari_css.strip() + '\n')
     plat_css = ('body[data-view="sudoku"] {\n' + s_body + '\n}\n'
                 'body[data-view="hashi"] {\n' + h_body + '\n}\n'
-                'body[data-view="mines"] {\n' + m_body + '\n}\n\n' + shell_css.strip() + '\n')
+                'body[data-view="mines"] {\n' + m_body + '\n}\n'
+                'body[data-view="akari"] {\n' + a_body + '\n}\n\n' + shell_css.strip() + '\n')
     open(os.path.join(outdir, 'css/platform.css'), 'w', encoding='utf-8').write(plat_css)
     # js: classics + compiled apps + shell
     import shutil, subprocess
     shutil.copy(os.path.join(SUDOKU, 'js/engine.js'), os.path.join(outdir, 'js/sudoku/engine.js'))
+    shutil.copy(os.path.join(AKARI, 'js/engine.js'), os.path.join(outdir, 'js/akari/engine.js'))
     for f in ['solver.js', 'puzzle.js']:
         shutil.copy(os.path.join(HASHI, 'js', f), os.path.join(outdir, 'js/hashi', f))
     subprocess.run(['node', os.path.join(BASE, 'compile.js')], check=True)
     shutil.copy(os.path.join(BASE, '.build', 'plat-sudoku-compiled.js'), os.path.join(outdir, 'js/sudoku/app.compiled.js'))
     shutil.copy(os.path.join(BASE, '.build', 'plat-hashi-compiled.js'), os.path.join(outdir, 'js/hashi/app.compiled.js'))
     shutil.copy(os.path.join(BASE, '.build', 'plat-mines-compiled.js'), os.path.join(outdir, 'js/mines/app.compiled.js'))
+    shutil.copy(os.path.join(BASE, '.build', 'plat-akari-compiled.js'), os.path.join(outdir, 'js/akari/app.compiled.js'))
     shutil.copy(os.path.join(BASE, 'shell.js'), os.path.join(outdir, 'js/platform/shell.js'))
     shutil.copy(os.path.join(BASE, 'platform-icon.png'), os.path.join(outdir, 'platform-icon.png'))
     # index.html from shell template with file references instead of inlining
@@ -117,14 +129,16 @@ def build_site(outdir):
     # 使用者多次遇到「推了新版、手機還跑舊檔（混版/沒感覺）」；升版即換網址，瀏覽器被迫抓新檔。只作用在 --site 的 index。
     _ver = re.search(r"PLAT_VERSION = '([^']+)'", read(BASE, 'shell.js')).group(1)
     html = html.replace('<!--PLATFORM_CSS-->', '')
-    html = re.sub(r'  <style>\n\n  </style>', '  <link rel="stylesheet" href="css/sudoku.css">\n  <link rel="stylesheet" href="css/hashi.css">\n  <link rel="stylesheet" href="css/mines.css">\n  <link rel="stylesheet" href="css/platform.css">', html)
+    html = re.sub(r'  <style>\n\n  </style>', '  <link rel="stylesheet" href="css/sudoku.css">\n  <link rel="stylesheet" href="css/hashi.css">\n  <link rel="stylesheet" href="css/mines.css">\n  <link rel="stylesheet" href="css/akari.css">\n  <link rel="stylesheet" href="css/platform.css">', html)
     html = html.replace('<!--CLASSIC_SCRIPTS-->', '\n'.join([
         '  <script src="js/hashi/solver.js"></script>',
         '  <script src="js/hashi/puzzle.js"></script>',
-        '  <script src="js/sudoku/engine.js"></script>']))
+        '  <script src="js/sudoku/engine.js"></script>',
+        '  <script src="js/akari/engine.js"></script>']))
     html = re.sub(r'  <script type="text/plain" id="code-sudoku">.*?</script>\n', '', html, flags=re.S)
     html = re.sub(r'  <script type="text/plain" id="code-hashi">.*?</script>\n', '', html, flags=re.S)
     html = re.sub(r'  <script type="text/plain" id="code-mines">.*?</script>\n', '', html, flags=re.S)
+    html = re.sub(r'  <script type="text/plain" id="code-akari">.*?</script>\n', '', html, flags=re.S)
     html = html.replace('<!--STATUS_PANEL-->', '')
     html = re.sub(r'  <script>\n<!--SHELL_JS-->\n  </script>', '  <script src="js/platform/shell.js"></script>', html)
     assert '<!--' not in html, 'site index 尚有 placeholder'
@@ -144,6 +158,7 @@ def assemble_bundle():
     html = html.replace('<!--CODE_SUDOKU-->', sudoku_app.rstrip())
     html = html.replace('<!--CODE_HASHI-->', hashi_app.rstrip())
     html = html.replace('<!--CODE_MINES-->', mines_app.rstrip())
+    html = html.replace('<!--CODE_AKARI-->', akari_app.rstrip())
     PANEL = '''  <div id="plat-status" style="position:fixed;left:0;right:0;bottom:0;z-index:99998;background:rgba(0,0,0,0.8);color:#d1fae5;font-family:monospace;font-size:11px;line-height:1.5;padding:6px 10px;max-height:38vh;overflow:auto;">
     <div style="display:flex;justify-content:space-between;align-items:center;"><span>🔧 平台狀態（測試用）</span><button onclick="document.getElementById('plat-status').style.display='none'" style="color:#fff;font-weight:900;padding:2px 8px;">✕</button></div>
     <div id="plat-status-body"></div>

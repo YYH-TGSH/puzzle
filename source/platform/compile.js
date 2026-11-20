@@ -22,3 +22,4 @@ function compile(srcPath, outPath, babel, presets, rootId, gameName, createPatte
 compile(path.join(WS, 'sudoku-site', 'js', 'app.js'), path.join(OUTDIR, 'plat-sudoku-compiled.js'), B7, ['env', 'react'], 'sudoku-root', 'sudoku', 'React.createElement(SudokuGame)');
 compile(path.join(WS, 'hashi-site', 'js', 'app.js'), path.join(OUTDIR, 'plat-hashi-compiled.js'), B6, ['es2015', 'react', 'stage-2'], 'hashi-root', 'hashi', 'React.createElement(HashiGame, null)');
 compile(path.join(WS, 'mines-site', 'js', 'app.js'), path.join(OUTDIR, 'plat-mines-compiled.js'), B7, ['env', 'react'], 'mines-root', 'mines', 'React.createElement(MinesGame)');
+compile(path.join(WS, 'akari-site', 'js', 'app.js'), path.join(OUTDIR, 'plat-akari-compiled.js'), B7, ['env', 'react'], 'akari-root', 'akari', 'React.createElement(AkariGame, null)');
