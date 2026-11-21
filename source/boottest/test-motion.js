@@ -41,7 +41,7 @@ function loadPage(extraBeforeParse, url) {
     url: url || 'https://localhost/', runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true,
     beforeParse(window) {
       window.__SHARED_REG__ = {};
-      window.addEventListener('error', e => { const m = String(e.message || ''); if (!/scrollTo/.test(m)) errors.push(m); });
+      window.addEventListener('error', e => { const m = String(e.message || ''); if (!/scrollTo/.test(m)) errors.push('[+err] ' + m + '\nSTACK: ' + ((e.error && e.error.stack) || '(none)')); });
       if (extraBeforeParse) extraBeforeParse(window);
     }
   });

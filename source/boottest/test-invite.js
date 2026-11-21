@@ -17,7 +17,7 @@ function loadInvite(url, seed) {
     url, runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true,
     beforeParse(window) {
       window.__SHARED_REG__ = REG;
-      window.addEventListener('error', e => { const m = String(e.message || ''); if (!/scrollTo/.test(m)) errors.push(m); });
+      window.addEventListener('error', e => { const m = String(e.message || ''); if (!/scrollTo/.test(m)) errors.push('[+err] ' + m + '\nSTACK: ' + ((e.error && e.error.stack) || '(none)')); });
       if (seed) { try { if (seed.name) window.localStorage.setItem('plat_name', seed.name); if (seed.color) window.localStorage.setItem('plat_color', seed.color); } catch (e) {} }
     }
   });

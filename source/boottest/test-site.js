@@ -40,11 +40,12 @@ async function waitFor(fn, ms, label) { ms = Math.min(ms || 60000, (typeof WAITF
 const SHARED_REG = {};
 function loadPage(origin, label) {
   const errs = [];
+  const __errT0 = Date.now(); const stamp = (m, stack) => '[+' + ((Date.now() - __errT0) / 1000).toFixed(1) + 's] ' + m + (stack ? '\nSTACK: ' + stack : '\nSTACK: (none)');
   const vc = new VirtualConsole();
-  vc.on('jsdomError', e => { const m = String((e.detail && e.detail.message) || e.message || e); if (!/scrollTo|getContext|Not implemented|Could not parse CSS|Could not load/i.test(m)) errs.push(m); });
-  vc.on('error', m => errs.push(String(m)));
+  vc.on('jsdomError', e => { const m = String((e.detail && e.detail.message) || e.message || e); if (!/scrollTo|getContext|Not implemented|Could not parse CSS|Could not load/i.test(m)) errs.push(stamp(m, e.detail && e.detail.stack)); });
+  vc.on('error', m => errs.push(stamp(String(m))));
   return { errors: errs, label, vc, opts: { resources: { interceptors: [interceptor] }, runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc,
-    beforeParse(w) { w.__SHARED_REG__ = SHARED_REG; w.eval(mock); w.scrollTo = () => {}; w.addEventListener('error', e => { if (e.message && !/Script error/.test(e.message)) errs.push(e.message); }); } } };
+    beforeParse(w) { w.__SHARED_REG__ = SHARED_REG; w.eval(mock); w.scrollTo = () => {}; w.addEventListener('error', e => { if (e.message && !/Script error/.test(e.message)) errs.push(stamp(e.message, e.error && e.error.stack)); }); } } };
 }
 (async () => {
   // ① 單檔完整性（直接讀部署檔）

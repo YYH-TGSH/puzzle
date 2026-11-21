@@ -22,9 +22,10 @@ function mockACStrict(w) {
 }
 function loadPage(reg, seed) {
   const errs = [];
+  const __errT0 = Date.now(); const stamp = (m, stack) => '[+' + ((Date.now() - __errT0) / 1000).toFixed(1) + 's] ' + m + (stack ? '\nSTACK: ' + stack : '\nSTACK: (none)');
   const vc = new VirtualConsole();
-  vc.on('jsdomError', e => { const m = String((e.detail && e.detail.message) || e.message || e); if (!/scrollTo|getContext|Not implemented|Could not parse CSS|Could not load/i.test(m)) errs.push(m); });
-  vc.on('error', m => errs.push(String(m)));
+  vc.on('jsdomError', e => { const m = String((e.detail && e.detail.message) || e.message || e); if (!/scrollTo|getContext|Not implemented|Could not parse CSS|Could not load/i.test(m)) errs.push(stamp(m, e.detail && e.detail.stack)); });
+  vc.on('error', m => errs.push(stamp(String(m))));
   const dom = new JSDOM(html, { url: 'https://localhost/', resources: 'usable', runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc,
     beforeParse(w) {
       w.__SHARED_REG__ = reg; w.scrollTo = () => {}; mockACStrict(w);
@@ -33,7 +34,7 @@ function loadPage(reg, seed) {
         w.SVGSVGElement.prototype.createSVGPoint = function () { return { x: 0, y: 0, matrixTransform: function () { return { x: this.x, y: this.y }; } }; };
         w.SVGSVGElement.prototype.getScreenCTM = function () { return { inverse: function () { return {}; } }; };
       }
-      w.addEventListener('error', e => { if (e.message && !/Script error/.test(e.message)) errs.push(e.message); });
+      w.addEventListener('error', e => { if (e.message && !/Script error/.test(e.message)) errs.push(stamp(e.message, e.error && e.error.stack)); });
     } });
   return { window: dom.window, document: dom.window.document, errors: errs };
 }

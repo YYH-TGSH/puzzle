@@ -26,14 +26,15 @@ async function loadPage(port, label) {
   if (!html0.includes(marker)) { console.log('PEER MARKER MISSING on port ' + port); process.exit(2); }
   const html = html0.replace(marker, () => '<script>' + mock + '</scr' + 'ipt>');
   const errs = [];
+  const __errT0 = Date.now(); const stamp = (m, stack) => '[+' + ((Date.now() - __errT0) / 1000).toFixed(1) + 's] ' + m + (stack ? '\nSTACK: ' + stack : '\nSTACK: (none)');
   const vc = new VirtualConsole();
-  vc.on('jsdomError', e => { const m = String((e.detail && e.detail.message) || e.message || e); if (!/scrollTo|getContext|Not implemented|Could not parse CSS|Could not load/i.test(m)) errs.push(m); });
-  vc.on('error', m => errs.push(String(m)));
+  vc.on('jsdomError', e => { const m = String((e.detail && e.detail.message) || e.message || e); if (!/scrollTo|getContext|Not implemented|Could not parse CSS|Could not load/i.test(m)) errs.push(stamp(m, e.detail && e.detail.stack)); });
+  vc.on('error', m => errs.push(stamp(String(m))));
   const dom = new JSDOM(html, { url: 'http://127.0.0.1:' + port + '/', resources: 'usable', runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc,
     beforeParse(w) {
       w.__SHARED_REG__ = SHARED_REG; w.scrollTo = () => {};
       w.fetch = (u, o) => fetch(new URL(u, 'http://127.0.0.1:' + port + '/').href, o).then(r => ({ ok: r.ok, status: r.status, text: () => r.text() }));
-      w.addEventListener('error', e => { if (e.message && !/Script error/.test(e.message)) errs.push(e.message); });
+      w.addEventListener('error', e => { if (e.message && !/Script error/.test(e.message)) errs.push(stamp(e.message, e.error && e.error.stack)); });
     } });
   return { window: dom.window, document: dom.window.document, errors: errs, label };
 }

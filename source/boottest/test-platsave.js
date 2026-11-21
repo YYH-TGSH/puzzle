@@ -14,12 +14,13 @@ html = html.replace('<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min
 const errors = [];
 function loadPage(label, opts) {
   opts = opts || {};
+  const __errT0 = Date.now(); const stamp = (m, stack) => '[+' + ((Date.now() - __errT0) / 1000).toFixed(1) + 's] ' + m + (stack ? '\nSTACK: ' + stack : '\nSTACK: (none)');
   const vc = new VirtualConsole();
-  vc.on('jsdomError', e => { const m = String(e.detail && e.detail.message || e.message || e); if (!/scrollTo|getContext|Not implemented|Could not parse CSS|Could not load/i.test(m)) errors.push(label + ': ' + m); });
+  vc.on('jsdomError', e => { const m = String(e.detail && e.detail.message || e.message || e); if (!/scrollTo|getContext|Not implemented|Could not parse CSS|Could not load/i.test(m)) errors.push(stamp(label + ': ' + m, e.detail && e.detail.stack)); });
   const dom = new JSDOM(html, { url: 'https://localhost/', runScripts: 'dangerously', resources: 'usable', pretendToBeVisual: true, virtualConsole: vc,
     beforeParse(w) {
       w.__SHARED_REG__ = {}; w.scrollTo = () => {};
-      w.addEventListener('error', ev => { if (ev.message && !/Script error/.test(ev.message)) errors.push(label + ': ' + ev.message); });
+      w.addEventListener('error', ev => { if (ev.message && !/Script error/.test(ev.message)) errors.push(stamp(label + ': ' + ev.message, ev.error && ev.error.stack)); });
       if (opts.blockStorage) { try { Object.defineProperty(w, 'localStorage', { get() { throw new Error('SecurityError: The operation is insecure.'); } }); } catch (e) {} }
       if (opts.seed) { try { opts.seed(w.localStorage); } catch (e) { errors.push(label + ' seed: ' + e.message); } }
     } });

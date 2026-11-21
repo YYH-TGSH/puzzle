@@ -10,9 +10,10 @@ function loadPageShared(htmlPath) {
   let html = fs.readFileSync(htmlPath, 'utf8');
   html = html.replace(/<script[^>]+src="[^"]*peerjs[^"]*"[^>]*><\/script>/, '<script>' + mockSrc + '</script>');
   const errors = [];
+  const __errT0 = Date.now(); const stamp = (m, stack) => '[+' + ((Date.now() - __errT0) / 1000).toFixed(1) + 's] ' + m + (stack ? '\nSTACK: ' + stack : '\nSTACK: (none)');
   const vc = new VirtualConsole();
-  vc.on('jsdomError', (e) => { const m = String((e.detail && e.detail.message) || e.message || e); if (!/scrollTo|getContext|Not implemented|Could not parse CSS|Could not load/i.test(m)) errors.push(m); });
-  vc.on('error', (m) => errors.push(String(m)));
+  vc.on('jsdomError', (e) => { const m = String((e.detail && e.detail.message) || e.message || e); if (!/scrollTo|getContext|Not implemented|Could not parse CSS|Could not load/i.test(m)) errors.push(stamp(m, e.detail && e.detail.stack)); });
+  vc.on('error', (m) => errors.push(stamp(String(m))));
   const dom = new JSDOM(html, {
     url: 'https://localhost/', resources: 'usable', runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc,
     beforeParse(window) {
@@ -22,7 +23,7 @@ function loadPageShared(htmlPath) {
     },
   });
   const w = dom.window;
-  w.addEventListener('error', (e) => { if (e.message && !/Script error/.test(e.message)) errors.push(e.message); });
+  w.addEventListener('error', (e) => { if (e.message && !/Script error/.test(e.message)) errors.push(stamp(e.message, e.error && e.error.stack)); });
   return { w, D: w.document, errors };
 }
 function setInput(w, el, val) {

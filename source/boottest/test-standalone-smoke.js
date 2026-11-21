@@ -43,11 +43,12 @@ const server = http.createServer((req, res) => {
 });
 function loadPage(url, label) {
   const errs = [];
+  const __errT0 = Date.now(); const stamp = (m, stack) => '[+' + ((Date.now() - __errT0) / 1000).toFixed(1) + 's] ' + m + (stack ? '\nSTACK: ' + stack : '\nSTACK: (none)');
   const vc = new VirtualConsole();
-  vc.on('jsdomError', e => { const m = String((e.detail && e.detail.message) || e.message || e); if (!/scrollTo|getContext|Not implemented|Could not parse CSS|Could not load/i.test(m)) errs.push(m); });
-  vc.on('error', m => errs.push(String(m)));
+  vc.on('jsdomError', e => { const m = String((e.detail && e.detail.message) || e.message || e); if (!/scrollTo|getContext|Not implemented|Could not parse CSS|Could not load/i.test(m)) errs.push(stamp(m, e.detail && e.detail.stack)); });
+  vc.on('error', m => errs.push(stamp(String(m))));
   const dom = new JSDOM(undefined, { url, resources: { interceptors: [interceptor] }, runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc,
-    beforeParse(w) { w.scrollTo = () => {}; w.addEventListener('error', e => { if (e.message && !/Script error/.test(e.message)) errs.push(e.message); }); } });
+    beforeParse(w) { w.scrollTo = () => {}; w.addEventListener('error', e => { if (e.message && !/Script error/.test(e.message)) errs.push(stamp(e.message, e.error && e.error.stack)); }); } });
   return { dom, errs };
 }
 (async () => {
@@ -64,10 +65,10 @@ function loadPage(url, label) {
     const htmlText = await (await fetch(base + route)).text();
     const errs = [];
     const vc = new VirtualConsole();
-    vc.on('jsdomError', e => { const m = String((e.detail && e.detail.message) || e.message || e); if (!/scrollTo|getContext|Not implemented|Could not parse CSS|Could not load/i.test(m)) errs.push(m); });
-    vc.on('error', m => errs.push(String(m)));
+    vc.on('jsdomError', e => { const m = String((e.detail && e.detail.message) || e.message || e); if (!/scrollTo|getContext|Not implemented|Could not parse CSS|Could not load/i.test(m)) errs.push(stamp(m, e.detail && e.detail.stack)); });
+    vc.on('error', m => errs.push(stamp(String(m))));
     const dom = new JSDOM(htmlText, { url: base + route, resources: { interceptors: [interceptor] }, runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc,
-      beforeParse(w) { w.scrollTo = () => {}; w.addEventListener('error', e => { if (e.message && !/Script error/.test(e.message)) errs.push(e.message); }); } });
+      beforeParse(w) { w.scrollTo = () => {}; w.addEventListener('error', e => { if (e.message && !/Script error/.test(e.message)) errs.push(stamp(e.message, e.error && e.error.stack)); }); } });
     const w = dom.window;
     const root = await waitFor(() => { const el = w.document.getElementById('root') || w.document.getElementById('mines-root'); return el && marker(el.textContent || '') ? el : null; }, 45000, name + ' 主畫面');
     check(name + ' 獨立版開機到主畫面', !!root);
