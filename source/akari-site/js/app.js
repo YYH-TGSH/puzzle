@@ -121,13 +121,13 @@ function AkariGame() {
   const [screen, setScreen] = useState('home'); // home | game
   const [sizeId, setSizeId] = useState(() => { const v = parseInt(platSave().getStr('akari_last_size', '10'), 10); return SIZES[v] ? v : 10; });
   const [puzzle, setPuzzle] = useState(null); // arrays 形
-  const [cells, setCells] = useState([]); // 0 空 1 燈 2 叉
+  const [cells, setCells] = useState([]); // 0 空 1 燈 2 叉 3 禮物鎖定燈 4 草稿燈（純假設層：不發光/不擋光/不計進度里程碑額度完賽/牆數字不計）
   const [status, setStatus] = useState('ready'); // ready | playing | won
   const [isDaily, setIsDaily] = useState(false);
   const [dailyDate, setDailyDate] = useState(null);
   const [dailySel, setDailySel] = useState(todayStr());
   const [elapsed, setElapsed] = useState(0);
-  const [mode, setMode] = useState('tap'); // tap | cross（PlatBar 模式）
+  const [mode, setMode] = useState('tap'); // tap 鉛筆 | draft 草稿 | cross 塗叉（PlatBar 模式循環，比照數橋三模式）
   const [zoom, setZoom] = useState(1);
   // 適應模式循環（2026-11-21 項2：比照數獨/數橋補齊；0=手動 1=適應寬度 2=適應高度 3=自動）。預設手動、zoom=1 基線不變
   const [zoomModeIdx, setZoomModeIdx] = useState(0);
@@ -202,6 +202,23 @@ function AkariGame() {
   const supTrkRef = useRef(null);
   const supTrk = () => { if (!supTrkRef.current) supTrkRef.current = platTapNew({ suppressMs: 500 }); return supTrkRef.current; };
   const downRef = useRef(null); // {idx, trk, painting:bool}
+  // ---------- 上一步/下一步歷史（v1.73.0 項1：比照數獨/數橋；單位＝點按一步、拖曳一程一步；只存 cells 快照，里程碑/額度計數器單調不回退＝防 undo 農場） ----------
+  const histRef = useRef({ past: [], future: [] });
+  const [histVer, setHistVer] = useState(0);
+  function histPush(prevCells) { const H = histRef.current; H.past.push(prevCells.slice()); if (H.past.length > 200) H.past.shift(); H.future = []; setHistVer(v => v + 1); }
+  function histReset() { histRef.current = { past: [], future: [] }; setHistVer(v => v + 1); }
+  function histRestore(target) {
+    const cur = cellsRef.current, next = target.slice();
+    for (let i = 0; i < next.length; i++) if (cur[i] === 3) next[i] = 3; // 禮物鎖定燈不可被歷史覆寫（鎖定語意優先於 undo/redo）
+    applyCells(next);
+  }
+  function canPlayNow() {
+    if (statusRef.current === 'won') return false;
+    if (mpRef.current.on && (mpRef.current.phase !== 'playing' || iAmSpecRef.current || outcomeRef.current)) return false;
+    return true;
+  }
+  function doUndo() { if (!canPlayNow()) return; const H = histRef.current; if (!H.past.length) return; const prev = H.past.pop(); H.future.push(cellsRef.current.slice()); setHistVer(v => v + 1); histRestore(prev); }
+  function doRedo() { if (!canPlayNow()) return; const H = histRef.current; if (!H.future.length) return; const nxt = H.future.pop(); H.past.push(cellsRef.current.slice()); setHistVer(v => v + 1); histRestore(nxt); }
   const platBarRef = useRef(null);
   const platHomeRef = useRef(null); // PlatHome 掛載點（框架層 F1）
   const platFrameRef = useRef(null); // PlatFrame 掛載點（框架修正批 v1.70.0：對局外框改殼持有）
@@ -282,6 +299,7 @@ function AkariGame() {
     setTimeout(slice, 0);
   }
   function applyPuzzle(p, daily, dateStr) {
+    histReset();
     const arr = puzzleArrays(p);
     puzzleRef.current = arraysToSets(arr);
     setPuzzle(arr);
@@ -376,13 +394,18 @@ function AkariGame() {
     if (statusRef.current === 'won') return;
     if (mpRef.current.on && (mpRef.current.phase !== 'playing' || iAmSpecRef.current || outcomeRef.current)) return;
     const pz = puzzleRef.current; if (!pz || pz.walls.has(idx)) return;
-    if (cellsRef.current[idx] === 3) return; // 鎖定燈不可點掉
-    const next = cellsRef.current.slice();
-    const cur = next[idx];
+    const cur = cellsRef.current[idx];
+    if (cur === 3) return; // 鎖定燈不可點掉
     let nv;
-    if (modeRef.current === 'cross') nv = (cur === 2) ? 0 : (cur === 0 ? 2 : cur);
+    if (modeRef.current === 'draft') {
+      // 草稿模式只動草稿層：空格→草稿燈、草稿燈→移除；真燈/叉不動（叉經塗叉模式或鉛筆循環處理）
+      if (cur === 0) nv = 4; else if (cur === 4) nv = 0; else return;
+    } else if (modeRef.current === 'cross') nv = (cur === 2) ? 0 : (cur === 0 ? 2 : cur);
+    else if (cur === 4) nv = 1; // 鉛筆模式點草稿燈→一擊直接轉真燈（數橋「切回鉛筆點虛線變實線」刻意設計，比照保留）
     else nv = (cur + 1) % 3;
     if (nv === cur) return;
+    histPush(cellsRef.current);
+    const next = cellsRef.current.slice();
     next[idx] = nv;
     if (nv === 1) {
       newBulbRef.current = idx;
@@ -392,12 +415,12 @@ function AkariGame() {
     }
     applyCells(next);
   }
-  function paintCross(idx) {
+  function paintCross(idx) { // 拖曳塗記：草稿模式塗草稿燈（4）、其餘模式塗叉（2）；只塗空格
     if (statusRef.current === 'won') return;
     if (mpRef.current.on && (mpRef.current.phase !== 'playing' || iAmSpecRef.current || outcomeRef.current)) return;
     const pz = puzzleRef.current; if (!pz || pz.walls.has(idx)) return;
-    if (cellsRef.current[idx] !== 0) return; // 燈/叉/鎖定燈都不覆寫
-    const next = cellsRef.current.slice(); next[idx] = 2;
+    if (cellsRef.current[idx] !== 0) return; // 燈/叉/鎖定燈/草稿都不覆寫
+    const next = cellsRef.current.slice(); next[idx] = (modeRef.current === 'draft') ? 4 : 2;
     applyCells(next);
   }
   // 輸入管線（比照地雷）：down 記格＋tracker；move 超 slop 且起手為空格 → 轉塗叉拖曳（elementFromPoint 命中格）；
@@ -435,7 +458,7 @@ function AkariGame() {
         return;
       }
       const pz = puzzleRef.current;
-      if (pz && cellsRef.current[d.idx] === 0 && !pz.walls.has(d.idx)) { d.painting = true; paintCross(d.idx); }
+      if (pz && cellsRef.current[d.idx] === 0 && !pz.walls.has(d.idx)) { d.painting = true; histPush(cellsRef.current); paintCross(d.idx); } // 一整程拖曳＝一個歷史單位：起手推一次
       else return;
     }
     if (d.painting) {
@@ -471,6 +494,7 @@ function AkariGame() {
   function mpSend(msg) { if (mpRef.current.isHost) hostBroadcast(msg); else if (hostConnRef.current && hostConnRef.current.open) { try { hostConnRef.current.send(msg); } catch (e) {} } }
   function sendItemMsg(m) { if (mpRef.current.isHost) { hostBroadcast(m); processItemMsg(m); } else mpSend(m); }
   function cleanupMp() {
+    histReset();
     if (cdIvRef.current) { clearInterval(cdIvRef.current); cdIvRef.current = null; }
     if (autoIvRef.current) { clearInterval(autoIvRef.current); autoIvRef.current = null; }
     if (autoFireIvRef.current) { clearInterval(autoFireIvRef.current); autoFireIvRef.current = null; }
@@ -526,7 +550,7 @@ function AkariGame() {
       if (gained) trySendGift();
     }
     const now = Date.now();
-    if (now - lastStateRef.current > 800) { lastStateRef.current = now; const cs = next.join(''); godSet(myId, { cells: cs }); mpSend({ type: 'AKARI_STATE', uid: myId, cells: cs, progress: prog }); }
+    if (now - lastStateRef.current > 800) { lastStateRef.current = now; const cs = next.map(v => v === 4 ? 0 : v).join(''); godSet(myId, { cells: cs }); mpSend({ type: 'AKARI_STATE', uid: myId, cells: cs, progress: prog }); } // 草稿不同步給對手：同步字串剝 4→0（本地 saveResume 保留原值）
     saveResume();
   }
   function mpAfterCells(next) {
@@ -543,7 +567,7 @@ function AkariGame() {
     setElapsed(Math.floor(tms / 1000));
     try { platAudio().play('complete'); } catch (e) {}
     setTimeout(() => { try { platAudio().play('win'); } catch (e) {} }, 350);
-    const cs = next.join('');
+    const cs = next.map(v => v === 4 ? 0 : v).join('');
     godSet(myId, { state: 'finished', timeMs: tms, progress: 1, cells: cs });
     mpSend({ type: 'AKARI_STATE', uid: myId, cells: cs, progress: 1 });
     mpSend({ type: 'AKARI_FINISH', uid: myId, timeMs: tms });
@@ -676,6 +700,7 @@ function AkariGame() {
     return null;
   }
   function applyMpPuzzle(p, startAt) {
+    histReset();
     const arr = puzzleArrays(p);
     puzzleRef.current = arraysToSets(arr);
     setPuzzle(arr);
@@ -769,7 +794,7 @@ function AkariGame() {
     let cellsArr = null;
     if (save) cellsArr = save.cells.split('').map(Number);
     else if (m.god && m.god[myId] && typeof m.god[myId].cells === 'string' && m.god[myId].cells.length === total) cellsArr = m.god[myId].cells.split('').map(Number);
-    if (!cellsArr || cellsArr.some(v => !(v >= 0 && v <= 3))) return;
+    if (!cellsArr || cellsArr.some(v => !(v >= 0 && v <= 4))) return;
     if (save) {
       itemsRef.current = { trap: (save.items && save.items.trap) || 0 }; setMyItems(itemsRef.current);
       giftCreditRef.current = save.giftCredit || 0; milestoneRef.current = save.milestone || 0;
@@ -871,7 +896,7 @@ function AkariGame() {
           startMatchLocal(save.seed, szId, save.startAt || Date.now());
           if (typeof save.cells === 'string' && save.cells.length === (SIZES[szId].w * SIZES[szId].h)) {
             const arr = save.cells.split('').map(Number);
-            if (!arr.some(v => !(v >= 0 && v <= 3))) { setCells(arr); cellsRef.current = arr; itemsRef.current = { trap: (save.items && save.items.trap) || 0 }; setMyItems(itemsRef.current); giftCreditRef.current = save.giftCredit || 0; milestoneRef.current = save.milestone || 0; countedWallsRef.current = {}; (save.countedWalls || []).forEach(wi => { countedWallsRef.current[wi] = 1; }); lastStateRef.current = 0; }
+            if (!arr.some(v => !(v >= 0 && v <= 4))) { setCells(arr); cellsRef.current = arr; itemsRef.current = { trap: (save.items && save.items.trap) || 0 }; setMyItems(itemsRef.current); giftCreditRef.current = save.giftCredit || 0; milestoneRef.current = save.milestone || 0; countedWallsRef.current = {}; (save.countedWalls || []).forEach(wi => { countedWallsRef.current[wi] = 1; }); lastStateRef.current = 0; }
           }
           return;
         }
@@ -913,7 +938,7 @@ function AkariGame() {
   if (!platBarCfgStable.current) platBarCfgStable.current = {
     accent: ACCENT,
     onAction: (name) => {
-      if (name === 'mode-press') setMode(m => (m === 'tap' ? 'cross' : 'tap'));
+      if (name === 'mode-press') setMode(m => (m === 'tap' ? 'draft' : (m === 'draft' ? 'cross' : 'tap')));
       else if (name === 'zoom-in') { zoomModeIdxRef.current = 0; setZoomModeIdx(0); setZoom(z => Math.min(2, Math.round((z + 0.25) * 100) / 100)); }
       else if (name === 'zoom-out') { zoomModeIdxRef.current = 0; setZoomModeIdx(0); setZoom(z => Math.max(z < 1 ? 0.5 : 1, Math.round((z - 0.25) * 100) / 100)); }
       else if (name === 'zoom-cycle') { if (cycleRef.current) cycleRef.current(); }
@@ -934,9 +959,9 @@ function AkariGame() {
     if (window.__PLAT_NET && window.__PLAT_NET.inMatch && window.__PLAT_NET.inMatch !== 'akari') return;
     if (screen !== 'game') return;
     window.PlatBar.update({
-      mode: mode === 'cross' ? 1 : 0,
-      modes: [{ icon: '💡', label: '點按' }, { icon: '✖️', label: '塗叉' }],
-      modeTitle: '切換模式（點按循環／塗叉）',
+      mode: mode === 'draft' ? 1 : (mode === 'cross' ? 2 : 0),
+      modes: [{ icon: '💡', label: '點按' }, { icon: '✏️', label: '草稿' }, { icon: '✖️', label: '塗叉' }],
+      modeTitle: '切換模式（點按／草稿／塗叉）',
       zoomLabel: zoomModeIdx === 0 ? (zoom > 1 ? Math.round(zoom * 100) + '%' : '🔍') : ZOOM_GLYPHS[zoomModeIdx],
       zoomGlyph: ZOOM_GLYPHS[zoomModeIdx],
       showInput: false, inputMode: 'num', showDraw: false
@@ -1261,6 +1286,13 @@ function AkariGame() {
               </div>
               <span className="font-black text-xs text-slate-900 whitespace-nowrap">進度 <PlatPct value={Math.round(dispProgress * 100)} />・照亮 <PlatPct value={litPct} /></span>
             </div>
+            {!(mpOn && (iAmSpecRef.current || myOutcome)) && (
+              <div className="flex items-center gap-1.5 mt-1.5">
+                <button data-akari-undo onClick={doUndo} disabled={!histRef.current.past.length || !canPlayNow()} className="plat-btn-hard px-2 py-0.5 bg-white border-2 border-slate-800 rounded font-bold text-[11px] shadow-[1px_1px_0px_rgba(30,41,59,1)] disabled:opacity-40 disabled:shadow-none text-slate-800" title="上一步（復原）">↩️ 上一步</button>
+                <button data-akari-redo onClick={doRedo} disabled={!histRef.current.future.length || !canPlayNow()} className="plat-btn-hard px-2 py-0.5 bg-white border-2 border-slate-800 rounded font-bold text-[11px] shadow-[1px_1px_0px_rgba(30,41,59,1)] disabled:opacity-40 disabled:shadow-none text-slate-800" title="下一步（重做）">↪ 下一步</button>
+                <span className="hidden">{histVer}</span>
+              </div>
+            )}
             {mpOn && itemsLive() && !iAmSpecRef.current && !myOutcome && mpPhase === 'playing' && (
               <div className="flex items-center gap-1.5 mt-1.5 justify-end">
                 <span className="font-black text-[11px] text-slate-900" title="數字牆正確滿足累積的禮物額度（滿 1 自動送較弱的對手）">🎁 額度 {giftCreditRef.current.toFixed(1)}</span>
@@ -1287,13 +1319,13 @@ function AkariGame() {
                   </div>
                 );
               }
-              const isBulb = cv === 1, isLocked = cv === 3, isCross = cv === 2, lit = litVis.has(i), bad = confBad.has(i);
+              const isBulb = cv === 1, isLocked = cv === 3, isCross = cv === 2, isDraft = cv === 4, lit = litVis.has(i), bad = confBad.has(i);
               return (
                 <button key={i} data-cell={i}
                   onPointerDown={e => onCellDown(i, e)} onPointerUp={e => onCellUp(i, e)} onClick={() => onCellClick(i)}
                   className={"relative flex items-center justify-center rounded-[4px] border select-none touch-none" + (bad ? " border-red-500" : " border-blue-200") + (isBulb && newBulbRef.current === i ? " akari-bulb-new" : "")}
                   style={{ width: cellPx, height: cellPx, fontSize: Math.round(cellPx * 0.52), background: (isBulb || isLocked) ? '#60a5fa' : (lit ? '#dbeafe' : '#ffffff'), boxShadow: bad ? 'inset 0 0 0 2px #ef4444' : (isLocked ? 'inset 0 0 0 2px #1d4ed8, 0 0 10px 2px rgba(59,130,246,0.55)' : (isBulb && !outaged ? '0 0 10px 2px rgba(59,130,246,0.55)' : 'none')) }}>
-                  {(isBulb || isLocked) ? '💡' : (isCross ? <span className="text-slate-400 font-black">✕</span> : '')}
+                  {(isBulb || isLocked) ? '💡' : (isCross ? <span className="text-slate-400 font-black">✕</span> : (isDraft ? <span data-draft="1" className="flex items-center justify-center rounded-full" style={{ width: '82%', height: '82%', border: '2px dashed #2563eb', opacity: 0.8 }}><span style={{ fontSize: Math.round(cellPx * 0.34), opacity: 0.55, filter: 'grayscale(0.3)' }}>💡</span></span> : ''))}
                   {isLocked && <span className="absolute bottom-0 right-0 leading-none" style={{ fontSize: Math.max(9, Math.round(cellPx * 0.3)) }}>🔒</span>}
                 </button>
               );

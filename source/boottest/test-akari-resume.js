@@ -59,7 +59,7 @@ const cellEl = (p, i) => p.document.querySelector('#akari-root button[data-cell=
   const crossCell = dbg(G).puzzle.walls.length ? sol[3] : null;
   const freeCell = (() => { const d = dbg(G); const ws = new Set(d.puzzle.walls); const ss = new Set(d.puzzle.solution); for (let i = 0; i < d.cells.length; i++) if (!ws.has(i) && !ss.has(i) && d.cells[i] === 0) return i; return -1; })();
   if (freeCell >= 0) { // 切塗叉模式畫一個叉
-    const pb = G.document.querySelector('#view-akari [data-pb="mode-press"]'); if (pb) { pb.click(); await sleep(250); }
+    const pb = G.document.querySelector('#view-akari [data-pb="mode-press"]'); if (pb) { pb.click(); await sleep(200); const pb1b = G.document.querySelector('#view-akari [data-pb="mode-press"]'); if (pb1b) pb1b.click(); await sleep(250); } // v1.73.0 三段循環：tap→draft→cross（殼重繪換節點，第二次須重查）
     cellEl(G, freeCell).click(); await sleep(150);
     const pb2 = G.document.querySelector('#view-akari [data-pb="mode-press"]'); if (pb2) { pb2.click(); await sleep(200); }
   }

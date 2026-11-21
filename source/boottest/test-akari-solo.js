@@ -77,8 +77,10 @@ function ok(c, label) { if (c) { pass++; console.log('✅', label); } else { fai
   cellEl(free).click(); await sleep(120); ok(dbg().cells[free] === 2, '點按 2：變叉');
   ok(await waitFor(() => statCount() === 1 ? 1 : null, 8000, 'stat back 1'), '計數器：拔除（變叉）→ −1 回 💡 1/' + total0, 'now=' + statCount());
   cellEl(free).click(); await sleep(120); ok(dbg().cells[free] === 0, '點按 3：清空');
-  // PlatBar 塗叉模式：點模式鈕 → 點空格直接變叉
-  const pb = d.querySelector('#view-akari [data-pb="mode-press"]'); pb.click(); await sleep(250);
+  // PlatBar 模式循環（v1.73.0 起三段 tap→draft→cross）：到塗叉按兩次
+  const pb = d.querySelector('#view-akari [data-pb="mode-press"]'); pb.click(); await sleep(200);
+  ok(dbg().mode === 'draft', 'PlatBar 一次→草稿模式');
+  d.querySelector('#view-akari [data-pb="mode-press"]').click(); await sleep(250); // 殼重繪會換節點，須重查
   ok(dbg().mode === 'cross', 'PlatBar 切換塗叉模式');
   cellEl(free).click(); await sleep(120); ok(dbg().cells[free] === 2, '塗叉模式點按直接畫叉');
   cellEl(free).click(); await sleep(120); ok(dbg().cells[free] === 0, '塗叉模式再點清除');

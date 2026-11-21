@@ -349,7 +349,7 @@ function AkariGame() {
   var _useState7 = useState([]),
     _useState8 = _slicedToArray(_useState7, 2),
     cells = _useState8[0],
-    setCells = _useState8[1]; // 0 空 1 燈 2 叉
+    setCells = _useState8[1]; // 0 空 1 燈 2 叉 3 禮物鎖定燈 4 草稿燈（純假設層：不發光/不擋光/不計進度里程碑額度完賽/牆數字不計）
   var _useState9 = useState('ready'),
     _useState10 = _slicedToArray(_useState9, 2),
     status = _useState10[0],
@@ -373,7 +373,7 @@ function AkariGame() {
   var _useState19 = useState('tap'),
     _useState20 = _slicedToArray(_useState19, 2),
     mode = _useState20[0],
-    setMode = _useState20[1]; // tap | cross（PlatBar 模式）
+    setMode = _useState20[1]; // tap 鉛筆 | draft 草稿 | cross 塗叉（PlatBar 模式循環，比照數橋三模式）
   var _useState21 = useState(1),
     _useState22 = _slicedToArray(_useState21, 2),
     zoom = _useState22[0],
@@ -513,82 +513,142 @@ function AkariGame() {
     return supTrkRef.current;
   };
   var downRef = useRef(null); // {idx, trk, painting:bool}
+  // ---------- 上一步/下一步歷史（v1.73.0 項1：比照數獨/數橋；單位＝點按一步、拖曳一程一步；只存 cells 快照，里程碑/額度計數器單調不回退＝防 undo 農場） ----------
+  var histRef = useRef({
+    past: [],
+    future: []
+  });
+  var _useState31 = useState(0),
+    _useState32 = _slicedToArray(_useState31, 2),
+    histVer = _useState32[0],
+    setHistVer = _useState32[1];
+  function histPush(prevCells) {
+    var H = histRef.current;
+    H.past.push(prevCells.slice());
+    if (H.past.length > 200) H.past.shift();
+    H.future = [];
+    setHistVer(function (v) {
+      return v + 1;
+    });
+  }
+  function histReset() {
+    histRef.current = {
+      past: [],
+      future: []
+    };
+    setHistVer(function (v) {
+      return v + 1;
+    });
+  }
+  function histRestore(target) {
+    var cur = cellsRef.current,
+      next = target.slice();
+    for (var i = 0; i < next.length; i++) if (cur[i] === 3) next[i] = 3; // 禮物鎖定燈不可被歷史覆寫（鎖定語意優先於 undo/redo）
+    applyCells(next);
+  }
+  function canPlayNow() {
+    if (statusRef.current === 'won') return false;
+    if (mpRef.current.on && (mpRef.current.phase !== 'playing' || iAmSpecRef.current || outcomeRef.current)) return false;
+    return true;
+  }
+  function doUndo() {
+    if (!canPlayNow()) return;
+    var H = histRef.current;
+    if (!H.past.length) return;
+    var prev = H.past.pop();
+    H.future.push(cellsRef.current.slice());
+    setHistVer(function (v) {
+      return v + 1;
+    });
+    histRestore(prev);
+  }
+  function doRedo() {
+    if (!canPlayNow()) return;
+    var H = histRef.current;
+    if (!H.future.length) return;
+    var nxt = H.future.pop();
+    H.past.push(cellsRef.current.slice());
+    setHistVer(function (v) {
+      return v + 1;
+    });
+    histRestore(nxt);
+  }
   var platBarRef = useRef(null);
   var platHomeRef = useRef(null); // PlatHome 掛載點（框架層 F1）
   var platFrameRef = useRef(null); // PlatFrame 掛載點（框架修正批 v1.70.0：對局外框改殼持有）
-  var _useState31 = useState(null),
-    _useState32 = _slicedToArray(_useState31, 2),
-    frameBody = _useState32[0],
-    setFrameBody = _useState32[1]; // PlatFrame 內容區節點（盤面 portal 用）
   var _useState33 = useState(null),
     _useState34 = _slicedToArray(_useState33, 2),
-    ptcEl = _useState34[0],
-    setPtcEl = _useState34[1]; // PlatTopCard 掛載點＝外框頂區節點
+    frameBody = _useState34[0],
+    setFrameBody = _useState34[1]; // PlatFrame 內容區節點（盤面 portal 用）
   var _useState35 = useState(null),
     _useState36 = _slicedToArray(_useState35, 2),
-    ptcSlot = _useState36[0],
-    setPtcSlot = _useState36[1]; // PlatTopCard 遊戲槽節點（portal 用）
+    ptcEl = _useState36[0],
+    setPtcEl = _useState36[1]; // PlatTopCard 掛載點＝外框頂區節點
+  var _useState37 = useState(null),
+    _useState38 = _slicedToArray(_useState37, 2),
+    ptcSlot = _useState38[0],
+    setPtcSlot = _useState38[1]; // PlatTopCard 遊戲槽節點（portal 用）
   var newBulbRef = useRef(-1);
   // ---------- 多人狀態 ----------
   var myId = akariUid();
-  var _useState37 = useState(false),
-    _useState38 = _slicedToArray(_useState37, 2),
-    mpOn = _useState38[0],
-    setMpOn = _useState38[1];
-  var _useState39 = useState('waiting'),
+  var _useState39 = useState(false),
     _useState40 = _slicedToArray(_useState39, 2),
-    mpPhase = _useState40[0],
-    setMpPhase = _useState40[1]; // waiting | countdown | playing | done
-  var _useState41 = useState([]),
+    mpOn = _useState40[0],
+    setMpOn = _useState40[1];
+  var _useState41 = useState('waiting'),
     _useState42 = _slicedToArray(_useState41, 2),
-    players = _useState42[0],
-    setPlayers = _useState42[1];
-  var _useState43 = useState({}),
+    mpPhase = _useState42[0],
+    setMpPhase = _useState42[1]; // waiting | countdown | playing | done
+  var _useState43 = useState([]),
     _useState44 = _slicedToArray(_useState43, 2),
-    godBoards = _useState44[0],
-    setGodBoards = _useState44[1];
-  var _useState45 = useState(null),
+    players = _useState44[0],
+    setPlayers = _useState44[1];
+  var _useState45 = useState({}),
     _useState46 = _slicedToArray(_useState45, 2),
-    raceFinal = _useState46[0],
-    setRaceFinal = _useState46[1];
+    godBoards = _useState46[0],
+    setGodBoards = _useState46[1];
   var _useState47 = useState(null),
     _useState48 = _slicedToArray(_useState47, 2),
-    myOutcome = _useState48[0],
-    setMyOutcome = _useState48[1]; // 'finished'
+    raceFinal = _useState48[0],
+    setRaceFinal = _useState48[1];
   var _useState49 = useState(null),
     _useState50 = _slicedToArray(_useState49, 2),
-    cdNum = _useState50[0],
-    setCdNum = _useState50[1];
+    myOutcome = _useState50[0],
+    setMyOutcome = _useState50[1]; // 'finished'
   var _useState51 = useState(null),
     _useState52 = _slicedToArray(_useState51, 2),
-    itemToast = _useState52[0],
-    setItemToast = _useState52[1];
-  var _useState53 = useState({
+    cdNum = _useState52[0],
+    setCdNum = _useState52[1];
+  var _useState53 = useState(null),
+    _useState54 = _slicedToArray(_useState53, 2),
+    itemToast = _useState54[0],
+    setItemToast = _useState54[1];
+  var _useState55 = useState({
       trap: 0
     }),
-    _useState54 = _slicedToArray(_useState53, 2),
-    myItems = _useState54[0],
-    setMyItems = _useState54[1];
-  var _useState55 = useState(0),
     _useState56 = _slicedToArray(_useState55, 2),
-    outageUntil = _useState56[0],
-    setOutageUntil = _useState56[1];
-  var _useState57 = useState(null),
+    myItems = _useState56[0],
+    setMyItems = _useState56[1];
+  var _useState57 = useState(0),
     _useState58 = _slicedToArray(_useState57, 2),
-    specUid = _useState58[0],
-    setSpecUid = _useState58[1];
-  var _useState59 = useState(false),
+    outageUntil = _useState58[0],
+    setOutageUntil = _useState58[1];
+  var _useState59 = useState(null),
     _useState60 = _slicedToArray(_useState59, 2),
-    myReadySt = _useState60[0],
-    setMyReadySt = _useState60[1];
+    specUid = _useState60[0],
+    setSpecUid = _useState60[1];
   var _useState61 = useState(false),
     _useState62 = _slicedToArray(_useState61, 2),
-    leaveArm = _useState62[0],
-    setLeaveArm = _useState62[1];
-  var _useState63 = useState(0),
+    myReadySt = _useState62[0],
+    setMyReadySt = _useState62[1];
+  var _useState63 = useState(false),
     _useState64 = _slicedToArray(_useState63, 2),
-    waitTick = _useState64[0],
-    setWaitTick = _useState64[1];
+    leaveArm = _useState64[0],
+    setLeaveArm = _useState64[1];
+  var _useState65 = useState(0),
+    _useState66 = _slicedToArray(_useState65, 2),
+    waitTick = _useState66[0],
+    setWaitTick = _useState66[1];
   var mpRef = useRef({
     on: false,
     isHost: false,
@@ -701,6 +761,7 @@ function AkariGame() {
     setTimeout(slice, 0);
   }
   function applyPuzzle(p, daily, dateStr) {
+    histReset();
     var arr = puzzleArrays(p);
     puzzleRef.current = arraysToSets(arr);
     setPuzzle(arr);
@@ -885,12 +946,17 @@ function AkariGame() {
     if (mpRef.current.on && (mpRef.current.phase !== 'playing' || iAmSpecRef.current || outcomeRef.current)) return;
     var pz = puzzleRef.current;
     if (!pz || pz.walls.has(idx)) return;
-    if (cellsRef.current[idx] === 3) return; // 鎖定燈不可點掉
-    var next = cellsRef.current.slice();
-    var cur = next[idx];
+    var cur = cellsRef.current[idx];
+    if (cur === 3) return; // 鎖定燈不可點掉
     var nv;
-    if (modeRef.current === 'cross') nv = cur === 2 ? 0 : cur === 0 ? 2 : cur;else nv = (cur + 1) % 3;
+    if (modeRef.current === 'draft') {
+      // 草稿模式只動草稿層：空格→草稿燈、草稿燈→移除；真燈/叉不動（叉經塗叉模式或鉛筆循環處理）
+      if (cur === 0) nv = 4;else if (cur === 4) nv = 0;else return;
+    } else if (modeRef.current === 'cross') nv = cur === 2 ? 0 : cur === 0 ? 2 : cur;else if (cur === 4) nv = 1; // 鉛筆模式點草稿燈→一擊直接轉真燈（數橋「切回鉛筆點虛線變實線」刻意設計，比照保留）
+    else nv = (cur + 1) % 3;
     if (nv === cur) return;
+    histPush(cellsRef.current);
+    var next = cellsRef.current.slice();
     next[idx] = nv;
     if (nv === 1) {
       newBulbRef.current = idx;
@@ -903,13 +969,14 @@ function AkariGame() {
     applyCells(next);
   }
   function paintCross(idx) {
+    // 拖曳塗記：草稿模式塗草稿燈（4）、其餘模式塗叉（2）；只塗空格
     if (statusRef.current === 'won') return;
     if (mpRef.current.on && (mpRef.current.phase !== 'playing' || iAmSpecRef.current || outcomeRef.current)) return;
     var pz = puzzleRef.current;
     if (!pz || pz.walls.has(idx)) return;
-    if (cellsRef.current[idx] !== 0) return; // 燈/叉/鎖定燈都不覆寫
+    if (cellsRef.current[idx] !== 0) return; // 燈/叉/鎖定燈/草稿都不覆寫
     var next = cellsRef.current.slice();
-    next[idx] = 2;
+    next[idx] = modeRef.current === 'draft' ? 4 : 2;
     applyCells(next);
   }
   // 輸入管線（比照地雷）：down 記格＋tracker；move 超 slop 且起手為空格 → 轉塗叉拖曳（elementFromPoint 命中格）；
@@ -983,8 +1050,10 @@ function AkariGame() {
       var pz = puzzleRef.current;
       if (pz && cellsRef.current[d.idx] === 0 && !pz.walls.has(d.idx)) {
         d.painting = true;
+        histPush(cellsRef.current);
         paintCross(d.idx);
-      } else return;
+      } // 一整程拖曳＝一個歷史單位：起手推一次
+      else return;
     }
     if (d.painting) {
       var el = document.elementFromPoint(e.clientX, e.clientY);
@@ -1091,6 +1160,7 @@ function AkariGame() {
     } else mpSend(m);
   }
   function cleanupMp() {
+    histReset();
     if (cdIvRef.current) {
       clearInterval(cdIvRef.current);
       cdIvRef.current = null;
@@ -1241,7 +1311,9 @@ function AkariGame() {
     var now = Date.now();
     if (now - lastStateRef.current > 800) {
       lastStateRef.current = now;
-      var cs = next.join('');
+      var cs = next.map(function (v) {
+        return v === 4 ? 0 : v;
+      }).join('');
       godSet(myId, {
         cells: cs
       });
@@ -1251,7 +1323,7 @@ function AkariGame() {
         cells: cs,
         progress: prog
       });
-    }
+    } // 草稿不同步給對手：同步字串剝 4→0（本地 saveResume 保留原值）
     saveResume();
   }
   function mpAfterCells(next) {
@@ -1280,7 +1352,9 @@ function AkariGame() {
         platAudio().play('win');
       } catch (e) {}
     }, 350);
-    var cs = next.join('');
+    var cs = next.map(function (v) {
+      return v === 4 ? 0 : v;
+    }).join('');
     godSet(myId, {
       state: 'finished',
       timeMs: tms,
@@ -1583,6 +1657,7 @@ function AkariGame() {
     return null;
   }
   function applyMpPuzzle(p, startAt) {
+    histReset();
     var arr = puzzleArrays(p);
     puzzleRef.current = arraysToSets(arr);
     setPuzzle(arr);
@@ -1804,7 +1879,7 @@ function AkariGame() {
     var cellsArr = null;
     if (save) cellsArr = save.cells.split('').map(Number);else if (m.god && m.god[myId] && typeof m.god[myId].cells === 'string' && m.god[myId].cells.length === total) cellsArr = m.god[myId].cells.split('').map(Number);
     if (!cellsArr || cellsArr.some(function (v) {
-      return !(v >= 0 && v <= 3);
+      return !(v >= 0 && v <= 4);
     })) return;
     if (save) {
       itemsRef.current = {
@@ -2069,7 +2144,7 @@ function AkariGame() {
           if (typeof save.cells === 'string' && save.cells.length === SIZES[szId].w * SIZES[szId].h) {
             var arr = save.cells.split('').map(Number);
             if (!arr.some(function (v) {
-              return !(v >= 0 && v <= 3);
+              return !(v >= 0 && v <= 4);
             })) {
               setCells(arr);
               cellsRef.current = arr;
@@ -2159,7 +2234,7 @@ function AkariGame() {
     accent: ACCENT,
     onAction: function onAction(name) {
       if (name === 'mode-press') setMode(function (m) {
-        return m === 'tap' ? 'cross' : 'tap';
+        return m === 'tap' ? 'draft' : m === 'draft' ? 'cross' : 'tap';
       });else if (name === 'zoom-in') {
         zoomModeIdxRef.current = 0;
         setZoomModeIdx(0);
@@ -2192,15 +2267,18 @@ function AkariGame() {
     if (window.__PLAT_NET && window.__PLAT_NET.inMatch && window.__PLAT_NET.inMatch !== 'akari') return;
     if (screen !== 'game') return;
     window.PlatBar.update({
-      mode: mode === 'cross' ? 1 : 0,
+      mode: mode === 'draft' ? 1 : mode === 'cross' ? 2 : 0,
       modes: [{
         icon: '💡',
         label: '點按'
       }, {
+        icon: '✏️',
+        label: '草稿'
+      }, {
         icon: '✖️',
         label: '塗叉'
       }],
-      modeTitle: '切換模式（點按循環／塗叉）',
+      modeTitle: '切換模式（點按／草稿／塗叉）',
       zoomLabel: zoomModeIdx === 0 ? zoom > 1 ? Math.round(zoom * 100) + '%' : '🔍' : ZOOM_GLYPHS[zoomModeIdx],
       zoomGlyph: ZOOM_GLYPHS[zoomModeIdx],
       showInput: false,
@@ -2835,7 +2913,23 @@ function AkariGame() {
     value: Math.round(dispProgress * 100)
   }), "\u30FB\u7167\u4EAE ", /*#__PURE__*/React.createElement(PlatPct, {
     value: litPct
-  }))), mpOn && itemsLive() && !iAmSpecRef.current && !myOutcome && mpPhase === 'playing' && /*#__PURE__*/React.createElement("div", {
+  }))), !(mpOn && (iAmSpecRef.current || myOutcome)) && /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-1.5 mt-1.5"
+  }, /*#__PURE__*/React.createElement("button", {
+    "data-akari-undo": true,
+    onClick: doUndo,
+    disabled: !histRef.current.past.length || !canPlayNow(),
+    className: "plat-btn-hard px-2 py-0.5 bg-white border-2 border-slate-800 rounded font-bold text-[11px] shadow-[1px_1px_0px_rgba(30,41,59,1)] disabled:opacity-40 disabled:shadow-none text-slate-800",
+    title: "\u4E0A\u4E00\u6B65\uFF08\u5FA9\u539F\uFF09"
+  }, "\u21A9\uFE0F \u4E0A\u4E00\u6B65"), /*#__PURE__*/React.createElement("button", {
+    "data-akari-redo": true,
+    onClick: doRedo,
+    disabled: !histRef.current.future.length || !canPlayNow(),
+    className: "plat-btn-hard px-2 py-0.5 bg-white border-2 border-slate-800 rounded font-bold text-[11px] shadow-[1px_1px_0px_rgba(30,41,59,1)] disabled:opacity-40 disabled:shadow-none text-slate-800",
+    title: "\u4E0B\u4E00\u6B65\uFF08\u91CD\u505A\uFF09"
+  }, "\u21AA \u4E0B\u4E00\u6B65"), /*#__PURE__*/React.createElement("span", {
+    className: "hidden"
+  }, histVer)), mpOn && itemsLive() && !iAmSpecRef.current && !myOutcome && mpPhase === 'playing' && /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-1.5 mt-1.5 justify-end"
   }, /*#__PURE__*/React.createElement("span", {
     className: "font-black text-[11px] text-slate-900",
@@ -2883,6 +2977,7 @@ function AkariGame() {
     var isBulb = cv === 1,
       isLocked = cv === 3,
       isCross = cv === 2,
+      isDraft = cv === 4,
       lit = litVis.has(i),
       bad = confBad.has(i);
     return /*#__PURE__*/React.createElement("button", {
@@ -2907,7 +3002,22 @@ function AkariGame() {
       }
     }, isBulb || isLocked ? '💡' : isCross ? /*#__PURE__*/React.createElement("span", {
       className: "text-slate-400 font-black"
-    }, "\u2715") : '', isLocked && /*#__PURE__*/React.createElement("span", {
+    }, "\u2715") : isDraft ? /*#__PURE__*/React.createElement("span", {
+      "data-draft": "1",
+      className: "flex items-center justify-center rounded-full",
+      style: {
+        width: '82%',
+        height: '82%',
+        border: '2px dashed #2563eb',
+        opacity: 0.8
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: Math.round(cellPx * 0.34),
+        opacity: 0.55,
+        filter: 'grayscale(0.3)'
+      }
+    }, "\uD83D\uDCA1")) : '', isLocked && /*#__PURE__*/React.createElement("span", {
       className: "absolute bottom-0 right-0 leading-none",
       style: {
         fontSize: Math.max(9, Math.round(cellPx * 0.3))
