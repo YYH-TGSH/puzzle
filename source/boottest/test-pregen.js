@@ -7,7 +7,7 @@ let html = fs.readFileSync('/home/hatch/workspace/platform/platform-v1-test.html
 const mock = require('./mockpeer.js');
 html = html.replace('<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>', () => '<script>' + mock + '</scr' + 'ipt>');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-async function waitFor(fn, ms, label) { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { const v = fn(); if (v) return v; } catch (e) {} await sleep(150); } console.log('  (timeout: ' + label + ')'); return null; }
+async function waitFor(fn, ms, label) { ms = Math.min(ms || 60000, (typeof WAITFOR_CAP_MS !== 'undefined' ? WAITFOR_CAP_MS : 60000)); const t0 = Date.now(); /* 2026-11-21 甲案後半：waitFor 上限預設 60 秒快速失敗；慢案以 WAITFOR_CAP_MS 個別放寬、檔頭註明理由 */ while (Date.now() - t0 < ms) { try { const v = fn(); if (v) return v; } catch (e) {} await sleep(150); } console.log('  (timeout: ' + label + ')'); return null; }
 function loadPage(reg) {
   const vc = new VirtualConsole(); vc.on('jsdomError', () => {}); vc.on('error', () => {});
   const dom = new JSDOM(html, { url: 'https://localhost/', resources: 'usable', runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc,
@@ -117,11 +117,13 @@ async function shellReady(p) { return waitFor(() => (typeof p.window.PLAT_show =
     check('D2 晶片含已等秒數', !!secShown, String(secShown));
     // 等滿 5 秒出現返回 → 放棄
     const aborted = await waitFor(() => { const el = p.document.querySelector('#plat-generating'); if (!el) return null; const b = [...el.querySelectorAll('button')].find(x => x.textContent.includes('返回')); return (b && p.window.getComputedStyle(b).display !== 'none') ? b : null; }, 30000, 'abort btn');
-    let backToSettings = false;
+    let backToShell = false;
     if (aborted) { aborted.dispatchEvent(new p.window.MouseEvent('click', { bubbles: true })); await sleep(800);
-      backToSettings = !!byText(p, p.document.querySelector('#view-sudoku'), '開始挑戰') && p.document.querySelectorAll('#view-sudoku g[id^="cell-"]').length === 0 && !p.window.PlatGenerating._visible();
+      const homeShown = !!p.document.querySelector('#view-sudoku [data-ph]') || !!byText(p, p.document.querySelector('#view-sudoku'), '單機挑戰');
+      const overlayGone = !byText(p, p.document.querySelector('#view-sudoku'), '單機挑戰設定');
+      backToShell = homeShown && overlayGone && p.document.querySelectorAll('#view-sudoku g[id^="cell-"]').length === 0 && !p.window.PlatGenerating._visible();
     }
-    check('D3 滿 5 秒出返回、放棄後回設定且無半開局殘留', backToSettings);
+    check('D3 滿 5 秒出返回、放棄後回殼主畫面（不渲染獨立版設定 overlay）且無半開局殘留', backToShell); // 2026-11-21 稽核裁示改版：平台模式放棄生成回殼流程，舊「回設定 overlay」預期作廢
     p.window.close();
   }
   // ===== E. 換組合不誤用（紅線）：預生成 9 普通就緒後改選困難、立刻開始 → 出的必須是困難題 =====

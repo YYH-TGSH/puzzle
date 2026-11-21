@@ -5,7 +5,7 @@ let html = fs.readFileSync('/home/hatch/workspace/platform/platform-v1-test.html
 let mock = require('./mockpeer.js');
 html = html.replace('<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>', () => '<script>' + mock + '</scr' + 'ipt>');
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-async function waitFor(fn, ms, label) { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { const v = fn(); if (v) return v; } catch (e) {} await sleep(300); } console.log('  (timeout: ' + label + ')'); return null; }
+async function waitFor(fn, ms, label) { ms = Math.min(ms || 60000, (typeof WAITFOR_CAP_MS !== 'undefined' ? WAITFOR_CAP_MS : 60000)); const t0 = Date.now(); /* 2026-11-21 甲案後半：waitFor 上限預設 60 秒快速失敗；慢案以 WAITFOR_CAP_MS 個別放寬、檔頭註明理由 */ while (Date.now() - t0 < ms) { try { const v = fn(); if (v) return v; } catch (e) {} await sleep(300); } console.log('  (timeout: ' + label + ')'); return null; }
 const fmt = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 const now = new Date();
 const todayDs = fmt(now);
@@ -65,7 +65,10 @@ async function testGame(game, litClass) {
   // 固定 6 列：本月格數 42；翻到 2026-02（28 天、最矮月份）格數也要 42、空格同高
   const gridsOf = () => { const gs = calRoot.querySelectorAll('.grid.grid-cols-7'); return gs[gs.length - 1]; };
   check(game + ' 本月格數 42（6 列）', gridsOf().children.length === 42, 'n=' + gridsOf().children.length);
-  for (let k = 0; k < 8; k++) { const pv = [...calRoot.querySelectorAll('button')].filter(b => (b.textContent || '').trim() === '◀')[0]; clickEl(p, pv); await sleep(150); }
+  // 翻月次數依當月動態計算（舊版寫死 8 次是 2026-10 當月視角，11 月跑就差一個月——v1.60.0 修：算到 2026-02 的實際月距；每擊間隔 330ms 等切月過渡完成）
+  const titleNow = (calRoot.textContent || '').match(/(\d{4}) 年 (\d{1,2}) 月/);
+  const flips = titleNow ? (Number(titleNow[1]) * 12 + Number(titleNow[2])) - (2026 * 12 + 2) : 8;
+  for (let k = 0; k < flips; k++) { const pv = [...calRoot.querySelectorAll('button')].filter(b => (b.textContent || '').trim() === '◀')[0]; clickEl(p, pv); await sleep(330); }
   check(game + ' 翻到 2026 年 2 月', (calRoot.textContent || '').includes('2026 年 2 月'));
   check(game + ' 2 月格數也是 42（高度固定）', gridsOf().children.length === 42, 'n=' + gridsOf().children.length);
   const febBlanks = [...gridsOf().children].filter(el => el.tagName === 'DIV');

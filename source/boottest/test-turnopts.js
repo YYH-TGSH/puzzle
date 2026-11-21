@@ -1,3 +1,4 @@
+// 【已退休 2026-11-21】核心斷言（Peer 必須帶 metered openrelay TURN 中繼）已被使用者零伺服器成本政策淘汰（Metered TURN 明拒），不再列入回歸清單（run-all.js 已移除）。連線流程本身由 test-hub/test-roomui 覆蓋。本檔保留作歷史紀錄，勿再跑。
 // v1.6.1 驗證：殼建立 RealPeer（房主/來賓）時有帶上 ICE 設定（STUN + TURN 中繼）
 const fs = require('fs');
 const { JSDOM, VirtualConsole } = require('jsdom');

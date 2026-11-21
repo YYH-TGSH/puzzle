@@ -5022,7 +5022,14 @@ function SudokuGame() {
           isGenerating: false
         }, true);
         if (typeof window !== 'undefined' && window.__PLAT_NOTIFY) window.__PLAT_NOTIFY('game-exit');
-      } else syncState({
+      } else if (typeof window !== 'undefined' && window.__PLAT_PLATFORM) {
+        syncState({
+          isGenerating: false,
+          matchPhase: 'waiting'
+        }, true);
+        handleGoHome();
+      } // 2026-11-21 稽核裁示：平台模式放棄生成→回殼流程（主畫面），不得落入獨立版 fallback 的局內設定 overlay（waiting overlay 是 local 引擎的獨立版設定 UI）
+      else syncState({
         isGenerating: false,
         matchPhase: 'waiting'
       }, true);

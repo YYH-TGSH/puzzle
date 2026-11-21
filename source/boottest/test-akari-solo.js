@@ -7,7 +7,7 @@ let html = fs.readFileSync('/home/hatch/workspace/platform/platform-v1-test.html
 const mock = require('/home/hatch/workspace/boottest/mockpeer.js');
 html = html.replace('<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>', () => '<script>' + mock + '</scr' + 'ipt>');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-async function waitFor(fn, ms, label) { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { const v = fn(); if (v) return v; } catch (e) {} await sleep(150); } console.log('timeout', label); return null; }
+async function waitFor(fn, ms, label) { ms = Math.min(ms || 60000, (typeof WAITFOR_CAP_MS !== 'undefined' ? WAITFOR_CAP_MS : 60000)); const t0 = Date.now(); /* 2026-11-21 甲案後半：waitFor 上限預設 60 秒快速失敗；慢案以 WAITFOR_CAP_MS 個別放寬、檔頭註明理由 */ while (Date.now() - t0 < ms) { try { const v = fn(); if (v) return v; } catch (e) {} await sleep(150); } console.log('timeout', label); return null; }
 let pass = 0, fail = 0; const fails = [];
 function ok(c, label) { if (c) { pass++; console.log('✅', label); } else { fail++; fails.push(label); console.log('❌', label); } }
 (async () => {

@@ -1,3 +1,5 @@
+// WAITFOR_CAP_MS 放寬理由（甲案後半）：本套件含 1.3MB bundle 的 jsdom 開機等待（600s 寫法），上限放寬至 240 秒防解析尖峰誤殺；其餘 in-flow 等待仍受此上限快速失敗。
+const WAITFOR_CAP_MS = 240000;
 // 踩地雷競速道具/禮物（v1.30）驗證：
 // 里程碑發放、回填（3×3＋連鎖整片）、問號干擾（未定數字 3–6 格變 ？）、正確插旗送禮物（鎖定旗 'L' 不可拔/不可挖）、最後一位持有道具轉禮物
 const { JSDOM, VirtualConsole } = require('jsdom');
@@ -6,7 +8,7 @@ let html = fs.readFileSync('/home/hatch/workspace/platform/platform-v1-test.html
 let mock = require('./mockpeer.js'); // mockpeer.js 是 module.exports 字串，必須 require，不能 readFileSync（會把 wrapper 一起注入頁面）
 html = html.replace('<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>', () => '<script>' + mock + '</scr' + 'ipt>');
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-async function waitFor(fn, ms, label) { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { const v = fn(); if (v) return v; } catch (e) {} await sleep(300); } console.log('  (waitFor timeout: ' + label + ')'); return null; }
+async function waitFor(fn, ms, label) { ms = Math.min(ms || 60000, (typeof WAITFOR_CAP_MS !== 'undefined' ? WAITFOR_CAP_MS : 60000)); const t0 = Date.now(); /* 2026-11-21 甲案後半：waitFor 上限預設 60 秒快速失敗；慢案以 WAITFOR_CAP_MS 個別放寬、檔頭註明理由 */ while (Date.now() - t0 < ms) { try { const v = fn(); if (v) return v; } catch (e) {} await sleep(300); } console.log('  (waitFor timeout: ' + label + ')'); return null; }
 const SHARED_REG = {};
 function loadPage(label) {
   const errs = [];

@@ -8775,7 +8775,14 @@ function SudokuGame() {
           isGenerating: false
         }, true);
         if (typeof window !== 'undefined' && window.__PLAT_NOTIFY) window.__PLAT_NOTIFY('game-exit');
-      } else syncState({
+      } else if (typeof window !== 'undefined' && window.__PLAT_PLATFORM) {
+        syncState({
+          isGenerating: false,
+          matchPhase: 'waiting'
+        }, true);
+        handleGoHome();
+      } // 2026-11-21 稽核裁示：平台模式放棄生成→回殼流程（主畫面），不得落入獨立版 fallback 的局內設定 overlay（waiting overlay 是 local 引擎的獨立版設定 UI）
+      else syncState({
         isGenerating: false,
         matchPhase: 'waiting'
       }, true);
@@ -26915,7 +26922,7 @@ ReactDOM.createRoot(document.getElementById('akari-root')).render( /*#__PURE__*/
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.72.0';
+  var PLAT_VERSION = '1.72.1';
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -28071,7 +28078,7 @@ ReactDOM.createRoot(document.getElementById('akari-root')).render( /*#__PURE__*/
       if (Net.isHost) { map[Net.myUid] = v; hubStateBroadcast(); hubRender(); }
       else { var m = { kind: key, uid: Net.myUid }; m[key] = v; platToHost(m); map[Net.myUid] = v; hubRender(); }
     }
-    else if (name === 'start') { if (Net.roomTab === 'tourn' && !Net.tourn) tournCreate(); else hubStart(); }
+    else if (name === 'start') { if (!Net.inMatch) { var st0 = hubSpec(); if (st0 && st0.start && st0.start.disabled) { platToast(st0.start.note || '等待全員準備'); return; } } if (Net.roomTab === 'tourn' && !Net.tourn) tournCreate(); else hubStart(); } // 2026-11-21 閘門強制：disabled 只是視覺，handler 必須自己擋——dispatchEvent/程式化點擊繞過 disabled 也不能開局（探針 logs/probe-startgate-brawl.log：無人準備時 dispatch 點擊真的開局）
     else if (name === 'leave') leaveRoom();
     else if (name === 'refresh') hubRender();
   }
@@ -28576,6 +28583,7 @@ ReactDOM.createRoot(document.getElementById('akari-root')).render( /*#__PURE__*/
   function exitGameHook(g) { var hk = window['__PLAT_HOOKS_' + g]; if (hk && hk.exit) { try { hk.exit(); } catch (e) {} } }
   function doReturnToLobby() {
     var g = Net.inMatch; Net.inMatch = null; Net.matchMode = null; Net.restored = false; // 回房間頁＝本局結束：接管旗標一律清，launch 重播沒來也不許殘留到下一局
+    var Hrst = ensureHub(); if (Hrst && Hrst.ready) { var hadReady = Object.keys(Hrst.ready).some(function (k) { return Hrst.ready[k]; }); Hrst.ready = {}; if (hadReady && Net.isHost) hubStateBroadcast(); } // 2026-11-21 稽核裁示：回房間頁重置全員 ready——閘門是「每局開始前全員當下同意」，上局的準備不帶進新局；錦標賽局間走 tourn acks、不依賴 H.ready，不受影響
     if (Net.isHost && Net.liveMatch) setLiveMatch(null); // 房主回房間頁＝本場散場（他是錨點）；來賓自己回頁不清——那是房間裡還在進行的比賽
     if (g) exitGameHook(g);
     // 注意：這裡不 podHide——頒獎台是回大廳的儀式，來賓先收到 tourn-score 播台、隨後才被 return 帶回大廳，藏掉就永遠看不到

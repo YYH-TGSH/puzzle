@@ -1,3 +1,5 @@
+// WAITFOR_CAP_MS 放寬理由（甲案後半）：本套件含 1.3MB bundle 的 jsdom 開機等待（600s 寫法），上限放寬至 240 秒防解析尖峰誤殺；其餘 in-flow 等待仍受此上限快速失敗。
+const WAITFOR_CAP_MS = 240000;
 // 地雷稽核修 [1]（高）：合作進行中房主消失 → 來賓接任房主續挖，盤面進度不可被洗掉
 // 舊 bug：來賓 boardRef 整場停在開局快照（adoptCoopDo 只更新畫面 state），接任後第一個 processCoopAct 就用舊盤定序
 const { JSDOM, VirtualConsole } = require('jsdom');
@@ -12,7 +14,7 @@ html = html.replace(marker, () => '<script>' + mock + '</scr' + 'ipt>');
 let pass = 0, fail = 0;
 const check = (n, c, x) => { if (c) { pass++; console.log('✅ ' + n + (x ? ' — ' + x : '')); } else { fail++; console.log('❌ ' + n + (x ? ' — ' + x : '')); } };
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-async function waitFor(fn, ms, label) { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { const v = fn(); if (v) return v; } catch (e) {} await sleep(300); } console.log('  (waitFor timeout: ' + label + ')'); return null; }
+async function waitFor(fn, ms, label) { ms = Math.min(ms || 60000, (typeof WAITFOR_CAP_MS !== 'undefined' ? WAITFOR_CAP_MS : 60000)); const t0 = Date.now(); /* 2026-11-21 甲案後半：waitFor 上限預設 60 秒快速失敗；慢案以 WAITFOR_CAP_MS 個別放寬、檔頭註明理由 */ while (Date.now() - t0 < ms) { try { const v = fn(); if (v) return v; } catch (e) {} await sleep(300); } console.log('  (waitFor timeout: ' + label + ')'); return null; }
 const SHARED_REG = {};
 function loadPage(label) {
   const errs = [];

@@ -6,7 +6,7 @@ const html = fs.readFileSync('/home/hatch/workspace/platform/platform-v1-test.ht
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) { pass++; console.log('✅', m); } else { fail++; console.log('❌', m); } };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-async function waitFor(fn, ms, label) { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { if (fn()) return true; } catch (e) {} await sleep(120); } throw new Error('waitFor timeout: ' + label); }
+async function waitFor(fn, ms, label) { ms = Math.min(ms || 60000, (typeof WAITFOR_CAP_MS !== 'undefined' ? WAITFOR_CAP_MS : 60000)); const t0 = Date.now(); /* 2026-11-21 甲案後半：waitFor 上限預設 60 秒快速失敗；慢案以 WAITFOR_CAP_MS 個別放寬、檔頭註明理由 */ while (Date.now() - t0 < ms) { try { if (fn()) return true; } catch (e) {} await sleep(120); } throw new Error('waitFor timeout: ' + label); }
 
 function mockAC(w) {
   w.__AC = { instances: 0, oscs: [], gains: [] };

@@ -1,3 +1,5 @@
+// WAITFOR_CAP_MS 放寬理由（甲案後半）：本套件含 1.3MB bundle 的 jsdom 開機等待（600s 寫法），上限放寬至 240 秒防解析尖峰誤殺；其餘 in-flow 等待仍受此上限快速失敗。
+const WAITFOR_CAP_MS = 240000;
 // 踩地雷第三段（錦標賽輪替）驗證：
 // - 出局順序 alt-m → 局序 [mines, akari, sudoku]（v1.68 起四款循環：數獨→數橋→地雷→美術燈）
 // - 地雷局真打：來賓踩雷出局、房主完賽 → 結算名次/分數：房主 10 分、來賓 7 分且 progress=出局當時進度（不是 100）
@@ -11,7 +13,7 @@ mock = mock.replace("R.__msglog = R.__msglog || [];", "R.__msglog = R.__msglog |
            .replace(": undefined }); } } catch (e) {}", ": undefined }); } } } catch (e) {}");
 html = html.replace('<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>', () => '<script>' + mock + '</scr' + 'ipt>');
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-async function waitFor(fn, ms, label) { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { const v = fn(); if (v) return v; } catch (e) {} await sleep(300); } console.log('  (waitFor timeout: ' + label + ')'); return null; }
+async function waitFor(fn, ms, label) { ms = Math.min(ms || 60000, (typeof WAITFOR_CAP_MS !== 'undefined' ? WAITFOR_CAP_MS : 60000)); const t0 = Date.now(); /* 2026-11-21 甲案後半：waitFor 上限預設 60 秒快速失敗；慢案以 WAITFOR_CAP_MS 個別放寬、檔頭註明理由 */ while (Date.now() - t0 < ms) { try { const v = fn(); if (v) return v; } catch (e) {} await sleep(300); } console.log('  (waitFor timeout: ' + label + ')'); return null; }
 const SHARED_REG = {};
 function loadPage(label) {
   const errs = [];

@@ -8,7 +8,7 @@ const MOCK = require('./mockpeer.js');
 let pass = 0, fail = 0;
 function ok(c, label, extra) { if (c) { pass++; console.log('✅ ' + label); } else { fail++; console.log('❌ ' + label + (extra !== undefined ? ' :: ' + extra : '')); } }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-async function waitFor(fn, ms, label) { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { const v = fn(); if (v) return v; } catch (e) {} await sleep(120); } console.log('  ⏱ timeout: ' + label); return null; }
+async function waitFor(fn, ms, label) { ms = Math.min(ms || 60000, (typeof WAITFOR_CAP_MS !== 'undefined' ? WAITFOR_CAP_MS : 60000)); const t0 = Date.now(); /* 2026-11-21 甲案後半：waitFor 上限預設 60 秒快速失敗；慢案以 WAITFOR_CAP_MS 個別放寬、檔頭註明理由 */ while (Date.now() - t0 < ms) { try { const v = fn(); if (v) return v; } catch (e) {} await sleep(120); } console.log('  ⏱ timeout: ' + label); return null; }
 
 // ---------- 1) token 與按壓參數（靜態斷言） ----------
 ok(CSS.includes('--plat-ease-travel: cubic-bezier(0.45, 0, 0.1, 1)'), 'token travel');
@@ -101,7 +101,8 @@ function loadPage(extraBeforeParse, url) {
   P.document.querySelector('#plat-setup [data-pse-opt="9"]').click();
   const cells = await waitFor(() => P.document.querySelectorAll('#mines-root button[data-cell]').length === 81 ? true : null, 30000, 'mines cells');
   ok(!!cells, '地雷單機開局');
-  const progDiv = [...P.document.querySelectorAll('#mines-root div')].find(x => (x.textContent.startsWith('進度（3BV）') || x.textContent.startsWith('開格 ')) && x.querySelector('.plat-count'));
+  const findProg = () => [...P.document.querySelectorAll('#view-mines div')].find(x => (x.textContent.startsWith('進度（3BV）') || x.textContent.startsWith('開格 ')) && x.querySelector('.plat-count'));
+  const progDiv = await waitFor(() => findProg() || null, 15000, 'mines progress plat-count'); // 2026-11-21 修：進度列在殼 PlatTopCard 槽（#view-mines 內、#mines-root 外）、且槽內容晚於盤面渲染——改 waitFor。渲染探針 logs/probe-minespc.log 證實產品有接 PlatCount 且會滾（0%→11%、strip 位移）
   ok(!!progDiv, '自己的進度 % 已接 PlatCount 滾輪', progDiv ? '' : 'no .plat-count in progress div');
   ok(progDiv && progDiv.querySelectorAll('.pc-digit').length >= 1, '進度滾輪槽存在');
 
