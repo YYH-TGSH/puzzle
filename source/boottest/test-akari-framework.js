@@ -166,6 +166,8 @@ const cs = (p, el, prop) => el ? p.window.getComputedStyle(el)[prop] : '(none)';
   for (const p of [H, G]) { p.window.PLAT_show('akari'); await waitFor(() => !!p.window.__PLAT_HOOKS_akari, 300000, 'preboot akari'); p.window.PLAT_show('lobby'); }
   clickEl(H, H.document.querySelector('#lob-step-room [data-rtab="akari"]'));
   await sleep(600);
+  clickEl(H, H.document.querySelector('#lob-step-room [data-hub-mode="race"][data-hub-game="akari"]')); // v1.74.0：預設改合作，本套件驗競速晶片/觀戰須明示選 race
+  await sleep(500);
   await waitFor(() => (H.document.querySelector('#lob-step-room [data-pr="ready"]') && G.document.querySelector('#lob-step-room [data-pr="ready"]')) ? true : null, 30000, 'both ready btns');
   clickEl(H, H.document.querySelector('#lob-step-room [data-pr="ready"]'));
   clickEl(G, G.document.querySelector('#lob-step-room [data-pr="ready"]'));

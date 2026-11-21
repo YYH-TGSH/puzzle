@@ -205,6 +205,14 @@ function AkariGame() {
   // ---------- 上一步/下一步歷史（v1.73.0 項1：比照數獨/數橋；單位＝點按一步、拖曳一程一步；只存 cells 快照，里程碑/額度計數器單調不回退＝防 undo 農場） ----------
   const histRef = useRef({ past: [], future: [] });
   const [histVer, setHistVer] = useState(0);
+  // ---------- 合作模式（v1.74.0 項5，比照地雷 ACT/DO 房主權威）：共用盤面、owners 標記者、本地草稿不外同步 ----------
+  const ownersRef = useRef([]); const [owners, setOwners] = useState([]);
+  const coopDraftRef = useRef(new Set()); const [coopDraftVer, setCoopDraftVer] = useState(0);
+  const coopHistRef = useRef({ past: [], future: [] }); // 條目 {gid, idx, prev, v} 或 {gid, draft:true, idx, prev}；同 gid＝一手勢一步
+  const actGidRef = useRef(0);
+  const coopWonRef = useRef(0); const [coopWonMs, setCoopWonMs] = useState(0);
+  function isCoop() { return mpRef.current.on && mpRef.current.mode === 'coop'; }
+  function bumpCoop() { setCoopDraftVer(v => v + 1); setHistVer(v => v + 1); }
   function histPush(prevCells) { const H = histRef.current; H.past.push(prevCells.slice()); if (H.past.length > 200) H.past.shift(); H.future = []; setHistVer(v => v + 1); }
   function histReset() { histRef.current = { past: [], future: [] }; setHistVer(v => v + 1); }
   function histRestore(target) {
@@ -217,8 +225,10 @@ function AkariGame() {
     if (mpRef.current.on && (mpRef.current.phase !== 'playing' || iAmSpecRef.current || outcomeRef.current)) return false;
     return true;
   }
-  function doUndo() { if (!canPlayNow()) return; const H = histRef.current; if (!H.past.length) return; const prev = H.past.pop(); H.future.push(cellsRef.current.slice()); setHistVer(v => v + 1); histRestore(prev); }
-  function doRedo() { if (!canPlayNow()) return; const H = histRef.current; if (!H.future.length) return; const nxt = H.future.pop(); H.past.push(cellsRef.current.slice()); setHistVer(v => v + 1); histRestore(nxt); }
+  function doUndo() {
+    if (isCoop()) { coopUndo(); return; } if (!canPlayNow()) return; const H = histRef.current; if (!H.past.length) return; const prev = H.past.pop(); H.future.push(cellsRef.current.slice()); setHistVer(v => v + 1); histRestore(prev); }
+  function doRedo() {
+    if (isCoop()) { coopRedo(); return; } if (!canPlayNow()) return; const H = histRef.current; if (!H.future.length) return; const nxt = H.future.pop(); H.past.push(cellsRef.current.slice()); setHistVer(v => v + 1); histRestore(nxt); }
   const platBarRef = useRef(null);
   const platHomeRef = useRef(null); // PlatHome 掛載點（框架層 F1）
   const platFrameRef = useRef(null); // PlatFrame 掛載點（框架修正批 v1.70.0：對局外框改殼持有）
@@ -375,6 +385,77 @@ function AkariGame() {
     }
     setWinInfo({ secs: secs, isDaily: isDaily, dateStr: dailyDate });
   }
+  // ---------- 合作模式核心：ACT（來賓→房主）/ DO（房主→全場）逐動作同步 ----------
+  function coopAct(idx, v, noHist) {
+    if (mpRef.current.isHost) coopApply(idx, v, myId, false, noHist);
+    else mpSend({ type: 'AKARI_ACT', idx: idx, v: v, uid: myId, noHist: noHist ? 1 : 0 });
+  }
+  function coopApply(idx, v, uid, remote, noHist) {
+    const pz = puzzleRef.current; if (!pz || pz.walls.has(idx)) return;
+    if (v !== 0 && v !== 1 && v !== 2) return;
+    if (mpRef.current.phase !== 'playing' || coopWonRef.current) return;
+    const prev = cellsRef.current[idx];
+    if (prev === v) return;
+    const next = cellsRef.current.slice(); next[idx] = v;
+    cellsRef.current = next; setCells(next);
+    const no = ownersRef.current.slice(); while (no.length < next.length) no.push('');
+    no[idx] = v === 0 ? '' : uid; ownersRef.current = no; setOwners(no);
+    if (uid === myId && !noHist) { coopHistRef.current.past.push({ gid: actGidRef.current, idx: idx, prev: prev, v: v }); if (coopHistRef.current.past.length > 400) coopHistRef.current.past.splice(0, 100); coopHistRef.current.future = []; }
+    if (mpRef.current.isHost && !remote) hostBroadcast({ type: 'AKARI_DO', idx: idx, v: v, uid: uid, noHist: noHist ? 1 : 0 });
+    setHistVer(x => x + 1);
+    if (window.Akari.isSolved(pz.w, pz.h, pz.walls, pz.numbers, placedBulbs(next))) coopWin();
+    else if (mpRef.current.isHost) saveResume();
+  }
+  function coopWin() {
+    if (coopWonRef.current) return;
+    const ms = Math.max(0, Date.now() - mpRef.current.startAt);
+    coopWonRef.current = ms; setCoopWonMs(ms);
+    if (!iAmSpecRef.current) { setStatus('won'); statusRef.current = 'won'; }
+    if (mpRef.current.isHost) { hostBroadcast({ type: 'AKARI_COOP_WIN', ms: ms }); saveResume(); }
+    try { platAudio().play('win'); } catch (e) {};
+  }
+  function coopTap(idx) {
+    if (mpRef.current.phase !== 'playing' || coopWonRef.current || iAmSpecRef.current) return;
+    const cur = cellsRef.current[idx];
+    const md = modeRef.current;
+    actGidRef.current++;
+    if (md === 'draft') {
+      if (cur !== 0) return;
+      const has = coopDraftRef.current.has(idx);
+      if (has) coopDraftRef.current.delete(idx); else coopDraftRef.current.add(idx);
+      coopHistRef.current.past.push({ gid: actGidRef.current, draft: true, idx: idx, prev: has }); coopHistRef.current.future = [];
+      bumpCoop();
+      return;
+    }
+    let v;
+    if (md === 'cross') { if (cur === 0) v = 2; else if (cur === 2) v = 0; else return; }
+    else if (coopDraftRef.current.has(idx) && cur === 0) { coopDraftRef.current.delete(idx); bumpCoop(); v = 1; }
+    else v = (cur + 1) % 3;
+    coopAct(idx, v);
+  }
+  function coopUndo() {
+    const H = coopHistRef.current; if (!H.past.length) return;
+    const gid = H.past[H.past.length - 1].gid;
+    const group = [];
+    while (H.past.length && H.past[H.past.length - 1].gid === gid) group.push(H.past.pop());
+    const applied = [];
+    group.forEach(en => {
+      if (en.draft) { if (en.prev) coopDraftRef.current.add(en.idx); else coopDraftRef.current.delete(en.idx); applied.push(en); return; }
+      if (cellsRef.current[en.idx] === en.v) { coopAct(en.idx, en.prev, true); applied.push(en); } // 被夥伴改過的動作跳過（只撤自己的、且現值仍是自己放的）
+    });
+    if (applied.length) H.future.push({ gid: gid, entries: applied });
+    bumpCoop();
+  }
+  function coopRedo() {
+    const H = coopHistRef.current; if (!H.future.length) return;
+    const g = H.future.pop();
+    actGidRef.current++;
+    g.entries.forEach(en => {
+      if (en.draft) { if (en.prev) coopDraftRef.current.delete(en.idx); else coopDraftRef.current.add(en.idx); H.past.push({ gid: actGidRef.current, draft: true, idx: en.idx, prev: en.prev }); return; }
+      if (cellsRef.current[en.idx] === en.prev) { coopAct(en.idx, en.v, true); H.past.push({ gid: actGidRef.current, idx: en.idx, prev: en.prev, v: en.v }); }
+    });
+    bumpCoop();
+  }
   function applyCells(next) {
     const pz = puzzleRef.current; if (!pz) return;
     setCells(next); cellsRef.current = next;
@@ -395,6 +476,7 @@ function AkariGame() {
     if (mpRef.current.on && (mpRef.current.phase !== 'playing' || iAmSpecRef.current || outcomeRef.current)) return;
     const pz = puzzleRef.current; if (!pz || pz.walls.has(idx)) return;
     const cur = cellsRef.current[idx];
+    if (isCoop()) { coopTap(idx); return; }
     if (cur === 3) return; // 鎖定燈不可點掉
     let nv;
     if (modeRef.current === 'draft') {
@@ -420,6 +502,11 @@ function AkariGame() {
     if (mpRef.current.on && (mpRef.current.phase !== 'playing' || iAmSpecRef.current || outcomeRef.current)) return;
     const pz = puzzleRef.current; if (!pz || pz.walls.has(idx)) return;
     if (cellsRef.current[idx] !== 0) return; // 燈/叉/鎖定燈/草稿都不覆寫
+    if (isCoop()) { // 合作拖曳：草稿塗本地層、叉走 ACT 同步（同手勢同 gid，undo 一程一步）
+      if (modeRef.current === 'draft') { if (!coopDraftRef.current.has(idx)) { coopDraftRef.current.add(idx); coopHistRef.current.past.push({ gid: actGidRef.current, draft: true, idx: idx, prev: false }); coopHistRef.current.future = []; bumpCoop(); } }
+      else coopAct(idx, 2);
+      return;
+    }
     const next = cellsRef.current.slice(); next[idx] = (modeRef.current === 'draft') ? 4 : 2;
     applyCells(next);
   }
@@ -458,7 +545,7 @@ function AkariGame() {
         return;
       }
       const pz = puzzleRef.current;
-      if (pz && cellsRef.current[d.idx] === 0 && !pz.walls.has(d.idx)) { d.painting = true; histPush(cellsRef.current); paintCross(d.idx); } // 一整程拖曳＝一個歷史單位：起手推一次
+      if (pz && cellsRef.current[d.idx] === 0 && !pz.walls.has(d.idx)) { d.painting = true; if (isCoop()) actGidRef.current++; else histPush(cellsRef.current); paintCross(d.idx); } // 一整程拖曳＝一個歷史單位：起手推一次（coop 改開新 gid 分組）
       else return;
     }
     if (d.painting) {
@@ -494,7 +581,7 @@ function AkariGame() {
   function mpSend(msg) { if (mpRef.current.isHost) hostBroadcast(msg); else if (hostConnRef.current && hostConnRef.current.open) { try { hostConnRef.current.send(msg); } catch (e) {} } }
   function sendItemMsg(m) { if (mpRef.current.isHost) { hostBroadcast(m); processItemMsg(m); } else mpSend(m); }
   function cleanupMp() {
-    histReset();
+    histReset(); ownersRef.current = []; setOwners([]); coopDraftRef.current = new Set(); coopHistRef.current = { past: [], future: [] }; coopWonRef.current = 0; setCoopWonMs(0);
     if (cdIvRef.current) { clearInterval(cdIvRef.current); cdIvRef.current = null; }
     if (autoIvRef.current) { clearInterval(autoIvRef.current); autoIvRef.current = null; }
     if (autoFireIvRef.current) { clearInterval(autoFireIvRef.current); autoFireIvRef.current = null; }
@@ -526,7 +613,7 @@ function AkariGame() {
   function saveResume() {
     if (!mpRef.current.on || iAmSpecRef.current || outcomeRef.current || mpRef.current.phase !== 'playing') return;
     if (!puzzleRef.current || !mpRef.current.seed) return;
-    platSave().write(akariResumeKey(), { seed: mpRef.current.seed, sizeId: mpRef.current.sizeId, startAt: mpRef.current.startAt, cells: cellsRef.current.join(''), items: { trap: itemsRef.current.trap || 0 }, giftCredit: giftCreditRef.current, milestone: milestoneRef.current, countedWalls: Object.keys(countedWallsRef.current).map(Number), ts: Date.now() });
+    platSave().write(akariResumeKey(), { seed: mpRef.current.seed, sizeId: mpRef.current.sizeId, startAt: mpRef.current.startAt, cells: cellsRef.current.join(''), items: { trap: itemsRef.current.trap || 0 }, giftCredit: giftCreditRef.current, milestone: milestoneRef.current, countedWalls: Object.keys(countedWallsRef.current).map(Number), ts: Date.now(), mode: isCoop() ? 'coop' : 'race', owners: isCoop() ? ownersRef.current : undefined, drafts: isCoop() ? Array.from(coopDraftRef.current) : undefined });
   }
   function loadResumeAny() {
     try { return platSave().read(akariResumeKey(), { fallback: null, validate: (p) => !!p && typeof p.seed === 'number' && typeof p.cells === 'string' }); } catch (e) { return null; }
@@ -718,6 +805,7 @@ function AkariGame() {
     setRaceFinal(null); finalRef.current = null; setMyOutcome(null); outcomeRef.current = null;
     godRef.current = {}; setGodBoards({}); dismissRef.current = null; setSpecUid(null);
     itemsRef.current = { trap: 0 }; setMyItems({ trap: 0 }); giftCreditRef.current = 0; milestoneRef.current = 0; countedWallsRef.current = {}; lastOneDoneRef.current = false; lastProgRef.current = -1; lastStateRef.current = 0;
+    ownersRef.current = []; setOwners([]); coopDraftRef.current = new Set(); coopHistRef.current = { past: [], future: [] }; coopWonRef.current = 0; setCoopWonMs(0);
     setOutageUntil(0); outageRef.current = 0;
     setMyReadySt(false); myReadyRef.current = false;
     const spec2 = iAmSpec(); iAmSpecRef.current = spec2;
@@ -763,7 +851,7 @@ function AkariGame() {
     setPlayersBoth(list);
     hostBroadcast({ type: 'PLAYERS_UPDATE', players: list }, conn);
     const myEntry = list.find(p => p.id === m.uid);
-    try { conn.send({ type: 'INIT', players: list, sizeId: mpRef.current.sizeId, phase: phase, seed: (myEntry && myEntry.spectator) ? undefined : mpRef.current.seed, startAt: mpRef.current.startAt, god: godRef.current, youSpec: !!(myEntry && myEntry.spectator), puzzle: (myEntry && myEntry.spectator && puzzleRef.current) ? { w: puzzleRef.current.w, h: puzzleRef.current.h, walls: Array.from(puzzleRef.current.walls), numbers: Array.from(puzzleRef.current.numbers.entries()), solution: Array.from(puzzleRef.current.solution) } : undefined }); } catch (e) {}
+    try { conn.send({ type: 'INIT', players: list, sizeId: mpRef.current.sizeId, phase: phase, seed: (myEntry && myEntry.spectator) ? undefined : mpRef.current.seed, startAt: mpRef.current.startAt, god: godRef.current, youSpec: !!(myEntry && myEntry.spectator), puzzle: (myEntry && myEntry.spectator && puzzleRef.current) ? { w: puzzleRef.current.w, h: puzzleRef.current.h, walls: Array.from(puzzleRef.current.walls), numbers: Array.from(puzzleRef.current.numbers.entries()), solution: Array.from(puzzleRef.current.solution) } : undefined, coopSnap: (isCoop() && (phase === 'countdown' || phase === 'playing')) ? { cells: cellsRef.current.join(''), owners: ownersRef.current } : undefined }); } catch (e) {}
   }
   function guestOnInit(m) {
     setPlayersBoth(m.players || []);
@@ -776,6 +864,7 @@ function AkariGame() {
       if (m.youSpec) {
         if (m.puzzle) { puzzleRef.current = arraysToSets(m.puzzle); setPuzzle(m.puzzle); }
         setCells([]); cellsRef.current = [];
+        if (isCoop() && m.coopSnap && typeof m.coopSnap.cells === 'string') { const arrSp = m.coopSnap.cells.split('').map(Number); if (!arrSp.some(v => !(v >= 0 && v <= 2))) { setCells(arrSp); cellsRef.current = arrSp; if (m.coopSnap.owners) { ownersRef.current = m.coopSnap.owners; setOwners(m.coopSnap.owners); } } }
         mpRef.current.phase = m.phase; setMpPhase(m.phase); setScreen('game');
         if (m.phase === 'countdown' && m.startAt) {
           const specDelay = Math.max(0, m.startAt - Date.now()) + 60;
@@ -791,6 +880,17 @@ function AkariGame() {
     const sp = SIZES[m.sizeId] || SIZES[10], total = sp.w * sp.h;
     let save = null;
     try { save = platSave().read(akariResumeKey(), { fallback: null, validate: (p) => !!p && p.seed === m.seed && p.sizeId === m.sizeId && !!p.cells && p.cells.length === total }); } catch (e) {}
+    if (isCoop()) { // 合作回座：房主 INIT 的 coopSnap 優先、本地存檔備援；不走競速 raceSync
+      let arrC = null, ownC = null, drC = null;
+      if (m.coopSnap && typeof m.coopSnap.cells === 'string' && m.coopSnap.cells.length === total) { arrC = m.coopSnap.cells.split('').map(Number); ownC = m.coopSnap.owners || null; }
+      else if (save && save.mode === 'coop') { arrC = save.cells.split('').map(Number); ownC = save.owners || null; drC = save.drafts || null; }
+      if (!arrC || arrC.some(v => !(v >= 0 && v <= 2))) return;
+      setCells(arrC); cellsRef.current = arrC;
+      if (ownC) { ownersRef.current = ownC; setOwners(ownC); }
+      if (drC) { coopDraftRef.current = new Set(drC); bumpCoop(); }
+      itemSay('↩ 已接續合作盤面');
+      return;
+    }
     let cellsArr = null;
     if (save) cellsArr = save.cells.split('').map(Number);
     else if (m.god && m.god[myId] && typeof m.god[myId].cells === 'string' && m.god[myId].cells.length === total) cellsArr = m.god[myId].cells.split('').map(Number);
@@ -815,13 +915,16 @@ function AkariGame() {
   function onMpData(m, conn) {
     if (!m || !m.type) return;
     const H = mpRef.current.isHost;
-    if (H && conn && conn.__uid && m.uid && m.uid !== conn.__uid && ['AKARI_FINISH', 'AKARI_STATE', 'AKARI_PROGRESS', 'AKARI_MILESTONE', 'AKARI_GIFT', 'AKARI_HIT', 'READY', 'REQ_REMATCH'].indexOf(m.type) >= 0) return; // 房主驗寄件者（比照地雷）
+    if (H && conn && conn.__uid && m.uid && m.uid !== conn.__uid && ['AKARI_FINISH', 'AKARI_STATE', 'AKARI_PROGRESS', 'AKARI_MILESTONE', 'AKARI_GIFT', 'AKARI_HIT', 'AKARI_ACT', 'READY', 'REQ_REMATCH'].indexOf(m.type) >= 0) return; // 房主驗寄件者（比照地雷）
     switch (m.type) {
       case 'JOIN': if (H) hostOnJoin(m, conn); break;
       case 'INIT': if (!H) guestOnInit(m); break;
       case 'PLAYERS_UPDATE': if (!H) { setPlayersBoth(m.players || []); const mp2 = myPlayer(); if (mp2) iAmSpecRef.current = !!mp2.spectator; } break;
       case 'READY': if (H) { setPlayersBoth(playersRef.current.map(p => p.id === m.uid ? Object.assign({}, p, { ready: !!m.ready }) : p)); hostBroadcast({ type: 'PLAYERS_UPDATE', players: playersRef.current }); } break;
       case 'AKARI_START': if (!H) startMatchLocal(m.seed, m.sizeId, m.startAt); break;
+      case 'AKARI_ACT': if (H && isCoop()) { const plA = playersRef.current.find(p => p.id === m.uid); if (plA && !plA.spectator && mpRef.current.phase === 'playing') coopApply(m.idx, m.v, m.uid, false, !!m.noHist); } break; // 房主權威：觀戰者/非進行中的 ACT 不受理（比照地雷）
+      case 'AKARI_DO': if (!H && isCoop()) coopApply(m.idx, m.v, m.uid, true, !!m.noHist); break;
+      case 'AKARI_COOP_WIN': if (isCoop() && !coopWonRef.current) { coopWonRef.current = m.ms || 1; setCoopWonMs(m.ms || 1); if (!iAmSpecRef.current) { setStatus('won'); statusRef.current = 'won'; } try { platAudio().play('win'); } catch (e) {}; } break;
       case 'AKARI_PROGRESS': godSet(m.uid, { progress: m.progress || 0 }); if (H) hostBroadcast(m, conn); break;
       case 'AKARI_STATE': godSet(m.uid, { cells: m.cells, progress: m.progress || 0 }); if (H) hostBroadcast(m, conn); break;
       case 'AKARI_FINISH': godSet(m.uid, { state: 'finished', timeMs: m.timeMs, progress: 1 }); if (H) hostBroadcast(m, conn); checkRaceEnd(); tryConvertLastOne(); break;
@@ -882,7 +985,7 @@ function AkariGame() {
     const st = sess.settings || {};
     let itemDelayS = Number(st.itemStartTime); if (isNaN(itemDelayS)) itemDelayS = 60; itemDelayS = Math.max(0, Math.min(600, itemDelayS));
     const szId = [7, 10, 12].indexOf(Number(st.sizeId)) >= 0 ? Number(st.sizeId) : 10;
-    mpRef.current = { on: true, isHost: !!sess.isHost, mode: 'race', tourn: !!sess.tourn, tournInfo: sess.tourn || null, hub: !!sess.hub, code: sess.code, sizeId: szId, seed: 0, startAt: 0, phase: 'waiting', itemsAllow: st.allowItems !== false, itemDelay: itemDelayS };
+    mpRef.current = { on: true, isHost: !!sess.isHost, mode: (sess.mode === 'coop' || st.mode === 'coop') ? 'coop' : 'race', tourn: !!sess.tourn, tournInfo: sess.tourn || null, hub: !!sess.hub, code: sess.code, sizeId: szId, seed: 0, startAt: 0, phase: 'waiting', itemsAllow: st.allowItems !== false, itemDelay: itemDelayS };
     setMpOn(true); setMpPhase('waiting'); waitSinceRef.current = Date.now();
     setScreen('mp');
     if (sess.isHost) {
@@ -1069,7 +1172,7 @@ function AkariGame() {
     if (P2) { cellsRef.current.forEach((cv) => { if (cv === 1 || cv === 3) placed++; }); }
     window.PlatTopCard.update({
       leaveIcon: mpOn ? '🔌' : '🏠', leaveLabel: mpOn ? '退出' : '主選單',
-      modeChip: mpOn ? '⚔️ 競速對戰' : null,
+      modeChip: mpOn ? (mpRef.current.mode === 'coop' ? '🤝 合作模式' : '⚔️ 競速對戰') : null,
       dailyChip: (!mpOn && isDaily && dailyDate) ? ('每日 ' + dailyDate.slice(5) + (dailyDate !== todayStr() ? ' 補玩' : '')) : null,
       specLabel: '⚙️ ' + (isDaily ? '每日一題 ' + (puzzle ? SIZES[puzzle.w].short : '') : (puzzle ? SIZES[puzzle.w].name : '')),
       specClickable: false,
@@ -1078,8 +1181,8 @@ function AkariGame() {
       muted: muted,
       players: mpOn ? players.filter(p => !p.pending).map(p => {
         const g = godBoards[p.id] || { progress: p.id === myId ? 0 : 0, state: 'playing' };
-        const pct = Math.floor((p.id === myId ? (total ? placed / total : 0) : (g.progress || 0)) * 100);
-        return { key: p.id, name: p.name, color: p.color, isMe: p.id === myId, text: p.spectator ? '👁️' : (g.state === 'finished' ? '🏁' : pct + '%') };
+        const pct = Math.floor(((p.id === myId || mpRef.current.mode === 'coop') ? (total ? placed / total : 0) : (g.progress || 0)) * 100);
+        return { key: p.id, name: p.name, color: p.color, isMe: p.id === myId, text: p.spectator ? '👁️' : (mpRef.current.mode === 'coop' ? pct + '%' : (g.state === 'finished' ? '🏁' : pct + '%')) };
       }) : null,
       leaveMenu: { mode: mpOn ? 'mp' : 'solo', canForceEnd: !!(mpOn && typeof window.__PLAT_TOURN_CAN_FORCEEND === 'function' && window.__PLAT_TOURN_CAN_FORCEEND()) }
     });
@@ -1165,9 +1268,9 @@ function AkariGame() {
         puzzle: puzzleRef.current ? { w: puzzleRef.current.w, h: puzzleRef.current.h, walls: Array.from(puzzleRef.current.walls), numbers: Array.from(puzzleRef.current.numbers.entries()), solution: Array.from(puzzleRef.current.solution) } : null,
         cells: cellsRef.current.slice(),
         mode: modeRef.current, zoom: zoomRef.current,
-        mp: { on: mpRef.current.on, isHost: mpRef.current.isHost, phase: mpRef.current.phase, tourn: mpRef.current.tourn, seed: mpRef.current.seed, sizeId: mpRef.current.sizeId },
+        mp: { on: mpRef.current.on, isHost: mpRef.current.isHost, mode: mpRef.current.mode, phase: mpRef.current.phase, tourn: mpRef.current.tourn, seed: mpRef.current.seed, sizeId: mpRef.current.sizeId },
         players: playersRef.current, god: godRef.current, final: finalRef.current,
-        items: Object.assign({}, itemsRef.current), giftCredit: giftCreditRef.current, milestone: milestoneRef.current,
+        items: Object.assign({}, itemsRef.current), giftCredit: giftCreditRef.current, milestone: milestoneRef.current, owners: ownersRef.current.slice(), coopWonMs: coopWonRef.current, coopDrafts: Array.from(coopDraftRef.current),
         outageUntil: outageRef.current, myOutcome: outcomeRef.current
       })
     };
@@ -1288,8 +1391,8 @@ function AkariGame() {
             </div>
             {!(mpOn && (iAmSpecRef.current || myOutcome)) && (
               <div className="flex items-center gap-1.5 mt-1.5">
-                <button data-akari-undo onClick={doUndo} disabled={!histRef.current.past.length || !canPlayNow()} className="plat-btn-hard px-2 py-0.5 bg-white border-2 border-slate-800 rounded font-bold text-[11px] shadow-[1px_1px_0px_rgba(30,41,59,1)] disabled:opacity-40 disabled:shadow-none text-slate-800" title="上一步（復原）">↩️ 上一步</button>
-                <button data-akari-redo onClick={doRedo} disabled={!histRef.current.future.length || !canPlayNow()} className="plat-btn-hard px-2 py-0.5 bg-white border-2 border-slate-800 rounded font-bold text-[11px] shadow-[1px_1px_0px_rgba(30,41,59,1)] disabled:opacity-40 disabled:shadow-none text-slate-800" title="下一步（重做）">↪ 下一步</button>
+                <button data-akari-undo onClick={doUndo} disabled={!(mpRef.current.mode === 'coop' ? coopHistRef.current.past.length : histRef.current.past.length) || !canPlayNow()} className="plat-btn-hard px-2 py-0.5 bg-white border-2 border-slate-800 rounded font-bold text-[11px] shadow-[1px_1px_0px_rgba(30,41,59,1)] disabled:opacity-40 disabled:shadow-none text-slate-800" title="上一步（復原）">↩️ 上一步</button>
+                <button data-akari-redo onClick={doRedo} disabled={!(mpRef.current.mode === 'coop' ? coopHistRef.current.future.length : histRef.current.future.length) || !canPlayNow()} className="plat-btn-hard px-2 py-0.5 bg-white border-2 border-slate-800 rounded font-bold text-[11px] shadow-[1px_1px_0px_rgba(30,41,59,1)] disabled:opacity-40 disabled:shadow-none text-slate-800" title="下一步（重做）">↪ 下一步</button>
                 <span className="hidden">{histVer}</span>
               </div>
             )}
@@ -1320,19 +1423,23 @@ function AkariGame() {
                 );
               }
               const isBulb = cv === 1, isLocked = cv === 3, isCross = cv === 2, isDraft = cv === 4, lit = litVis.has(i), bad = confBad.has(i);
+              const ownUid = mpRef.current.mode === 'coop' ? (owners[i] || '') : '';
+              const partner = ownUid && ownUid !== myId ? players.find(p => p.id === ownUid) : null;
+              const coopDraft = mpRef.current.mode === 'coop' && cv === 0 && coopDraftRef.current.has(i);
               return (
                 <button key={i} data-cell={i}
                   onPointerDown={e => onCellDown(i, e)} onPointerUp={e => onCellUp(i, e)} onClick={() => onCellClick(i)}
                   className={"relative flex items-center justify-center rounded-[4px] border select-none touch-none" + (bad ? " border-red-500" : " border-blue-200") + (isBulb && newBulbRef.current === i ? " akari-bulb-new" : "")}
-                  style={{ width: cellPx, height: cellPx, fontSize: Math.round(cellPx * 0.52), background: (isBulb || isLocked) ? '#60a5fa' : (lit ? '#dbeafe' : '#ffffff'), boxShadow: bad ? 'inset 0 0 0 2px #ef4444' : (isLocked ? 'inset 0 0 0 2px #1d4ed8, 0 0 10px 2px rgba(59,130,246,0.55)' : (isBulb && !outaged ? '0 0 10px 2px rgba(59,130,246,0.55)' : 'none')) }}>
-                  {(isBulb || isLocked) ? '💡' : (isCross ? <span className="text-slate-400 font-black">✕</span> : (isDraft ? <span data-draft="1" className="flex items-center justify-center rounded-full" style={{ width: '82%', height: '82%', border: '2px dashed #2563eb', opacity: 0.8 }}><span style={{ fontSize: Math.round(cellPx * 0.34), opacity: 0.55, filter: 'grayscale(0.3)' }}>💡</span></span> : ''))}
+                  style={{ width: cellPx, height: cellPx, fontSize: Math.round(cellPx * 0.52), background: (isBulb || isLocked) ? '#60a5fa' : (lit ? '#dbeafe' : '#ffffff'), boxShadow: bad ? 'inset 0 0 0 2px #ef4444' : (isLocked ? 'inset 0 0 0 2px #1d4ed8, 0 0 10px 2px rgba(59,130,246,0.55)' : (partner && isBulb ? 'inset 0 0 0 3px ' + partner.color + ', 0 0 10px 2px rgba(59,130,246,0.55)' : (isBulb && !outaged ? '0 0 10px 2px rgba(59,130,246,0.55)' : 'none'))) }}>
+                  {(isBulb || isLocked) ? '💡' : (isCross ? <span className="font-black" style={{ color: partner ? partner.color : '#94a3b8' }}>✕</span> : ((isDraft || coopDraft) ? <span data-draft="1" className="flex items-center justify-center rounded-full" style={{ width: '82%', height: '82%', border: '2px dashed #2563eb', opacity: 0.8 }}><span style={{ fontSize: Math.round(cellPx * 0.34), opacity: 0.55, filter: 'grayscale(0.3)' }}>💡</span></span> : ''))}
                   {isLocked && <span className="absolute bottom-0 right-0 leading-none" style={{ fontSize: Math.max(9, Math.round(cellPx * 0.3)) }}>🔒</span>}
+                  {partner && isBulb && <span data-partner-dot="1" className="absolute top-0 right-0 rounded-full border border-white" style={{ width: Math.max(8, Math.round(cellPx * 0.26)), height: Math.max(8, Math.round(cellPx * 0.26)), background: partner.color }}></span>}
                 </button>
               );
             })}
           </div>
         </div>
-        {mpOn && (myOutcome || iAmSpecRef.current) && puzzle && (
+        {mpOn && mpRef.current.mode !== 'coop' && (myOutcome || iAmSpecRef.current) && puzzle && (
           <div className="mt-4 w-full max-w-[560px] bg-white border-[3px] border-slate-800 rounded-2xl shadow-[3px_3px_0px_rgba(30,41,59,1)] p-4">
             <div className="font-black text-slate-800 mb-2">👁️ 觀戰（點選手看他的盤面）</div>
             <div className="flex gap-1.5 flex-wrap mb-3">
@@ -1357,6 +1464,12 @@ function AkariGame() {
               </div>
             )}
             {specUid && !(godBoards[specUid] && typeof godBoards[specUid].cells === 'string') && <p className="text-center font-bold text-slate-400 text-sm">等他的盤面同步過來…</p>}
+          </div>
+        )}
+        {mpOn && mpRef.current.mode === 'coop' && coopWonMs > 0 && (
+          <div data-coop-won="1" className="mt-4 w-full max-w-[560px] bg-emerald-50 border-[3px] border-emerald-600 rounded-2xl shadow-[3px_3px_0px_rgba(30,41,59,1)] p-4 text-center">
+            <div className="font-black text-emerald-800 text-lg">🤝 共同完賽！</div>
+            <div className="font-bold text-emerald-700 text-sm mt-1">全隊一起點亮了整盤・用時 {String(Math.floor(coopWonMs / 60000)).padStart(2, '0')}:{String(Math.floor(coopWonMs / 1000) % 60).padStart(2, '0')}</div>
           </div>
         )}
         {status === 'won' && winInfo && !mpOn && (

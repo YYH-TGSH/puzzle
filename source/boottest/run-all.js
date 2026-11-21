@@ -73,6 +73,9 @@ const SUITES = [
   ['test-akari-dragscroll.js', {}], // 美術燈塗叉/捲動分流（v1.72.3 項3）
   ['test-genchip-race.js', {}], // PlatGenerating tick 競態決定性重現（v1.72.4）
   ['test-akari-undodraft.js', {}], // 美術燈 undo/redo＋草稿＋防農場（v1.73.0）
+  ['test-tourn-cards.js', {}], // 錦標賽卡片式選關（v1.74.0）
+  ['test-akari-coop.js', {}], // 美術燈合作模式（v1.74.0）
+  ['test-akari-coopresume.js', {}], // 美術燈合作回座（v1.74.0）
 ];
 
 const filter = process.argv[2] || '';

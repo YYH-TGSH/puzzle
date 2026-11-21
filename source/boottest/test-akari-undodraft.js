@@ -170,6 +170,8 @@ function neighborsOf(w, h, i) { const x = i % w, y = Math.floor(i / w), out = []
   for (const p of [H, G]) { p.window.PLAT_show('akari'); await waitFor(() => !!p.window.__PLAT_HOOKS_akari, 60000, 'preboot'); p.window.PLAT_show('lobby'); }
   clickEl(H, H.document.querySelector('#lob-step-room [data-rtab="akari"]'));
   await waitFor(() => G.window.__PLAT_NET.armed.game === 'akari', 30000, 'armed');
+  clickEl(H, H.document.querySelector('#lob-step-room [data-hub-mode="race"][data-hub-game="akari"]')); // v1.74.0：預設改合作，測競速須明示選 race
+  await sleep(500);
   setSel(H.window, H.document.querySelector('#lob-step-room [data-hub-key="sizeId"][data-hub-game="akari"]'), 7);
   setSel(H.window, H.document.querySelector('#lob-step-room [data-hub-key="itemStartTime"][data-hub-game="akari"]'), 0);
   await sleep(500);

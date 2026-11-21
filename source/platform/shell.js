@@ -179,7 +179,7 @@
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.73.0';
+  var PLAT_VERSION = '1.74.0';
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -402,7 +402,7 @@
   }
   var Net = {
     active: false, isHost: false, code: '', peer: null, myPid: '', hostPid: '', myUid: '', timeOffset: 0, // 來賓端估計的「房主時鐘 − 本地時鐘」毫秒差（D-05），房主恆 0
-    armed: { game: (function () { try { var g = localStorage.getItem('plat_armed_game'); return (g === 'hashi' || g === 'sudoku' || g === 'mines' || g === 'akari') ? g : 'sudoku'; } catch (e) { return 'sudoku'; } })(), mode: 'coop' }, armedByGame: { sudoku: 'coop', hashi: 'coop', mines: 'coop', akari: 'race' }, roomTab: 'sudoku',
+    armed: { game: (function () { try { var g = localStorage.getItem('plat_armed_game'); return (g === 'hashi' || g === 'sudoku' || g === 'mines' || g === 'akari') ? g : 'sudoku'; } catch (e) { return 'sudoku'; } })(), mode: 'coop' }, armedByGame: { sudoku: 'coop', hashi: 'coop', mines: 'coop', akari: 'coop' }, roomTab: 'sudoku',
     me: { name: '', color: PLAT_COLORS[2] },
     roster: [], conns: {}, gamePeer: null, inMatch: null, liveMatch: null, // liveMatch: 房主權威的「本房有對局進行中」快照 {game, mode, players:[uid], tourn}——回房間頁的選手靠它看到回到對局鈕
     lastSeen: {}, hostSeen: 0, _lastPing: 0, _hostWarned: false,
@@ -760,6 +760,7 @@
     // 未連線時若使用者正在暱稱步，不可把畫面踢回入口步（拉霸選色等 render 呼叫會踩到）
     if (!Net.active) { var nk = $('lob-step-nick'); if (!nk || nk.style.display !== 'block') showIdle(); return; }
     if (hubVisible()) hubRender();
+    renderTournCards();
     renderTourn();
     renderInvite();
   }
@@ -1020,14 +1021,14 @@
       sudoku: { mode: 'coop', sizeId: 9, diffId: 'medium', winnersCount: 3, allowWeapons: true, allowGifts: true, allowYellowHint: false, showNumbersInGodMode: false, allowOthersToPlayAgain: true, allowQuickFill: false, allowTraversal: false, weaponStartTime: 60 },
       hashi: { mode: 'coop', sizeId: 2, itemsEnabled: true, godNumbers: true, customW: 15, customH: 15 },
       mines: { mode: 'coop', sizeId: 9, allowItems: true, itemStartTime: 60, customW: 16, customH: 16, customMines: 40 },
-      akari: { mode: 'race', sizeId: 10, allowItems: true, itemStartTime: 60 }
+      akari: { mode: 'coop', sizeId: 10, allowItems: true, itemStartTime: 60 }
     };
   }
   function ensureHub() {
     if (Net.hub) return Net.hub;
     var cfg = hubDefaults();
     try { var saved = JSON.parse(storeGet('plat_hub_cfg') || 'null'); if (saved) { for (var g in cfg) { if (saved[g]) { for (var k in cfg[g]) { if (saved[g][k] !== undefined) cfg[g][k] = saved[g][k]; } } } } } catch (e) {}
-    Net.hub = { ready: {}, spec: {}, cfg: cfg, enteredAt: 0, _accent: null, _wired: false };
+    Net.hub = { ready: {}, spec: {}, cfg: cfg, enteredAt: 0, _accent: null, _wired: false, tournPick: { count: 5, rounds: ['sudoku', 'hashi', 'mines', 'akari', 'sudoku'] } };
     return Net.hub;
   }
   function hubSaveCfg() { var H = ensureHub(); try { storeSet('plat_hub_cfg', JSON.stringify(H.cfg)); } catch (e) {} }
@@ -1035,6 +1036,36 @@
   function hubGameMode(game) { var H = ensureHub(); return H.cfg[game].mode; }
   function hubStateBroadcast() { platBroadcast({ kind: 'hubstate', ready: ensureHub().ready, spec: ensureHub().spec }); }
   function hubCfgBroadcast(game) { platBroadcast({ kind: 'hubcfg', game: game, cfg: ensureHub().cfg[game] }); }
+  // ---------- 錦標賽卡片式選關（v1.74.0 項4）：房主點卡選每關遊戲；來賓唯讀同步 ----------
+  var TOURN_SEQ = ['sudoku', 'hashi', 'mines', 'akari'];
+  var TOURN_ACC = { sudoku: '#ffcc00', hashi: '#4ade80', mines: '#f97316', akari: '#3b82f6' };
+  var TOURN_SHORT = { sudoku: '🔢 數獨', hashi: '🌉 數橋', mines: '💣 地雷', akari: '💡 美術燈' };
+  function tournPickGet() { var H = ensureHub(); if (!H.tournPick || !H.tournPick.rounds) H.tournPick = { count: 5, rounds: tournBuildRounds('alt-s', 5) }; return H.tournPick; }
+  function tournPickChanged() { renderTournCards(); if (Net.isHost && Net.active) platBroadcast({ kind: 'tournpick', pick: tournPickGet() }); }
+  function tournPickSetCount(n) { var p = tournPickGet(); if ([3, 5, 7, 10].indexOf(n) < 0) return; p.count = n; var r = p.rounds.slice(0, n); while (r.length < n) { var last = r.length ? r[r.length - 1] : 'akari'; r.push(TOURN_SEQ[(TOURN_SEQ.indexOf(last) + 1) % 4]); } p.rounds = r; tournPickChanged(); }
+  function tournPickSetRound(i, g) { var p = tournPickGet(); if (i >= 0 && i < p.count && TOURN_SEQ.indexOf(g) >= 0) { p.rounds[i] = g; tournPickChanged(); } }
+  function tournPickRotate() { var p = tournPickGet(); p.rounds = tournBuildRounds('alt-s', p.count); tournPickChanged(); }
+  function tournCardsHtml(editable) {
+    var p = tournPickGet();
+    var h = '';
+    for (var i = 0; i < p.count; i++) {
+      var cur = p.rounds[i] || 'sudoku';
+      h += '<div class="border-2 border-slate-200 rounded-lg p-1.5 bg-white"><div class="flex items-center gap-1.5 mb-1"><span class="text-xs font-black text-slate-500">第 ' + (i + 1) + ' 關</span><span class="text-xs font-black" style="color:' + TOURN_ACC[cur] + '">● ' + TOURN_SHORT[cur] + '</span></div><div class="flex gap-1">';
+      for (var k = 0; k < TOURN_SEQ.length; k++) {
+        var g = TOURN_SEQ[k], on = g === cur;
+        h += '<button data-tpick="' + i + ':' + g + '"' + (editable ? '' : ' disabled') + ' class="flex-1 px-1 py-1 rounded-md border-2 text-[11px] font-black" style="' + (on ? 'background:' + TOURN_ACC[g] + ';border-color:#1e293b;color:' + (g === 'akari' ? '#ffffff' : '#1e293b') : 'background:#f8fafc;border-color:#e2e8f0;color:#94a3b8') + '">' + TOURN_SHORT[g] + '</button>';
+      }
+      h += '</div></div>';
+    }
+    return h;
+  }
+  function renderTournCards() {
+    var p = tournPickGet();
+    var cr = $('t-count-row');
+    if (cr) { var ch = ''; [3, 5, 7, 10].forEach(function (n) { ch += '<button data-tcount="' + n + '" class="flex-1 px-2 py-1.5 rounded-lg border-2 font-black text-sm" style="' + (p.count === n ? 'background:#f59e0b;border-color:#1e293b;color:#1e293b' : 'background:#ffffff;border-color:#e2e8f0;color:#94a3b8') + '">' + n + ' 局</button>'; }); cr.innerHTML = ch; }
+    var host = $('t-cards'); if (host) host.innerHTML = tournCardsHtml(true);
+    var guest = $('t-cards-guest'); if (guest) { guest.innerHTML = tournCardsHtml(false); guest.style.display = (!Net.isHost && Net.active && Net.roomTab === 'tourn' && !Net.tourn) ? 'flex' : 'none'; }
+  }
   function hubMinesCustom(c) { // 地雷自訂規格 clamp（與遊戲端 clampCustomSpec 同界：寬 8–30、高 8–24、雷 5..格數−9，首點保護圈要留 9 格）
     var w = Math.max(8, Math.min(30, Math.round(Number(c.customW) || 16)));
     var h = Math.max(8, Math.min(24, Math.round(Number(c.customH) || 16)));
@@ -1050,7 +1081,7 @@
       if (String(c.sizeId) === 'custom') return { mode: c.mode, sizeId: 'custom', custom: hubMinesCustom(c), allowItems: c.allowItems !== false, itemStartTime: wt2, brawl: {} }; // 自訂盤：sizeId 保持字串 'custom'（Number() 會變 NaN 被吞成 9），規格走 custom 欄位給遊戲註冊
       return { mode: c.mode, sizeId: Number(c.sizeId) || 9, allowItems: c.allowItems !== false, itemStartTime: wt2, brawl: {} }; }
     if (game === 'akari') { var wt3 = Number(c.itemStartTime); if (isNaN(wt3)) wt3 = 60; wt3 = Math.max(0, Math.min(600, wt3));
-      return { mode: 'race', sizeId: [7, 10, 12].indexOf(Number(c.sizeId)) >= 0 ? Number(c.sizeId) : 10, allowItems: c.allowItems !== false, itemStartTime: wt3, brawl: {} }; }
+      return { mode: c.mode === 'coop' ? 'coop' : 'race', sizeId: [7, 10, 12].indexOf(Number(c.sizeId)) >= 0 ? Number(c.sizeId) : 10, allowItems: c.allowItems !== false, itemStartTime: wt3, brawl: {} }; }
     return { mode: c.mode, sizeId: c.sizeId === 'custom' ? 'custom' : (Number(c.sizeId) || 2), customW: Math.max(5, Math.min(100, Number(c.customW) || 15)), customH: Math.max(5, Math.min(100, Number(c.customH) || 15)), brawl: { itemsEnabled: c.itemsEnabled !== false, godNumbers: c.godNumbers !== false } };
   }
   function hubRacers() { return Net.roster.slice(); } // 房間頁不分觀戰：進房的都是選手（觀戰是對局內的事）
@@ -1124,7 +1155,7 @@
     var game = Net.armed.game, c = H.cfg[game] || hubDefaults()[game] || hubDefaults().sudoku;
     var h = '<div class="bg-white border-[3px] border-slate-800 rounded-xl p-4 mb-4 flex flex-col gap-2.5 text-left shadow-[4px_4px_0px_#1e293b]' + (Net.isHost ? '' : ' hub-locked') + '">'; // 來賓端反灰：hub-locked 的 CSS 把整卡控制項壓灰，一眼看出只有房主能改
     h += '<h3 class="font-black border-b-2 border-slate-100 pb-2">⚙️ 對局設定' + (Net.isHost ? '' : '（房主設定）') + '</h3>';
-    h += '<div class="flex gap-2 items-center"><span class="font-bold text-slate-500 w-10 text-sm shrink-0">模式</span>' + (game === 'akari' ? hubModeBtns(game, 'race', 'race') : (hubModeBtns(game, 'coop', c.mode) + hubModeBtns(game, game === 'sudoku' ? 'brawl' : 'race', c.mode))) + '</div>'; // 美術燈無合作模式：只給競速鈕
+    h += '<div class="flex gap-2 items-center"><span class="font-bold text-slate-500 w-10 text-sm shrink-0">模式</span>' + (hubModeBtns(game, 'coop', c.mode) + hubModeBtns(game, game === 'sudoku' ? 'brawl' : 'race', c.mode)) + '</div>'; // v1.74.0：美術燈加合作模式，四款同款兩顆鈕
     if (game === 'sudoku') {
       h += '<div class="flex gap-2 items-center"><span class="font-bold text-slate-500 w-10 text-sm shrink-0">題目</span>' + hubSel('sudoku', 'sizeId', c.sizeId, HUB_SIZES) + hubSel('sudoku', 'diffId', c.diffId, HUB_DIFFS) + '</div>';
       if (c.mode === 'brawl') {
@@ -1153,9 +1184,12 @@
       else h += '<div class="text-xs font-bold text-slate-400">合作規則：共用同一個盤面一起排雷，踩到雷全隊失敗。</div>';
     } else if (game === 'akari') {
       h += '<div class="flex gap-2 items-center"><span class="font-bold text-slate-500 w-10 text-sm shrink-0">盤面</span>' + hubSel('akari', 'sizeId', c.sizeId, HUB_AKARI_SIZES) + '</div>';
-      h += hubChk('akari', 'allowItems', c.allowItems, '開啟道具與禮物（🎁鎖定燈禮物／⚡斷電陷阱）');
-      h += '<div class="flex gap-2 items-center"><span class="font-bold text-slate-500 text-sm shrink-0">道具延遲</span>' + hubSel('akari', 'itemStartTime', c.itemStartTime, [0, 30, 60, 90, 120, 180].map(function (n) { return { id: n, name: n + ' 秒' }; })) + '</div>';
-      h += '<div class="text-xs font-bold text-slate-400">競速規則：同一題各玩各的，最快點亮全盤的人贏；數字牆湊滿會累積禮物額度送給較弱的對手。</div>';
+      if (c.mode === 'race') {
+        h += hubChk('akari', 'allowItems', c.allowItems, '開啟道具與禮物（🎁鎖定燈禮物／⚡斷電陷阱）');
+        h += '<div class="flex gap-2 items-center"><span class="font-bold text-slate-500 text-sm shrink-0">道具延遲</span>' + hubSel('akari', 'itemStartTime', c.itemStartTime, [0, 30, 60, 90, 120, 180].map(function (n) { return { id: n, name: n + ' 秒' }; })) + '</div>';
+        h += '<div class="text-xs font-bold text-slate-400">競速規則：同一題各玩各的，最快點亮全盤的人贏；數字牆湊滿會累積禮物額度送給較弱的對手。</div>';
+      }
+      else h += '<div class="text-xs font-bold text-slate-400">合作規則：共用同一個盤面一起點亮，對方放的燈會以他的顏色圈起來；解出即共同完賽。合作模式沒有道具/禮物/陷阱（比照其他三款合作）。</div>';
     } else {
       h += '<div class="flex gap-2 items-center"><span class="font-bold text-slate-500 w-10 text-sm shrink-0">關卡</span>' + hubSel('hashi', 'sizeId', c.sizeId, HUB_LEVELS) + '</div>';
       if (String(c.sizeId) === 'custom') {
@@ -1484,6 +1518,7 @@
         platSend(c, { kind: 'hubcfg', game: 'hashi', cfg: ensureHub().cfg.hashi });
         platSend(c, { kind: 'hubcfg', game: 'mines', cfg: ensureHub().cfg.mines });
         platSend(c, { kind: 'hubcfg', game: 'akari', cfg: ensureHub().cfg.akari });
+        platSend(c, { kind: 'tournpick', pick: tournPickGet() });
         // 進房同步房主目前選的遊戲/分頁：不送的話來賓只拿到三款設定、roomTab 停在預設數獨（房主在踩地雷、來賓看數獨）
         if (Net.roomTab === 'tourn' || Net.tourn) platSend(c, { kind: 'tab', tab: 'tourn' }); else platSend(c, { kind: 'arm', game: Net.armed.game });
         if (Net.tourn) { platSend(c, { kind: 'tourn-setup', cfg: tournPublicCfg() }); var tsm = tournStateMsg(); if (tsm) platSend(c, tsm); }
@@ -1555,8 +1590,8 @@
         renderVideos();
         break;
       }
-      case 'arm': if (fromHost && ['sudoku', 'hashi', 'mines', 'akari'].indexOf(d.game) >= 0) { Net.armed.game = d.game; Net.roomTab = d.game; renderRoomTabs(); prRenderRegions(); if (hubVisible()) hubRender(); platPreload(); } break; // 未知 game 不寫入 armed，否則房主按開始時 hubLaunchCfg 會讀到 undefined 設定丟例外
-      case 'tab': if (fromHost) { Net.roomTab = d.tab; renderTourn(); renderRoomTabs(); if (hubVisible()) hubRender(); } break;
+      case 'arm': if (fromHost && ['sudoku', 'hashi', 'mines', 'akari'].indexOf(d.game) >= 0) { Net.armed.game = d.game; Net.roomTab = d.game; renderRoomTabs(); renderTournCards(); prRenderRegions(); if (hubVisible()) hubRender(); platPreload(); } break; // 未知 game 不寫入 armed，否則房主按開始時 hubLaunchCfg 會讀到 undefined 設定丟例外
+      case 'tab': if (fromHost) { Net.roomTab = d.tab; renderTourn(); renderRoomTabs(); renderTournCards(); if (hubVisible()) hubRender(); } break;
       case 'ready': case 'spec': {
         if (!Net.isHost) return;
         var H9 = ensureHub(), map9 = d.kind === 'ready' ? H9.ready : H9.spec;
@@ -1566,6 +1601,7 @@
       }
       case 'hubstate': { if (!fromHost) break; var H10 = ensureHub(); H10.ready = d.ready || {}; H10.spec = d.spec || {}; renderLobby(); break; }
       case 'hubcfg': { if (!fromHost) break; var H11 = ensureHub(); if (d.game && d.cfg) H11.cfg[d.game] = d.cfg; if (hubVisible()) hubRender(); break; }
+      case 'tournpick': { if (!fromHost) break; var H12 = ensureHub(); if (d.pick && d.pick.rounds && d.pick.rounds.length) { H12.tournPick = { count: Number(d.pick.count) || d.pick.rounds.length, rounds: d.pick.rounds.slice() }; renderTournCards(); } break; }
       case 'identity': { // 房間頁改暱稱/代表色：來賓只能改自己（以寄件者 pid 為準，不信任訊息裡的 uid），房主驗證後套用到名單並廣播
         if (!Net.isHost) break;
         var ie2 = null; Net.roster.forEach(function (p) { if (p.pid === pid) ie2 = p; });
@@ -1929,14 +1965,15 @@
   function tournCreate() {
     if (!Net.isHost || Net.tourn) return;
     var sC = ensureHub().cfg.sudoku, hC = ensureHub().cfg.hashi, mC = ensureHub().cfg.mines, aC = ensureHub().cfg.akari || { sizeId: 10 };
-    var cfg = { order: ($('t-order') || {}).value || 'alt-s',
+    var pick = tournPickGet();
+    var cfg = { order: 'custom',
       sudoku: { sizeId: Number(sC.sizeId) || 9, diffId: sC.diffId || 'medium', allowWeapons: sC.allowWeapons !== false, allowGifts: sC.allowGifts !== false, allowYellowHint: !!sC.allowYellowHint, showNumbersInGodMode: !!sC.showNumbersInGodMode, allowQuickFill: !!sC.allowQuickFill, allowTraversal: !!sC.allowTraversal, weaponStartTime: (function () { var w = Number(sC.weaponStartTime); return isNaN(w) ? 60 : Math.max(0, Math.min(600, w)); })() },
       hashi: { sizeId: Number(hC.sizeId) || 2, itemsEnabled: hC.itemsEnabled !== false, godNumbers: hC.godNumbers !== false },
       mines: { sizeId: String(mC.sizeId) === 'custom' ? 'custom' : (Number(mC.sizeId) || 9), custom: String(mC.sizeId) === 'custom' ? hubMinesCustom(mC) : null }, // 錦標賽地雷回合沿用對局設定的盤面（含自訂）
       akari: { sizeId: [7, 10, 12].indexOf(Number(aC.sizeId)) >= 0 ? Number(aC.sizeId) : 10 },
-      roundSecs: Number(($('t-secs') || {}).value) || 300, totalRounds: Number(($('t-rounds') || {}).value) || 5, rounds: null,
+      roundSecs: Number(($('t-secs') || {}).value) || 300, totalRounds: pick.count, rounds: null,
       entrants: Net.roster.map(function (p) { return { pid: p.pid, uid: p.uid || p.pid, name: p.name, color: p.color }; }) };
-    cfg.rounds = tournBuildRounds(cfg.order, cfg.totalRounds);
+    cfg.rounds = pick.rounds.slice(0, pick.count);
     var badVer = Net.roster.filter(function (p) { return p.ver && p.ver !== PLAT_VERSION; });
     if (badVer.length) sysChat('⚠️ ' + badVer.map(function (p) { return (p.name || '玩家') + '（' + p.ver + '）'; }).join('、') + ' 的版本和房主（' + PLAT_VERSION + '）不同，可能連線異常');
     Net.tourn = tournNewState(cfg, 'playing');
@@ -2015,7 +2052,7 @@
   }
   function rescueTournNodes() {
     var home = document.getElementById('lob-panel-tourn'); if (!home) return;
-    ['lob-tourn-setup', 'lob-tourn-note', 'lob-tourn'].forEach(function (id) {
+    ['lob-tourn-setup', 'lob-tourn-note', 't-cards-guest', 'lob-tourn'].forEach(function (id) {
       var n = tournNode(id);
       if (n && n.parentNode !== home) home.appendChild(n);
     });
@@ -2028,7 +2065,7 @@
     if (tournRg) {
       tournRg.style.display = showTourn ? 'block' : 'none';
       if (showTourn) {
-        ['lob-tourn-setup', 'lob-tourn-note', 'lob-tourn'].forEach(function (id) {
+        ['lob-tourn-setup', 'lob-tourn-note', 't-cards-guest', 'lob-tourn'].forEach(function (id) {
           var n = tournNode(id);
           if (n && n.parentNode !== tournRg) tournRg.appendChild(n);
         });
@@ -4032,6 +4069,14 @@
       else createRoom();
     };
     var tStartBtn = $('t-start'); if (tStartBtn) tStartBtn.onclick = tournCreate;
+    document.addEventListener('click', function (e) {
+      var t = e.target; if (!t || !t.closest) return;
+      var cb = t.closest('[data-tcount]');
+      if (cb) { if (Net.isHost && !Net.tourn) tournPickSetCount(Number(cb.getAttribute('data-tcount'))); return; }
+      var pk = t.closest('[data-tpick]');
+      if (pk) { if (Net.isHost && !Net.tourn) { var pr = String(pk.getAttribute('data-tpick')).split(':'); tournPickSetRound(Number(pr[0]), pr[1]); } return; }
+      if (t.closest('#t-rotate')) { if (Net.isHost && !Net.tourn) tournPickRotate(); }
+    });
     $('plat-chat-close').onclick = function (e) { e.stopPropagation(); closeChat(); };
     $('plat-chat-min').onclick = function (e) {
       e.stopPropagation();

@@ -158,8 +158,9 @@ async function main() {
   const lvT = H.document.querySelector('#lob-step-room [data-pr="leave"]');
   check('錦標賽分頁有離開房間鈕', !!lvT && lvT.style.display !== 'none');
   check('下方 dock 條已刪除', !H.document.querySelector('#plat-dock'));
-  H.document.querySelector('#t-rounds').value = '3';
-  H.document.querySelector('#t-order').value = 'alt-h';
+  // v1.74.0 卡片式選關：局數 3＋第 1 關換數橋（原 select 寫法已退役）
+  H.document.querySelector('[data-tcount="3"]').click();
+  H.document.querySelector('#t-cards [data-tpick="0:hashi"]').click();
   // v1.48.0：開賽改走房間卡準備閘門（兩邊準備好了 → 房主按名單卡開賽鈕）
   await waitFor(() => (H.document.querySelector('#lob-step-room [data-pr="ready"]') && G.document.querySelector('#lob-step-room [data-pr="ready"]')) ? true : null, 30000, 'tourn ready btns');
   for (const p of [H, G]) { const rb = p.document.querySelector('#lob-step-room [data-pr="ready"]'); if (rb && !rb.textContent.includes('已準備')) clickEl(p, rb); } // 前一場大亂鬥的準備狀態會留著，已準備就不要再點（會變取消）

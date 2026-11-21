@@ -2452,23 +2452,9 @@ body.plat-room-on[data-view="mines"] {
             <div class="lob-game-card">
               <div class="lob-game-title" style="background:#f59e0b">🏆 錦標賽</div>
               <div class="p-2.5 flex flex-col gap-2 text-sm font-bold text-slate-600">
-                <label class="flex items-center gap-2">出局順序
-                  <select id="t-order" class="flex-1 bg-white border-2 border-slate-800 rounded-lg px-2 py-1.5 font-black text-slate-800">
-                    <option value="alt-s">數獨先（輪替）</option>
-                    <option value="alt-h">數橋先（輪替）</option>
-                    <option value="alt-m">地雷先（輪替）</option>
-                    <option value="alt-a">美術燈先（輪替）</option>
-                    <option value="random">隨機</option>
-                  </select>
-                </label>
-                <label class="flex items-center gap-2">局數
-                  <select id="t-rounds" class="flex-1 bg-white border-2 border-slate-800 rounded-lg px-2 py-1.5 font-black text-slate-800">
-                    <option value="3">3 局</option>
-                    <option value="5" selected>5 局</option>
-                    <option value="7">7 局</option>
-                    <option value="10">10 局</option>
-                  </select>
-                </label>
+                <div class="flex items-center gap-2"><span class="shrink-0">局數</span><div id="t-count-row" class="flex gap-1.5 flex-1"></div></div>
+                <div class="flex items-center justify-between"><span>賽程（點卡片換該關遊戲）</span><button id="t-rotate" class="shrink-0 bg-white border-2 border-slate-800 rounded-lg px-2 py-1 text-xs font-black text-slate-700 shadow-[2px_2px_0px_rgba(30,41,59,1)] active:translate-y-[1px] active:shadow-none">🔁 四款輪替</button></div>
+                <div id="t-cards" class="flex flex-col gap-1.5"></div>
                 <div class="text-xs text-slate-400 font-bold">三款的設定用下方的值（錦標賽以時間結束，不使用「去第幾名」）。</div>
                 <div class="border-2 border-slate-200 rounded-lg p-2 flex flex-col gap-1.5">
                   <div class="font-black text-slate-700">🔢 數獨大亂鬥設定</div>
@@ -2544,6 +2530,7 @@ body.plat-room-on[data-view="mines"] {
             </div>
           </div>
             <div id="lob-tourn-note" class="font-bold text-slate-500 text-center py-2" style="display:none">🏆 錦標賽由房主在這個分頁設定並開賽</div>
+            <div id="t-cards-guest" class="flex flex-col gap-1.5 px-1 pb-2" style="display:none"></div>
             <div id="lob-tourn" style="display:none"></div>
           </div>
         </div>
@@ -24490,6 +24477,38 @@ function AkariGame() {
     _useState32 = _slicedToArray(_useState31, 2),
     histVer = _useState32[0],
     setHistVer = _useState32[1];
+  // ---------- 合作模式（v1.74.0 項5，比照地雷 ACT/DO 房主權威）：共用盤面、owners 標記者、本地草稿不外同步 ----------
+  var ownersRef = useRef([]);
+  var _useState33 = useState([]),
+    _useState34 = _slicedToArray(_useState33, 2),
+    owners = _useState34[0],
+    setOwners = _useState34[1];
+  var coopDraftRef = useRef(new Set());
+  var _useState35 = useState(0),
+    _useState36 = _slicedToArray(_useState35, 2),
+    coopDraftVer = _useState36[0],
+    setCoopDraftVer = _useState36[1];
+  var coopHistRef = useRef({
+    past: [],
+    future: []
+  }); // 條目 {gid, idx, prev, v} 或 {gid, draft:true, idx, prev}；同 gid＝一手勢一步
+  var actGidRef = useRef(0);
+  var coopWonRef = useRef(0);
+  var _useState37 = useState(0),
+    _useState38 = _slicedToArray(_useState37, 2),
+    coopWonMs = _useState38[0],
+    setCoopWonMs = _useState38[1];
+  function isCoop() {
+    return mpRef.current.on && mpRef.current.mode === 'coop';
+  }
+  function bumpCoop() {
+    setCoopDraftVer(function (v) {
+      return v + 1;
+    });
+    setHistVer(function (v) {
+      return v + 1;
+    });
+  }
   function histPush(prevCells) {
     var H = histRef.current;
     H.past.push(prevCells.slice());
@@ -24520,6 +24539,10 @@ function AkariGame() {
     return true;
   }
   function doUndo() {
+    if (isCoop()) {
+      coopUndo();
+      return;
+    }
     if (!canPlayNow()) return;
     var H = histRef.current;
     if (!H.past.length) return;
@@ -24531,6 +24554,10 @@ function AkariGame() {
     histRestore(prev);
   }
   function doRedo() {
+    if (isCoop()) {
+      coopRedo();
+      return;
+    }
     if (!canPlayNow()) return;
     var H = histRef.current;
     if (!H.future.length) return;
@@ -24544,79 +24571,79 @@ function AkariGame() {
   var platBarRef = useRef(null);
   var platHomeRef = useRef(null); // PlatHome 掛載點（框架層 F1）
   var platFrameRef = useRef(null); // PlatFrame 掛載點（框架修正批 v1.70.0：對局外框改殼持有）
-  var _useState33 = useState(null),
-    _useState34 = _slicedToArray(_useState33, 2),
-    frameBody = _useState34[0],
-    setFrameBody = _useState34[1]; // PlatFrame 內容區節點（盤面 portal 用）
-  var _useState35 = useState(null),
-    _useState36 = _slicedToArray(_useState35, 2),
-    ptcEl = _useState36[0],
-    setPtcEl = _useState36[1]; // PlatTopCard 掛載點＝外框頂區節點
-  var _useState37 = useState(null),
-    _useState38 = _slicedToArray(_useState37, 2),
-    ptcSlot = _useState38[0],
-    setPtcSlot = _useState38[1]; // PlatTopCard 遊戲槽節點（portal 用）
+  var _useState39 = useState(null),
+    _useState40 = _slicedToArray(_useState39, 2),
+    frameBody = _useState40[0],
+    setFrameBody = _useState40[1]; // PlatFrame 內容區節點（盤面 portal 用）
+  var _useState41 = useState(null),
+    _useState42 = _slicedToArray(_useState41, 2),
+    ptcEl = _useState42[0],
+    setPtcEl = _useState42[1]; // PlatTopCard 掛載點＝外框頂區節點
+  var _useState43 = useState(null),
+    _useState44 = _slicedToArray(_useState43, 2),
+    ptcSlot = _useState44[0],
+    setPtcSlot = _useState44[1]; // PlatTopCard 遊戲槽節點（portal 用）
   var newBulbRef = useRef(-1);
   // ---------- 多人狀態 ----------
   var myId = akariUid();
-  var _useState39 = useState(false),
-    _useState40 = _slicedToArray(_useState39, 2),
-    mpOn = _useState40[0],
-    setMpOn = _useState40[1];
-  var _useState41 = useState('waiting'),
-    _useState42 = _slicedToArray(_useState41, 2),
-    mpPhase = _useState42[0],
-    setMpPhase = _useState42[1]; // waiting | countdown | playing | done
-  var _useState43 = useState([]),
-    _useState44 = _slicedToArray(_useState43, 2),
-    players = _useState44[0],
-    setPlayers = _useState44[1];
-  var _useState45 = useState({}),
+  var _useState45 = useState(false),
     _useState46 = _slicedToArray(_useState45, 2),
-    godBoards = _useState46[0],
-    setGodBoards = _useState46[1];
-  var _useState47 = useState(null),
+    mpOn = _useState46[0],
+    setMpOn = _useState46[1];
+  var _useState47 = useState('waiting'),
     _useState48 = _slicedToArray(_useState47, 2),
-    raceFinal = _useState48[0],
-    setRaceFinal = _useState48[1];
-  var _useState49 = useState(null),
+    mpPhase = _useState48[0],
+    setMpPhase = _useState48[1]; // waiting | countdown | playing | done
+  var _useState49 = useState([]),
     _useState50 = _slicedToArray(_useState49, 2),
-    myOutcome = _useState50[0],
-    setMyOutcome = _useState50[1]; // 'finished'
-  var _useState51 = useState(null),
+    players = _useState50[0],
+    setPlayers = _useState50[1];
+  var _useState51 = useState({}),
     _useState52 = _slicedToArray(_useState51, 2),
-    cdNum = _useState52[0],
-    setCdNum = _useState52[1];
+    godBoards = _useState52[0],
+    setGodBoards = _useState52[1];
   var _useState53 = useState(null),
     _useState54 = _slicedToArray(_useState53, 2),
-    itemToast = _useState54[0],
-    setItemToast = _useState54[1];
-  var _useState55 = useState({
-      trap: 0
-    }),
+    raceFinal = _useState54[0],
+    setRaceFinal = _useState54[1];
+  var _useState55 = useState(null),
     _useState56 = _slicedToArray(_useState55, 2),
-    myItems = _useState56[0],
-    setMyItems = _useState56[1];
-  var _useState57 = useState(0),
+    myOutcome = _useState56[0],
+    setMyOutcome = _useState56[1]; // 'finished'
+  var _useState57 = useState(null),
     _useState58 = _slicedToArray(_useState57, 2),
-    outageUntil = _useState58[0],
-    setOutageUntil = _useState58[1];
+    cdNum = _useState58[0],
+    setCdNum = _useState58[1];
   var _useState59 = useState(null),
     _useState60 = _slicedToArray(_useState59, 2),
-    specUid = _useState60[0],
-    setSpecUid = _useState60[1];
-  var _useState61 = useState(false),
+    itemToast = _useState60[0],
+    setItemToast = _useState60[1];
+  var _useState61 = useState({
+      trap: 0
+    }),
     _useState62 = _slicedToArray(_useState61, 2),
-    myReadySt = _useState62[0],
-    setMyReadySt = _useState62[1];
-  var _useState63 = useState(false),
+    myItems = _useState62[0],
+    setMyItems = _useState62[1];
+  var _useState63 = useState(0),
     _useState64 = _slicedToArray(_useState63, 2),
-    leaveArm = _useState64[0],
-    setLeaveArm = _useState64[1];
-  var _useState65 = useState(0),
+    outageUntil = _useState64[0],
+    setOutageUntil = _useState64[1];
+  var _useState65 = useState(null),
     _useState66 = _slicedToArray(_useState65, 2),
-    waitTick = _useState66[0],
-    setWaitTick = _useState66[1];
+    specUid = _useState66[0],
+    setSpecUid = _useState66[1];
+  var _useState67 = useState(false),
+    _useState68 = _slicedToArray(_useState67, 2),
+    myReadySt = _useState68[0],
+    setMyReadySt = _useState68[1];
+  var _useState69 = useState(false),
+    _useState70 = _slicedToArray(_useState69, 2),
+    leaveArm = _useState70[0],
+    setLeaveArm = _useState70[1];
+  var _useState71 = useState(0),
+    _useState72 = _slicedToArray(_useState71, 2),
+    waitTick = _useState72[0],
+    setWaitTick = _useState72[1];
   var mpRef = useRef({
     on: false,
     isHost: false,
@@ -24884,6 +24911,156 @@ function AkariGame() {
       dateStr: dailyDate
     });
   }
+  // ---------- 合作模式核心：ACT（來賓→房主）/ DO（房主→全場）逐動作同步 ----------
+  function coopAct(idx, v, noHist) {
+    if (mpRef.current.isHost) coopApply(idx, v, myId, false, noHist);else mpSend({
+      type: 'AKARI_ACT',
+      idx: idx,
+      v: v,
+      uid: myId,
+      noHist: noHist ? 1 : 0
+    });
+  }
+  function coopApply(idx, v, uid, remote, noHist) {
+    var pz = puzzleRef.current;
+    if (!pz || pz.walls.has(idx)) return;
+    if (v !== 0 && v !== 1 && v !== 2) return;
+    if (mpRef.current.phase !== 'playing' || coopWonRef.current) return;
+    var prev = cellsRef.current[idx];
+    if (prev === v) return;
+    var next = cellsRef.current.slice();
+    next[idx] = v;
+    cellsRef.current = next;
+    setCells(next);
+    var no = ownersRef.current.slice();
+    while (no.length < next.length) no.push('');
+    no[idx] = v === 0 ? '' : uid;
+    ownersRef.current = no;
+    setOwners(no);
+    if (uid === myId && !noHist) {
+      coopHistRef.current.past.push({
+        gid: actGidRef.current,
+        idx: idx,
+        prev: prev,
+        v: v
+      });
+      if (coopHistRef.current.past.length > 400) coopHistRef.current.past.splice(0, 100);
+      coopHistRef.current.future = [];
+    }
+    if (mpRef.current.isHost && !remote) hostBroadcast({
+      type: 'AKARI_DO',
+      idx: idx,
+      v: v,
+      uid: uid,
+      noHist: noHist ? 1 : 0
+    });
+    setHistVer(function (x) {
+      return x + 1;
+    });
+    if (window.Akari.isSolved(pz.w, pz.h, pz.walls, pz.numbers, placedBulbs(next))) coopWin();else if (mpRef.current.isHost) saveResume();
+  }
+  function coopWin() {
+    if (coopWonRef.current) return;
+    var ms = Math.max(0, Date.now() - mpRef.current.startAt);
+    coopWonRef.current = ms;
+    setCoopWonMs(ms);
+    if (!iAmSpecRef.current) {
+      setStatus('won');
+      statusRef.current = 'won';
+    }
+    if (mpRef.current.isHost) {
+      hostBroadcast({
+        type: 'AKARI_COOP_WIN',
+        ms: ms
+      });
+      saveResume();
+    }
+    try {
+      platAudio().play('win');
+    } catch (e) {}
+    ;
+  }
+  function coopTap(idx) {
+    if (mpRef.current.phase !== 'playing' || coopWonRef.current || iAmSpecRef.current) return;
+    var cur = cellsRef.current[idx];
+    var md = modeRef.current;
+    actGidRef.current++;
+    if (md === 'draft') {
+      if (cur !== 0) return;
+      var has = coopDraftRef.current.has(idx);
+      if (has) coopDraftRef.current["delete"](idx);else coopDraftRef.current.add(idx);
+      coopHistRef.current.past.push({
+        gid: actGidRef.current,
+        draft: true,
+        idx: idx,
+        prev: has
+      });
+      coopHistRef.current.future = [];
+      bumpCoop();
+      return;
+    }
+    var v;
+    if (md === 'cross') {
+      if (cur === 0) v = 2;else if (cur === 2) v = 0;else return;
+    } else if (coopDraftRef.current.has(idx) && cur === 0) {
+      coopDraftRef.current["delete"](idx);
+      bumpCoop();
+      v = 1;
+    } else v = (cur + 1) % 3;
+    coopAct(idx, v);
+  }
+  function coopUndo() {
+    var H = coopHistRef.current;
+    if (!H.past.length) return;
+    var gid = H.past[H.past.length - 1].gid;
+    var group = [];
+    while (H.past.length && H.past[H.past.length - 1].gid === gid) group.push(H.past.pop());
+    var applied = [];
+    group.forEach(function (en) {
+      if (en.draft) {
+        if (en.prev) coopDraftRef.current.add(en.idx);else coopDraftRef.current["delete"](en.idx);
+        applied.push(en);
+        return;
+      }
+      if (cellsRef.current[en.idx] === en.v) {
+        coopAct(en.idx, en.prev, true);
+        applied.push(en);
+      } // 被夥伴改過的動作跳過（只撤自己的、且現值仍是自己放的）
+    });
+    if (applied.length) H.future.push({
+      gid: gid,
+      entries: applied
+    });
+    bumpCoop();
+  }
+  function coopRedo() {
+    var H = coopHistRef.current;
+    if (!H.future.length) return;
+    var g = H.future.pop();
+    actGidRef.current++;
+    g.entries.forEach(function (en) {
+      if (en.draft) {
+        if (en.prev) coopDraftRef.current["delete"](en.idx);else coopDraftRef.current.add(en.idx);
+        H.past.push({
+          gid: actGidRef.current,
+          draft: true,
+          idx: en.idx,
+          prev: en.prev
+        });
+        return;
+      }
+      if (cellsRef.current[en.idx] === en.prev) {
+        coopAct(en.idx, en.v, true);
+        H.past.push({
+          gid: actGidRef.current,
+          idx: en.idx,
+          prev: en.prev,
+          v: en.v
+        });
+      }
+    });
+    bumpCoop();
+  }
   function applyCells(next) {
     var pz = puzzleRef.current;
     if (!pz) return;
@@ -24915,6 +25092,10 @@ function AkariGame() {
     var pz = puzzleRef.current;
     if (!pz || pz.walls.has(idx)) return;
     var cur = cellsRef.current[idx];
+    if (isCoop()) {
+      coopTap(idx);
+      return;
+    }
     if (cur === 3) return; // 鎖定燈不可點掉
     var nv;
     if (modeRef.current === 'draft') {
@@ -24943,6 +25124,23 @@ function AkariGame() {
     var pz = puzzleRef.current;
     if (!pz || pz.walls.has(idx)) return;
     if (cellsRef.current[idx] !== 0) return; // 燈/叉/鎖定燈/草稿都不覆寫
+    if (isCoop()) {
+      // 合作拖曳：草稿塗本地層、叉走 ACT 同步（同手勢同 gid，undo 一程一步）
+      if (modeRef.current === 'draft') {
+        if (!coopDraftRef.current.has(idx)) {
+          coopDraftRef.current.add(idx);
+          coopHistRef.current.past.push({
+            gid: actGidRef.current,
+            draft: true,
+            idx: idx,
+            prev: false
+          });
+          coopHistRef.current.future = [];
+          bumpCoop();
+        }
+      } else coopAct(idx, 2);
+      return;
+    }
     var next = cellsRef.current.slice();
     next[idx] = modeRef.current === 'draft' ? 4 : 2;
     applyCells(next);
@@ -25018,9 +25216,9 @@ function AkariGame() {
       var pz = puzzleRef.current;
       if (pz && cellsRef.current[d.idx] === 0 && !pz.walls.has(d.idx)) {
         d.painting = true;
-        histPush(cellsRef.current);
+        if (isCoop()) actGidRef.current++;else histPush(cellsRef.current);
         paintCross(d.idx);
-      } // 一整程拖曳＝一個歷史單位：起手推一次
+      } // 一整程拖曳＝一個歷史單位：起手推一次（coop 改開新 gid 分組）
       else return;
     }
     if (d.painting) {
@@ -25129,6 +25327,15 @@ function AkariGame() {
   }
   function cleanupMp() {
     histReset();
+    ownersRef.current = [];
+    setOwners([]);
+    coopDraftRef.current = new Set();
+    coopHistRef.current = {
+      past: [],
+      future: []
+    };
+    coopWonRef.current = 0;
+    setCoopWonMs(0);
     if (cdIvRef.current) {
       clearInterval(cdIvRef.current);
       cdIvRef.current = null;
@@ -25220,7 +25427,10 @@ function AkariGame() {
       giftCredit: giftCreditRef.current,
       milestone: milestoneRef.current,
       countedWalls: Object.keys(countedWallsRef.current).map(Number),
-      ts: Date.now()
+      ts: Date.now(),
+      mode: isCoop() ? 'coop' : 'race',
+      owners: isCoop() ? ownersRef.current : undefined,
+      drafts: isCoop() ? Array.from(coopDraftRef.current) : undefined
     });
   }
   function loadResumeAny() {
@@ -25672,6 +25882,15 @@ function AkariGame() {
     lastOneDoneRef.current = false;
     lastProgRef.current = -1;
     lastStateRef.current = 0;
+    ownersRef.current = [];
+    setOwners([]);
+    coopDraftRef.current = new Set();
+    coopHistRef.current = {
+      past: [],
+      future: []
+    };
+    coopWonRef.current = 0;
+    setCoopWonMs(0);
     setOutageUntil(0);
     outageRef.current = 0;
     setMyReadySt(false);
@@ -25791,6 +26010,10 @@ function AkariGame() {
           walls: Array.from(puzzleRef.current.walls),
           numbers: Array.from(puzzleRef.current.numbers.entries()),
           solution: Array.from(puzzleRef.current.solution)
+        } : undefined,
+        coopSnap: isCoop() && (phase === 'countdown' || phase === 'playing') ? {
+          cells: cellsRef.current.join(''),
+          owners: ownersRef.current
         } : undefined
       });
     } catch (e) {}
@@ -25814,6 +26037,19 @@ function AkariGame() {
         }
         setCells([]);
         cellsRef.current = [];
+        if (isCoop() && m.coopSnap && typeof m.coopSnap.cells === 'string') {
+          var arrSp = m.coopSnap.cells.split('').map(Number);
+          if (!arrSp.some(function (v) {
+            return !(v >= 0 && v <= 2);
+          })) {
+            setCells(arrSp);
+            cellsRef.current = arrSp;
+            if (m.coopSnap.owners) {
+              ownersRef.current = m.coopSnap.owners;
+              setOwners(m.coopSnap.owners);
+            }
+          }
+        }
         mpRef.current.phase = m.phase;
         setMpPhase(m.phase);
         setScreen('game');
@@ -25844,6 +26080,35 @@ function AkariGame() {
         }
       });
     } catch (e) {}
+    if (isCoop()) {
+      // 合作回座：房主 INIT 的 coopSnap 優先、本地存檔備援；不走競速 raceSync
+      var arrC = null,
+        ownC = null,
+        drC = null;
+      if (m.coopSnap && typeof m.coopSnap.cells === 'string' && m.coopSnap.cells.length === total) {
+        arrC = m.coopSnap.cells.split('').map(Number);
+        ownC = m.coopSnap.owners || null;
+      } else if (save && save.mode === 'coop') {
+        arrC = save.cells.split('').map(Number);
+        ownC = save.owners || null;
+        drC = save.drafts || null;
+      }
+      if (!arrC || arrC.some(function (v) {
+        return !(v >= 0 && v <= 2);
+      })) return;
+      setCells(arrC);
+      cellsRef.current = arrC;
+      if (ownC) {
+        ownersRef.current = ownC;
+        setOwners(ownC);
+      }
+      if (drC) {
+        coopDraftRef.current = new Set(drC);
+        bumpCoop();
+      }
+      itemSay('↩ 已接續合作盤面');
+      return;
+    }
     var cellsArr = null;
     if (save) cellsArr = save.cells.split('').map(Number);else if (m.god && m.god[myId] && typeof m.god[myId].cells === 'string' && m.god[myId].cells.length === total) cellsArr = m.god[myId].cells.split('').map(Number);
     if (!cellsArr || cellsArr.some(function (v) {
@@ -25883,7 +26148,7 @@ function AkariGame() {
   function onMpData(m, conn) {
     if (!m || !m.type) return;
     var H = mpRef.current.isHost;
-    if (H && conn && conn.__uid && m.uid && m.uid !== conn.__uid && ['AKARI_FINISH', 'AKARI_STATE', 'AKARI_PROGRESS', 'AKARI_MILESTONE', 'AKARI_GIFT', 'AKARI_HIT', 'READY', 'REQ_REMATCH'].indexOf(m.type) >= 0) return; // 房主驗寄件者（比照地雷）
+    if (H && conn && conn.__uid && m.uid && m.uid !== conn.__uid && ['AKARI_FINISH', 'AKARI_STATE', 'AKARI_PROGRESS', 'AKARI_MILESTONE', 'AKARI_GIFT', 'AKARI_HIT', 'AKARI_ACT', 'READY', 'REQ_REMATCH'].indexOf(m.type) >= 0) return; // 房主驗寄件者（比照地雷）
     switch (m.type) {
       case 'JOIN':
         if (H) hostOnJoin(m, conn);
@@ -25913,6 +26178,32 @@ function AkariGame() {
         break;
       case 'AKARI_START':
         if (!H) startMatchLocal(m.seed, m.sizeId, m.startAt);
+        break;
+      case 'AKARI_ACT':
+        if (H && isCoop()) {
+          var plA = playersRef.current.find(function (p) {
+            return p.id === m.uid;
+          });
+          if (plA && !plA.spectator && mpRef.current.phase === 'playing') coopApply(m.idx, m.v, m.uid, false, !!m.noHist);
+        }
+        break;
+      // 房主權威：觀戰者/非進行中的 ACT 不受理（比照地雷）
+      case 'AKARI_DO':
+        if (!H && isCoop()) coopApply(m.idx, m.v, m.uid, true, !!m.noHist);
+        break;
+      case 'AKARI_COOP_WIN':
+        if (isCoop() && !coopWonRef.current) {
+          coopWonRef.current = m.ms || 1;
+          setCoopWonMs(m.ms || 1);
+          if (!iAmSpecRef.current) {
+            setStatus('won');
+            statusRef.current = 'won';
+          }
+          try {
+            platAudio().play('win');
+          } catch (e) {}
+          ;
+        }
         break;
       case 'AKARI_PROGRESS':
         godSet(m.uid, {
@@ -26064,7 +26355,7 @@ function AkariGame() {
     mpRef.current = {
       on: true,
       isHost: !!sess.isHost,
-      mode: 'race',
+      mode: sess.mode === 'coop' || st.mode === 'coop' ? 'coop' : 'race',
       tourn: !!sess.tourn,
       tournInfo: sess.tourn || null,
       hub: !!sess.hub,
@@ -26414,7 +26705,7 @@ function AkariGame() {
     window.PlatTopCard.update({
       leaveIcon: mpOn ? '🔌' : '🏠',
       leaveLabel: mpOn ? '退出' : '主選單',
-      modeChip: mpOn ? '⚔️ 競速對戰' : null,
+      modeChip: mpOn ? mpRef.current.mode === 'coop' ? '🤝 合作模式' : '⚔️ 競速對戰' : null,
       dailyChip: !mpOn && isDaily && dailyDate ? '每日 ' + dailyDate.slice(5) + (dailyDate !== todayStr() ? ' 補玩' : '') : null,
       specLabel: '⚙️ ' + (isDaily ? '每日一題 ' + (puzzle ? SIZES[puzzle.w]["short"] : '') : puzzle ? SIZES[puzzle.w].name : ''),
       specClickable: false,
@@ -26428,13 +26719,13 @@ function AkariGame() {
           progress: p.id === myId ? 0 : 0,
           state: 'playing'
         };
-        var pct = Math.floor((p.id === myId ? total ? placed / total : 0 : g.progress || 0) * 100);
+        var pct = Math.floor((p.id === myId || mpRef.current.mode === 'coop' ? total ? placed / total : 0 : g.progress || 0) * 100);
         return {
           key: p.id,
           name: p.name,
           color: p.color,
           isMe: p.id === myId,
-          text: p.spectator ? '👁️' : g.state === 'finished' ? '🏁' : pct + '%'
+          text: p.spectator ? '👁️' : mpRef.current.mode === 'coop' ? pct + '%' : g.state === 'finished' ? '🏁' : pct + '%'
         };
       }) : null,
       leaveMenu: {
@@ -26670,6 +26961,7 @@ function AkariGame() {
           mp: {
             on: mpRef.current.on,
             isHost: mpRef.current.isHost,
+            mode: mpRef.current.mode,
             phase: mpRef.current.phase,
             tourn: mpRef.current.tourn,
             seed: mpRef.current.seed,
@@ -26681,6 +26973,9 @@ function AkariGame() {
           items: Object.assign({}, itemsRef.current),
           giftCredit: giftCreditRef.current,
           milestone: milestoneRef.current,
+          owners: ownersRef.current.slice(),
+          coopWonMs: coopWonRef.current,
+          coopDrafts: Array.from(coopDraftRef.current),
           outageUntil: outageRef.current,
           myOutcome: outcomeRef.current
         };
@@ -26886,13 +27181,13 @@ function AkariGame() {
   }, /*#__PURE__*/React.createElement("button", {
     "data-akari-undo": true,
     onClick: doUndo,
-    disabled: !histRef.current.past.length || !canPlayNow(),
+    disabled: !(mpRef.current.mode === 'coop' ? coopHistRef.current.past.length : histRef.current.past.length) || !canPlayNow(),
     className: "plat-btn-hard px-2 py-0.5 bg-white border-2 border-slate-800 rounded font-bold text-[11px] shadow-[1px_1px_0px_rgba(30,41,59,1)] disabled:opacity-40 disabled:shadow-none text-slate-800",
     title: "\u4E0A\u4E00\u6B65\uFF08\u5FA9\u539F\uFF09"
   }, "\u21A9\uFE0F \u4E0A\u4E00\u6B65"), /*#__PURE__*/React.createElement("button", {
     "data-akari-redo": true,
     onClick: doRedo,
-    disabled: !histRef.current.future.length || !canPlayNow(),
+    disabled: !(mpRef.current.mode === 'coop' ? coopHistRef.current.future.length : histRef.current.future.length) || !canPlayNow(),
     className: "plat-btn-hard px-2 py-0.5 bg-white border-2 border-slate-800 rounded font-bold text-[11px] shadow-[1px_1px_0px_rgba(30,41,59,1)] disabled:opacity-40 disabled:shadow-none text-slate-800",
     title: "\u4E0B\u4E00\u6B65\uFF08\u91CD\u505A\uFF09"
   }, "\u21AA \u4E0B\u4E00\u6B65"), /*#__PURE__*/React.createElement("span", {
@@ -26948,6 +27243,11 @@ function AkariGame() {
       isDraft = cv === 4,
       lit = litVis.has(i),
       bad = confBad.has(i);
+    var ownUid = mpRef.current.mode === 'coop' ? owners[i] || '' : '';
+    var partner = ownUid && ownUid !== myId ? players.find(function (p) {
+      return p.id === ownUid;
+    }) : null;
+    var coopDraft = mpRef.current.mode === 'coop' && cv === 0 && coopDraftRef.current.has(i);
     return /*#__PURE__*/React.createElement("button", {
       key: i,
       "data-cell": i,
@@ -26966,11 +27266,14 @@ function AkariGame() {
         height: cellPx,
         fontSize: Math.round(cellPx * 0.52),
         background: isBulb || isLocked ? '#60a5fa' : lit ? '#dbeafe' : '#ffffff',
-        boxShadow: bad ? 'inset 0 0 0 2px #ef4444' : isLocked ? 'inset 0 0 0 2px #1d4ed8, 0 0 10px 2px rgba(59,130,246,0.55)' : isBulb && !outaged ? '0 0 10px 2px rgba(59,130,246,0.55)' : 'none'
+        boxShadow: bad ? 'inset 0 0 0 2px #ef4444' : isLocked ? 'inset 0 0 0 2px #1d4ed8, 0 0 10px 2px rgba(59,130,246,0.55)' : partner && isBulb ? 'inset 0 0 0 3px ' + partner.color + ', 0 0 10px 2px rgba(59,130,246,0.55)' : isBulb && !outaged ? '0 0 10px 2px rgba(59,130,246,0.55)' : 'none'
       }
     }, isBulb || isLocked ? '💡' : isCross ? /*#__PURE__*/React.createElement("span", {
-      className: "text-slate-400 font-black"
-    }, "\u2715") : isDraft ? /*#__PURE__*/React.createElement("span", {
+      className: "font-black",
+      style: {
+        color: partner ? partner.color : '#94a3b8'
+      }
+    }, "\u2715") : isDraft || coopDraft ? /*#__PURE__*/React.createElement("span", {
       "data-draft": "1",
       className: "flex items-center justify-center rounded-full",
       style: {
@@ -26990,8 +27293,16 @@ function AkariGame() {
       style: {
         fontSize: Math.max(9, Math.round(cellPx * 0.3))
       }
-    }, "\uD83D\uDD12"));
-  }))), mpOn && (myOutcome || iAmSpecRef.current) && puzzle && /*#__PURE__*/React.createElement("div", {
+    }, "\uD83D\uDD12"), partner && isBulb && /*#__PURE__*/React.createElement("span", {
+      "data-partner-dot": "1",
+      className: "absolute top-0 right-0 rounded-full border border-white",
+      style: {
+        width: Math.max(8, Math.round(cellPx * 0.26)),
+        height: Math.max(8, Math.round(cellPx * 0.26)),
+        background: partner.color
+      }
+    }));
+  }))), mpOn && mpRef.current.mode !== 'coop' && (myOutcome || iAmSpecRef.current) && puzzle && /*#__PURE__*/React.createElement("div", {
     className: "mt-4 w-full max-w-[560px] bg-white border-[3px] border-slate-800 rounded-2xl shadow-[3px_3px_0px_rgba(30,41,59,1)] p-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "font-black text-slate-800 mb-2"
@@ -27054,7 +27365,14 @@ function AkariGame() {
     }, "\u2715") : '');
   }))), specUid && !(godBoards[specUid] && typeof godBoards[specUid].cells === 'string') && /*#__PURE__*/React.createElement("p", {
     className: "text-center font-bold text-slate-400 text-sm"
-  }, "\u7B49\u4ED6\u7684\u76E4\u9762\u540C\u6B65\u904E\u4F86\u2026")), status === 'won' && winInfo && !mpOn && /*#__PURE__*/React.createElement("div", {
+  }, "\u7B49\u4ED6\u7684\u76E4\u9762\u540C\u6B65\u904E\u4F86\u2026")), mpOn && mpRef.current.mode === 'coop' && coopWonMs > 0 && /*#__PURE__*/React.createElement("div", {
+    "data-coop-won": "1",
+    className: "mt-4 w-full max-w-[560px] bg-emerald-50 border-[3px] border-emerald-600 rounded-2xl shadow-[3px_3px_0px_rgba(30,41,59,1)] p-4 text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "font-black text-emerald-800 text-lg"
+  }, "\uD83E\uDD1D \u5171\u540C\u5B8C\u8CFD\uFF01"), /*#__PURE__*/React.createElement("div", {
+    className: "font-bold text-emerald-700 text-sm mt-1"
+  }, "\u5168\u968A\u4E00\u8D77\u9EDE\u4EAE\u4E86\u6574\u76E4\u30FB\u7528\u6642 ", String(Math.floor(coopWonMs / 60000)).padStart(2, '0'), ":", String(Math.floor(coopWonMs / 1000) % 60).padStart(2, '0'))), status === 'won' && winInfo && !mpOn && /*#__PURE__*/React.createElement("div", {
     className: "mt-4 w-full max-w-[560px] bg-white border-[3px] border-slate-800 rounded-2xl shadow-[3px_3px_0px_rgba(30,41,59,1)] p-4 text-center"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-3xl font-black text-slate-800 mb-1"
@@ -27265,7 +27583,7 @@ ReactDOM.createRoot(document.getElementById('akari-root')).render( /*#__PURE__*/
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.73.0';
+  var PLAT_VERSION = '1.74.0';
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -27488,7 +27806,7 @@ ReactDOM.createRoot(document.getElementById('akari-root')).render( /*#__PURE__*/
   }
   var Net = {
     active: false, isHost: false, code: '', peer: null, myPid: '', hostPid: '', myUid: '', timeOffset: 0, // 來賓端估計的「房主時鐘 − 本地時鐘」毫秒差（D-05），房主恆 0
-    armed: { game: (function () { try { var g = localStorage.getItem('plat_armed_game'); return (g === 'hashi' || g === 'sudoku' || g === 'mines' || g === 'akari') ? g : 'sudoku'; } catch (e) { return 'sudoku'; } })(), mode: 'coop' }, armedByGame: { sudoku: 'coop', hashi: 'coop', mines: 'coop', akari: 'race' }, roomTab: 'sudoku',
+    armed: { game: (function () { try { var g = localStorage.getItem('plat_armed_game'); return (g === 'hashi' || g === 'sudoku' || g === 'mines' || g === 'akari') ? g : 'sudoku'; } catch (e) { return 'sudoku'; } })(), mode: 'coop' }, armedByGame: { sudoku: 'coop', hashi: 'coop', mines: 'coop', akari: 'coop' }, roomTab: 'sudoku',
     me: { name: '', color: PLAT_COLORS[2] },
     roster: [], conns: {}, gamePeer: null, inMatch: null, liveMatch: null, // liveMatch: 房主權威的「本房有對局進行中」快照 {game, mode, players:[uid], tourn}——回房間頁的選手靠它看到回到對局鈕
     lastSeen: {}, hostSeen: 0, _lastPing: 0, _hostWarned: false,
@@ -27846,6 +28164,7 @@ ReactDOM.createRoot(document.getElementById('akari-root')).render( /*#__PURE__*/
     // 未連線時若使用者正在暱稱步，不可把畫面踢回入口步（拉霸選色等 render 呼叫會踩到）
     if (!Net.active) { var nk = $('lob-step-nick'); if (!nk || nk.style.display !== 'block') showIdle(); return; }
     if (hubVisible()) hubRender();
+    renderTournCards();
     renderTourn();
     renderInvite();
   }
@@ -28106,14 +28425,14 @@ ReactDOM.createRoot(document.getElementById('akari-root')).render( /*#__PURE__*/
       sudoku: { mode: 'coop', sizeId: 9, diffId: 'medium', winnersCount: 3, allowWeapons: true, allowGifts: true, allowYellowHint: false, showNumbersInGodMode: false, allowOthersToPlayAgain: true, allowQuickFill: false, allowTraversal: false, weaponStartTime: 60 },
       hashi: { mode: 'coop', sizeId: 2, itemsEnabled: true, godNumbers: true, customW: 15, customH: 15 },
       mines: { mode: 'coop', sizeId: 9, allowItems: true, itemStartTime: 60, customW: 16, customH: 16, customMines: 40 },
-      akari: { mode: 'race', sizeId: 10, allowItems: true, itemStartTime: 60 }
+      akari: { mode: 'coop', sizeId: 10, allowItems: true, itemStartTime: 60 }
     };
   }
   function ensureHub() {
     if (Net.hub) return Net.hub;
     var cfg = hubDefaults();
     try { var saved = JSON.parse(storeGet('plat_hub_cfg') || 'null'); if (saved) { for (var g in cfg) { if (saved[g]) { for (var k in cfg[g]) { if (saved[g][k] !== undefined) cfg[g][k] = saved[g][k]; } } } } } catch (e) {}
-    Net.hub = { ready: {}, spec: {}, cfg: cfg, enteredAt: 0, _accent: null, _wired: false };
+    Net.hub = { ready: {}, spec: {}, cfg: cfg, enteredAt: 0, _accent: null, _wired: false, tournPick: { count: 5, rounds: ['sudoku', 'hashi', 'mines', 'akari', 'sudoku'] } };
     return Net.hub;
   }
   function hubSaveCfg() { var H = ensureHub(); try { storeSet('plat_hub_cfg', JSON.stringify(H.cfg)); } catch (e) {} }
@@ -28121,6 +28440,36 @@ ReactDOM.createRoot(document.getElementById('akari-root')).render( /*#__PURE__*/
   function hubGameMode(game) { var H = ensureHub(); return H.cfg[game].mode; }
   function hubStateBroadcast() { platBroadcast({ kind: 'hubstate', ready: ensureHub().ready, spec: ensureHub().spec }); }
   function hubCfgBroadcast(game) { platBroadcast({ kind: 'hubcfg', game: game, cfg: ensureHub().cfg[game] }); }
+  // ---------- 錦標賽卡片式選關（v1.74.0 項4）：房主點卡選每關遊戲；來賓唯讀同步 ----------
+  var TOURN_SEQ = ['sudoku', 'hashi', 'mines', 'akari'];
+  var TOURN_ACC = { sudoku: '#ffcc00', hashi: '#4ade80', mines: '#f97316', akari: '#3b82f6' };
+  var TOURN_SHORT = { sudoku: '🔢 數獨', hashi: '🌉 數橋', mines: '💣 地雷', akari: '💡 美術燈' };
+  function tournPickGet() { var H = ensureHub(); if (!H.tournPick || !H.tournPick.rounds) H.tournPick = { count: 5, rounds: tournBuildRounds('alt-s', 5) }; return H.tournPick; }
+  function tournPickChanged() { renderTournCards(); if (Net.isHost && Net.active) platBroadcast({ kind: 'tournpick', pick: tournPickGet() }); }
+  function tournPickSetCount(n) { var p = tournPickGet(); if ([3, 5, 7, 10].indexOf(n) < 0) return; p.count = n; var r = p.rounds.slice(0, n); while (r.length < n) { var last = r.length ? r[r.length - 1] : 'akari'; r.push(TOURN_SEQ[(TOURN_SEQ.indexOf(last) + 1) % 4]); } p.rounds = r; tournPickChanged(); }
+  function tournPickSetRound(i, g) { var p = tournPickGet(); if (i >= 0 && i < p.count && TOURN_SEQ.indexOf(g) >= 0) { p.rounds[i] = g; tournPickChanged(); } }
+  function tournPickRotate() { var p = tournPickGet(); p.rounds = tournBuildRounds('alt-s', p.count); tournPickChanged(); }
+  function tournCardsHtml(editable) {
+    var p = tournPickGet();
+    var h = '';
+    for (var i = 0; i < p.count; i++) {
+      var cur = p.rounds[i] || 'sudoku';
+      h += '<div class="border-2 border-slate-200 rounded-lg p-1.5 bg-white"><div class="flex items-center gap-1.5 mb-1"><span class="text-xs font-black text-slate-500">第 ' + (i + 1) + ' 關</span><span class="text-xs font-black" style="color:' + TOURN_ACC[cur] + '">● ' + TOURN_SHORT[cur] + '</span></div><div class="flex gap-1">';
+      for (var k = 0; k < TOURN_SEQ.length; k++) {
+        var g = TOURN_SEQ[k], on = g === cur;
+        h += '<button data-tpick="' + i + ':' + g + '"' + (editable ? '' : ' disabled') + ' class="flex-1 px-1 py-1 rounded-md border-2 text-[11px] font-black" style="' + (on ? 'background:' + TOURN_ACC[g] + ';border-color:#1e293b;color:' + (g === 'akari' ? '#ffffff' : '#1e293b') : 'background:#f8fafc;border-color:#e2e8f0;color:#94a3b8') + '">' + TOURN_SHORT[g] + '</button>';
+      }
+      h += '</div></div>';
+    }
+    return h;
+  }
+  function renderTournCards() {
+    var p = tournPickGet();
+    var cr = $('t-count-row');
+    if (cr) { var ch = ''; [3, 5, 7, 10].forEach(function (n) { ch += '<button data-tcount="' + n + '" class="flex-1 px-2 py-1.5 rounded-lg border-2 font-black text-sm" style="' + (p.count === n ? 'background:#f59e0b;border-color:#1e293b;color:#1e293b' : 'background:#ffffff;border-color:#e2e8f0;color:#94a3b8') + '">' + n + ' 局</button>'; }); cr.innerHTML = ch; }
+    var host = $('t-cards'); if (host) host.innerHTML = tournCardsHtml(true);
+    var guest = $('t-cards-guest'); if (guest) { guest.innerHTML = tournCardsHtml(false); guest.style.display = (!Net.isHost && Net.active && Net.roomTab === 'tourn' && !Net.tourn) ? 'flex' : 'none'; }
+  }
   function hubMinesCustom(c) { // 地雷自訂規格 clamp（與遊戲端 clampCustomSpec 同界：寬 8–30、高 8–24、雷 5..格數−9，首點保護圈要留 9 格）
     var w = Math.max(8, Math.min(30, Math.round(Number(c.customW) || 16)));
     var h = Math.max(8, Math.min(24, Math.round(Number(c.customH) || 16)));
@@ -28136,7 +28485,7 @@ ReactDOM.createRoot(document.getElementById('akari-root')).render( /*#__PURE__*/
       if (String(c.sizeId) === 'custom') return { mode: c.mode, sizeId: 'custom', custom: hubMinesCustom(c), allowItems: c.allowItems !== false, itemStartTime: wt2, brawl: {} }; // 自訂盤：sizeId 保持字串 'custom'（Number() 會變 NaN 被吞成 9），規格走 custom 欄位給遊戲註冊
       return { mode: c.mode, sizeId: Number(c.sizeId) || 9, allowItems: c.allowItems !== false, itemStartTime: wt2, brawl: {} }; }
     if (game === 'akari') { var wt3 = Number(c.itemStartTime); if (isNaN(wt3)) wt3 = 60; wt3 = Math.max(0, Math.min(600, wt3));
-      return { mode: 'race', sizeId: [7, 10, 12].indexOf(Number(c.sizeId)) >= 0 ? Number(c.sizeId) : 10, allowItems: c.allowItems !== false, itemStartTime: wt3, brawl: {} }; }
+      return { mode: c.mode === 'coop' ? 'coop' : 'race', sizeId: [7, 10, 12].indexOf(Number(c.sizeId)) >= 0 ? Number(c.sizeId) : 10, allowItems: c.allowItems !== false, itemStartTime: wt3, brawl: {} }; }
     return { mode: c.mode, sizeId: c.sizeId === 'custom' ? 'custom' : (Number(c.sizeId) || 2), customW: Math.max(5, Math.min(100, Number(c.customW) || 15)), customH: Math.max(5, Math.min(100, Number(c.customH) || 15)), brawl: { itemsEnabled: c.itemsEnabled !== false, godNumbers: c.godNumbers !== false } };
   }
   function hubRacers() { return Net.roster.slice(); } // 房間頁不分觀戰：進房的都是選手（觀戰是對局內的事）
@@ -28210,7 +28559,7 @@ ReactDOM.createRoot(document.getElementById('akari-root')).render( /*#__PURE__*/
     var game = Net.armed.game, c = H.cfg[game] || hubDefaults()[game] || hubDefaults().sudoku;
     var h = '<div class="bg-white border-[3px] border-slate-800 rounded-xl p-4 mb-4 flex flex-col gap-2.5 text-left shadow-[4px_4px_0px_#1e293b]' + (Net.isHost ? '' : ' hub-locked') + '">'; // 來賓端反灰：hub-locked 的 CSS 把整卡控制項壓灰，一眼看出只有房主能改
     h += '<h3 class="font-black border-b-2 border-slate-100 pb-2">⚙️ 對局設定' + (Net.isHost ? '' : '（房主設定）') + '</h3>';
-    h += '<div class="flex gap-2 items-center"><span class="font-bold text-slate-500 w-10 text-sm shrink-0">模式</span>' + (game === 'akari' ? hubModeBtns(game, 'race', 'race') : (hubModeBtns(game, 'coop', c.mode) + hubModeBtns(game, game === 'sudoku' ? 'brawl' : 'race', c.mode))) + '</div>'; // 美術燈無合作模式：只給競速鈕
+    h += '<div class="flex gap-2 items-center"><span class="font-bold text-slate-500 w-10 text-sm shrink-0">模式</span>' + (hubModeBtns(game, 'coop', c.mode) + hubModeBtns(game, game === 'sudoku' ? 'brawl' : 'race', c.mode)) + '</div>'; // v1.74.0：美術燈加合作模式，四款同款兩顆鈕
     if (game === 'sudoku') {
       h += '<div class="flex gap-2 items-center"><span class="font-bold text-slate-500 w-10 text-sm shrink-0">題目</span>' + hubSel('sudoku', 'sizeId', c.sizeId, HUB_SIZES) + hubSel('sudoku', 'diffId', c.diffId, HUB_DIFFS) + '</div>';
       if (c.mode === 'brawl') {
@@ -28239,9 +28588,12 @@ ReactDOM.createRoot(document.getElementById('akari-root')).render( /*#__PURE__*/
       else h += '<div class="text-xs font-bold text-slate-400">合作規則：共用同一個盤面一起排雷，踩到雷全隊失敗。</div>';
     } else if (game === 'akari') {
       h += '<div class="flex gap-2 items-center"><span class="font-bold text-slate-500 w-10 text-sm shrink-0">盤面</span>' + hubSel('akari', 'sizeId', c.sizeId, HUB_AKARI_SIZES) + '</div>';
-      h += hubChk('akari', 'allowItems', c.allowItems, '開啟道具與禮物（🎁鎖定燈禮物／⚡斷電陷阱）');
-      h += '<div class="flex gap-2 items-center"><span class="font-bold text-slate-500 text-sm shrink-0">道具延遲</span>' + hubSel('akari', 'itemStartTime', c.itemStartTime, [0, 30, 60, 90, 120, 180].map(function (n) { return { id: n, name: n + ' 秒' }; })) + '</div>';
-      h += '<div class="text-xs font-bold text-slate-400">競速規則：同一題各玩各的，最快點亮全盤的人贏；數字牆湊滿會累積禮物額度送給較弱的對手。</div>';
+      if (c.mode === 'race') {
+        h += hubChk('akari', 'allowItems', c.allowItems, '開啟道具與禮物（🎁鎖定燈禮物／⚡斷電陷阱）');
+        h += '<div class="flex gap-2 items-center"><span class="font-bold text-slate-500 text-sm shrink-0">道具延遲</span>' + hubSel('akari', 'itemStartTime', c.itemStartTime, [0, 30, 60, 90, 120, 180].map(function (n) { return { id: n, name: n + ' 秒' }; })) + '</div>';
+        h += '<div class="text-xs font-bold text-slate-400">競速規則：同一題各玩各的，最快點亮全盤的人贏；數字牆湊滿會累積禮物額度送給較弱的對手。</div>';
+      }
+      else h += '<div class="text-xs font-bold text-slate-400">合作規則：共用同一個盤面一起點亮，對方放的燈會以他的顏色圈起來；解出即共同完賽。合作模式沒有道具/禮物/陷阱（比照其他三款合作）。</div>';
     } else {
       h += '<div class="flex gap-2 items-center"><span class="font-bold text-slate-500 w-10 text-sm shrink-0">關卡</span>' + hubSel('hashi', 'sizeId', c.sizeId, HUB_LEVELS) + '</div>';
       if (String(c.sizeId) === 'custom') {
@@ -28570,6 +28922,7 @@ ReactDOM.createRoot(document.getElementById('akari-root')).render( /*#__PURE__*/
         platSend(c, { kind: 'hubcfg', game: 'hashi', cfg: ensureHub().cfg.hashi });
         platSend(c, { kind: 'hubcfg', game: 'mines', cfg: ensureHub().cfg.mines });
         platSend(c, { kind: 'hubcfg', game: 'akari', cfg: ensureHub().cfg.akari });
+        platSend(c, { kind: 'tournpick', pick: tournPickGet() });
         // 進房同步房主目前選的遊戲/分頁：不送的話來賓只拿到三款設定、roomTab 停在預設數獨（房主在踩地雷、來賓看數獨）
         if (Net.roomTab === 'tourn' || Net.tourn) platSend(c, { kind: 'tab', tab: 'tourn' }); else platSend(c, { kind: 'arm', game: Net.armed.game });
         if (Net.tourn) { platSend(c, { kind: 'tourn-setup', cfg: tournPublicCfg() }); var tsm = tournStateMsg(); if (tsm) platSend(c, tsm); }
@@ -28641,8 +28994,8 @@ ReactDOM.createRoot(document.getElementById('akari-root')).render( /*#__PURE__*/
         renderVideos();
         break;
       }
-      case 'arm': if (fromHost && ['sudoku', 'hashi', 'mines', 'akari'].indexOf(d.game) >= 0) { Net.armed.game = d.game; Net.roomTab = d.game; renderRoomTabs(); prRenderRegions(); if (hubVisible()) hubRender(); platPreload(); } break; // 未知 game 不寫入 armed，否則房主按開始時 hubLaunchCfg 會讀到 undefined 設定丟例外
-      case 'tab': if (fromHost) { Net.roomTab = d.tab; renderTourn(); renderRoomTabs(); if (hubVisible()) hubRender(); } break;
+      case 'arm': if (fromHost && ['sudoku', 'hashi', 'mines', 'akari'].indexOf(d.game) >= 0) { Net.armed.game = d.game; Net.roomTab = d.game; renderRoomTabs(); renderTournCards(); prRenderRegions(); if (hubVisible()) hubRender(); platPreload(); } break; // 未知 game 不寫入 armed，否則房主按開始時 hubLaunchCfg 會讀到 undefined 設定丟例外
+      case 'tab': if (fromHost) { Net.roomTab = d.tab; renderTourn(); renderRoomTabs(); renderTournCards(); if (hubVisible()) hubRender(); } break;
       case 'ready': case 'spec': {
         if (!Net.isHost) return;
         var H9 = ensureHub(), map9 = d.kind === 'ready' ? H9.ready : H9.spec;
@@ -28652,6 +29005,7 @@ ReactDOM.createRoot(document.getElementById('akari-root')).render( /*#__PURE__*/
       }
       case 'hubstate': { if (!fromHost) break; var H10 = ensureHub(); H10.ready = d.ready || {}; H10.spec = d.spec || {}; renderLobby(); break; }
       case 'hubcfg': { if (!fromHost) break; var H11 = ensureHub(); if (d.game && d.cfg) H11.cfg[d.game] = d.cfg; if (hubVisible()) hubRender(); break; }
+      case 'tournpick': { if (!fromHost) break; var H12 = ensureHub(); if (d.pick && d.pick.rounds && d.pick.rounds.length) { H12.tournPick = { count: Number(d.pick.count) || d.pick.rounds.length, rounds: d.pick.rounds.slice() }; renderTournCards(); } break; }
       case 'identity': { // 房間頁改暱稱/代表色：來賓只能改自己（以寄件者 pid 為準，不信任訊息裡的 uid），房主驗證後套用到名單並廣播
         if (!Net.isHost) break;
         var ie2 = null; Net.roster.forEach(function (p) { if (p.pid === pid) ie2 = p; });
@@ -29015,14 +29369,15 @@ ReactDOM.createRoot(document.getElementById('akari-root')).render( /*#__PURE__*/
   function tournCreate() {
     if (!Net.isHost || Net.tourn) return;
     var sC = ensureHub().cfg.sudoku, hC = ensureHub().cfg.hashi, mC = ensureHub().cfg.mines, aC = ensureHub().cfg.akari || { sizeId: 10 };
-    var cfg = { order: ($('t-order') || {}).value || 'alt-s',
+    var pick = tournPickGet();
+    var cfg = { order: 'custom',
       sudoku: { sizeId: Number(sC.sizeId) || 9, diffId: sC.diffId || 'medium', allowWeapons: sC.allowWeapons !== false, allowGifts: sC.allowGifts !== false, allowYellowHint: !!sC.allowYellowHint, showNumbersInGodMode: !!sC.showNumbersInGodMode, allowQuickFill: !!sC.allowQuickFill, allowTraversal: !!sC.allowTraversal, weaponStartTime: (function () { var w = Number(sC.weaponStartTime); return isNaN(w) ? 60 : Math.max(0, Math.min(600, w)); })() },
       hashi: { sizeId: Number(hC.sizeId) || 2, itemsEnabled: hC.itemsEnabled !== false, godNumbers: hC.godNumbers !== false },
       mines: { sizeId: String(mC.sizeId) === 'custom' ? 'custom' : (Number(mC.sizeId) || 9), custom: String(mC.sizeId) === 'custom' ? hubMinesCustom(mC) : null }, // 錦標賽地雷回合沿用對局設定的盤面（含自訂）
       akari: { sizeId: [7, 10, 12].indexOf(Number(aC.sizeId)) >= 0 ? Number(aC.sizeId) : 10 },
-      roundSecs: Number(($('t-secs') || {}).value) || 300, totalRounds: Number(($('t-rounds') || {}).value) || 5, rounds: null,
+      roundSecs: Number(($('t-secs') || {}).value) || 300, totalRounds: pick.count, rounds: null,
       entrants: Net.roster.map(function (p) { return { pid: p.pid, uid: p.uid || p.pid, name: p.name, color: p.color }; }) };
-    cfg.rounds = tournBuildRounds(cfg.order, cfg.totalRounds);
+    cfg.rounds = pick.rounds.slice(0, pick.count);
     var badVer = Net.roster.filter(function (p) { return p.ver && p.ver !== PLAT_VERSION; });
     if (badVer.length) sysChat('⚠️ ' + badVer.map(function (p) { return (p.name || '玩家') + '（' + p.ver + '）'; }).join('、') + ' 的版本和房主（' + PLAT_VERSION + '）不同，可能連線異常');
     Net.tourn = tournNewState(cfg, 'playing');
@@ -29101,7 +29456,7 @@ ReactDOM.createRoot(document.getElementById('akari-root')).render( /*#__PURE__*/
   }
   function rescueTournNodes() {
     var home = document.getElementById('lob-panel-tourn'); if (!home) return;
-    ['lob-tourn-setup', 'lob-tourn-note', 'lob-tourn'].forEach(function (id) {
+    ['lob-tourn-setup', 'lob-tourn-note', 't-cards-guest', 'lob-tourn'].forEach(function (id) {
       var n = tournNode(id);
       if (n && n.parentNode !== home) home.appendChild(n);
     });
@@ -29114,7 +29469,7 @@ ReactDOM.createRoot(document.getElementById('akari-root')).render( /*#__PURE__*/
     if (tournRg) {
       tournRg.style.display = showTourn ? 'block' : 'none';
       if (showTourn) {
-        ['lob-tourn-setup', 'lob-tourn-note', 'lob-tourn'].forEach(function (id) {
+        ['lob-tourn-setup', 'lob-tourn-note', 't-cards-guest', 'lob-tourn'].forEach(function (id) {
           var n = tournNode(id);
           if (n && n.parentNode !== tournRg) tournRg.appendChild(n);
         });
@@ -31118,6 +31473,14 @@ ReactDOM.createRoot(document.getElementById('akari-root')).render( /*#__PURE__*/
       else createRoom();
     };
     var tStartBtn = $('t-start'); if (tStartBtn) tStartBtn.onclick = tournCreate;
+    document.addEventListener('click', function (e) {
+      var t = e.target; if (!t || !t.closest) return;
+      var cb = t.closest('[data-tcount]');
+      if (cb) { if (Net.isHost && !Net.tourn) tournPickSetCount(Number(cb.getAttribute('data-tcount'))); return; }
+      var pk = t.closest('[data-tpick]');
+      if (pk) { if (Net.isHost && !Net.tourn) { var pr = String(pk.getAttribute('data-tpick')).split(':'); tournPickSetRound(Number(pr[0]), pr[1]); } return; }
+      if (t.closest('#t-rotate')) { if (Net.isHost && !Net.tourn) tournPickRotate(); }
+    });
     $('plat-chat-close').onclick = function (e) { e.stopPropagation(); closeChat(); };
     $('plat-chat-min').onclick = function (e) {
       e.stopPropagation();

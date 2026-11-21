@@ -522,6 +522,38 @@ function AkariGame() {
     _useState32 = _slicedToArray(_useState31, 2),
     histVer = _useState32[0],
     setHistVer = _useState32[1];
+  // ---------- 合作模式（v1.74.0 項5，比照地雷 ACT/DO 房主權威）：共用盤面、owners 標記者、本地草稿不外同步 ----------
+  var ownersRef = useRef([]);
+  var _useState33 = useState([]),
+    _useState34 = _slicedToArray(_useState33, 2),
+    owners = _useState34[0],
+    setOwners = _useState34[1];
+  var coopDraftRef = useRef(new Set());
+  var _useState35 = useState(0),
+    _useState36 = _slicedToArray(_useState35, 2),
+    coopDraftVer = _useState36[0],
+    setCoopDraftVer = _useState36[1];
+  var coopHistRef = useRef({
+    past: [],
+    future: []
+  }); // 條目 {gid, idx, prev, v} 或 {gid, draft:true, idx, prev}；同 gid＝一手勢一步
+  var actGidRef = useRef(0);
+  var coopWonRef = useRef(0);
+  var _useState37 = useState(0),
+    _useState38 = _slicedToArray(_useState37, 2),
+    coopWonMs = _useState38[0],
+    setCoopWonMs = _useState38[1];
+  function isCoop() {
+    return mpRef.current.on && mpRef.current.mode === 'coop';
+  }
+  function bumpCoop() {
+    setCoopDraftVer(function (v) {
+      return v + 1;
+    });
+    setHistVer(function (v) {
+      return v + 1;
+    });
+  }
   function histPush(prevCells) {
     var H = histRef.current;
     H.past.push(prevCells.slice());
@@ -552,6 +584,10 @@ function AkariGame() {
     return true;
   }
   function doUndo() {
+    if (isCoop()) {
+      coopUndo();
+      return;
+    }
     if (!canPlayNow()) return;
     var H = histRef.current;
     if (!H.past.length) return;
@@ -563,6 +599,10 @@ function AkariGame() {
     histRestore(prev);
   }
   function doRedo() {
+    if (isCoop()) {
+      coopRedo();
+      return;
+    }
     if (!canPlayNow()) return;
     var H = histRef.current;
     if (!H.future.length) return;
@@ -576,79 +616,79 @@ function AkariGame() {
   var platBarRef = useRef(null);
   var platHomeRef = useRef(null); // PlatHome 掛載點（框架層 F1）
   var platFrameRef = useRef(null); // PlatFrame 掛載點（框架修正批 v1.70.0：對局外框改殼持有）
-  var _useState33 = useState(null),
-    _useState34 = _slicedToArray(_useState33, 2),
-    frameBody = _useState34[0],
-    setFrameBody = _useState34[1]; // PlatFrame 內容區節點（盤面 portal 用）
-  var _useState35 = useState(null),
-    _useState36 = _slicedToArray(_useState35, 2),
-    ptcEl = _useState36[0],
-    setPtcEl = _useState36[1]; // PlatTopCard 掛載點＝外框頂區節點
-  var _useState37 = useState(null),
-    _useState38 = _slicedToArray(_useState37, 2),
-    ptcSlot = _useState38[0],
-    setPtcSlot = _useState38[1]; // PlatTopCard 遊戲槽節點（portal 用）
+  var _useState39 = useState(null),
+    _useState40 = _slicedToArray(_useState39, 2),
+    frameBody = _useState40[0],
+    setFrameBody = _useState40[1]; // PlatFrame 內容區節點（盤面 portal 用）
+  var _useState41 = useState(null),
+    _useState42 = _slicedToArray(_useState41, 2),
+    ptcEl = _useState42[0],
+    setPtcEl = _useState42[1]; // PlatTopCard 掛載點＝外框頂區節點
+  var _useState43 = useState(null),
+    _useState44 = _slicedToArray(_useState43, 2),
+    ptcSlot = _useState44[0],
+    setPtcSlot = _useState44[1]; // PlatTopCard 遊戲槽節點（portal 用）
   var newBulbRef = useRef(-1);
   // ---------- 多人狀態 ----------
   var myId = akariUid();
-  var _useState39 = useState(false),
-    _useState40 = _slicedToArray(_useState39, 2),
-    mpOn = _useState40[0],
-    setMpOn = _useState40[1];
-  var _useState41 = useState('waiting'),
-    _useState42 = _slicedToArray(_useState41, 2),
-    mpPhase = _useState42[0],
-    setMpPhase = _useState42[1]; // waiting | countdown | playing | done
-  var _useState43 = useState([]),
-    _useState44 = _slicedToArray(_useState43, 2),
-    players = _useState44[0],
-    setPlayers = _useState44[1];
-  var _useState45 = useState({}),
+  var _useState45 = useState(false),
     _useState46 = _slicedToArray(_useState45, 2),
-    godBoards = _useState46[0],
-    setGodBoards = _useState46[1];
-  var _useState47 = useState(null),
+    mpOn = _useState46[0],
+    setMpOn = _useState46[1];
+  var _useState47 = useState('waiting'),
     _useState48 = _slicedToArray(_useState47, 2),
-    raceFinal = _useState48[0],
-    setRaceFinal = _useState48[1];
-  var _useState49 = useState(null),
+    mpPhase = _useState48[0],
+    setMpPhase = _useState48[1]; // waiting | countdown | playing | done
+  var _useState49 = useState([]),
     _useState50 = _slicedToArray(_useState49, 2),
-    myOutcome = _useState50[0],
-    setMyOutcome = _useState50[1]; // 'finished'
-  var _useState51 = useState(null),
+    players = _useState50[0],
+    setPlayers = _useState50[1];
+  var _useState51 = useState({}),
     _useState52 = _slicedToArray(_useState51, 2),
-    cdNum = _useState52[0],
-    setCdNum = _useState52[1];
+    godBoards = _useState52[0],
+    setGodBoards = _useState52[1];
   var _useState53 = useState(null),
     _useState54 = _slicedToArray(_useState53, 2),
-    itemToast = _useState54[0],
-    setItemToast = _useState54[1];
-  var _useState55 = useState({
-      trap: 0
-    }),
+    raceFinal = _useState54[0],
+    setRaceFinal = _useState54[1];
+  var _useState55 = useState(null),
     _useState56 = _slicedToArray(_useState55, 2),
-    myItems = _useState56[0],
-    setMyItems = _useState56[1];
-  var _useState57 = useState(0),
+    myOutcome = _useState56[0],
+    setMyOutcome = _useState56[1]; // 'finished'
+  var _useState57 = useState(null),
     _useState58 = _slicedToArray(_useState57, 2),
-    outageUntil = _useState58[0],
-    setOutageUntil = _useState58[1];
+    cdNum = _useState58[0],
+    setCdNum = _useState58[1];
   var _useState59 = useState(null),
     _useState60 = _slicedToArray(_useState59, 2),
-    specUid = _useState60[0],
-    setSpecUid = _useState60[1];
-  var _useState61 = useState(false),
+    itemToast = _useState60[0],
+    setItemToast = _useState60[1];
+  var _useState61 = useState({
+      trap: 0
+    }),
     _useState62 = _slicedToArray(_useState61, 2),
-    myReadySt = _useState62[0],
-    setMyReadySt = _useState62[1];
-  var _useState63 = useState(false),
+    myItems = _useState62[0],
+    setMyItems = _useState62[1];
+  var _useState63 = useState(0),
     _useState64 = _slicedToArray(_useState63, 2),
-    leaveArm = _useState64[0],
-    setLeaveArm = _useState64[1];
-  var _useState65 = useState(0),
+    outageUntil = _useState64[0],
+    setOutageUntil = _useState64[1];
+  var _useState65 = useState(null),
     _useState66 = _slicedToArray(_useState65, 2),
-    waitTick = _useState66[0],
-    setWaitTick = _useState66[1];
+    specUid = _useState66[0],
+    setSpecUid = _useState66[1];
+  var _useState67 = useState(false),
+    _useState68 = _slicedToArray(_useState67, 2),
+    myReadySt = _useState68[0],
+    setMyReadySt = _useState68[1];
+  var _useState69 = useState(false),
+    _useState70 = _slicedToArray(_useState69, 2),
+    leaveArm = _useState70[0],
+    setLeaveArm = _useState70[1];
+  var _useState71 = useState(0),
+    _useState72 = _slicedToArray(_useState71, 2),
+    waitTick = _useState72[0],
+    setWaitTick = _useState72[1];
   var mpRef = useRef({
     on: false,
     isHost: false,
@@ -916,6 +956,156 @@ function AkariGame() {
       dateStr: dailyDate
     });
   }
+  // ---------- 合作模式核心：ACT（來賓→房主）/ DO（房主→全場）逐動作同步 ----------
+  function coopAct(idx, v, noHist) {
+    if (mpRef.current.isHost) coopApply(idx, v, myId, false, noHist);else mpSend({
+      type: 'AKARI_ACT',
+      idx: idx,
+      v: v,
+      uid: myId,
+      noHist: noHist ? 1 : 0
+    });
+  }
+  function coopApply(idx, v, uid, remote, noHist) {
+    var pz = puzzleRef.current;
+    if (!pz || pz.walls.has(idx)) return;
+    if (v !== 0 && v !== 1 && v !== 2) return;
+    if (mpRef.current.phase !== 'playing' || coopWonRef.current) return;
+    var prev = cellsRef.current[idx];
+    if (prev === v) return;
+    var next = cellsRef.current.slice();
+    next[idx] = v;
+    cellsRef.current = next;
+    setCells(next);
+    var no = ownersRef.current.slice();
+    while (no.length < next.length) no.push('');
+    no[idx] = v === 0 ? '' : uid;
+    ownersRef.current = no;
+    setOwners(no);
+    if (uid === myId && !noHist) {
+      coopHistRef.current.past.push({
+        gid: actGidRef.current,
+        idx: idx,
+        prev: prev,
+        v: v
+      });
+      if (coopHistRef.current.past.length > 400) coopHistRef.current.past.splice(0, 100);
+      coopHistRef.current.future = [];
+    }
+    if (mpRef.current.isHost && !remote) hostBroadcast({
+      type: 'AKARI_DO',
+      idx: idx,
+      v: v,
+      uid: uid,
+      noHist: noHist ? 1 : 0
+    });
+    setHistVer(function (x) {
+      return x + 1;
+    });
+    if (window.Akari.isSolved(pz.w, pz.h, pz.walls, pz.numbers, placedBulbs(next))) coopWin();else if (mpRef.current.isHost) saveResume();
+  }
+  function coopWin() {
+    if (coopWonRef.current) return;
+    var ms = Math.max(0, Date.now() - mpRef.current.startAt);
+    coopWonRef.current = ms;
+    setCoopWonMs(ms);
+    if (!iAmSpecRef.current) {
+      setStatus('won');
+      statusRef.current = 'won';
+    }
+    if (mpRef.current.isHost) {
+      hostBroadcast({
+        type: 'AKARI_COOP_WIN',
+        ms: ms
+      });
+      saveResume();
+    }
+    try {
+      platAudio().play('win');
+    } catch (e) {}
+    ;
+  }
+  function coopTap(idx) {
+    if (mpRef.current.phase !== 'playing' || coopWonRef.current || iAmSpecRef.current) return;
+    var cur = cellsRef.current[idx];
+    var md = modeRef.current;
+    actGidRef.current++;
+    if (md === 'draft') {
+      if (cur !== 0) return;
+      var has = coopDraftRef.current.has(idx);
+      if (has) coopDraftRef.current["delete"](idx);else coopDraftRef.current.add(idx);
+      coopHistRef.current.past.push({
+        gid: actGidRef.current,
+        draft: true,
+        idx: idx,
+        prev: has
+      });
+      coopHistRef.current.future = [];
+      bumpCoop();
+      return;
+    }
+    var v;
+    if (md === 'cross') {
+      if (cur === 0) v = 2;else if (cur === 2) v = 0;else return;
+    } else if (coopDraftRef.current.has(idx) && cur === 0) {
+      coopDraftRef.current["delete"](idx);
+      bumpCoop();
+      v = 1;
+    } else v = (cur + 1) % 3;
+    coopAct(idx, v);
+  }
+  function coopUndo() {
+    var H = coopHistRef.current;
+    if (!H.past.length) return;
+    var gid = H.past[H.past.length - 1].gid;
+    var group = [];
+    while (H.past.length && H.past[H.past.length - 1].gid === gid) group.push(H.past.pop());
+    var applied = [];
+    group.forEach(function (en) {
+      if (en.draft) {
+        if (en.prev) coopDraftRef.current.add(en.idx);else coopDraftRef.current["delete"](en.idx);
+        applied.push(en);
+        return;
+      }
+      if (cellsRef.current[en.idx] === en.v) {
+        coopAct(en.idx, en.prev, true);
+        applied.push(en);
+      } // 被夥伴改過的動作跳過（只撤自己的、且現值仍是自己放的）
+    });
+    if (applied.length) H.future.push({
+      gid: gid,
+      entries: applied
+    });
+    bumpCoop();
+  }
+  function coopRedo() {
+    var H = coopHistRef.current;
+    if (!H.future.length) return;
+    var g = H.future.pop();
+    actGidRef.current++;
+    g.entries.forEach(function (en) {
+      if (en.draft) {
+        if (en.prev) coopDraftRef.current["delete"](en.idx);else coopDraftRef.current.add(en.idx);
+        H.past.push({
+          gid: actGidRef.current,
+          draft: true,
+          idx: en.idx,
+          prev: en.prev
+        });
+        return;
+      }
+      if (cellsRef.current[en.idx] === en.prev) {
+        coopAct(en.idx, en.v, true);
+        H.past.push({
+          gid: actGidRef.current,
+          idx: en.idx,
+          prev: en.prev,
+          v: en.v
+        });
+      }
+    });
+    bumpCoop();
+  }
   function applyCells(next) {
     var pz = puzzleRef.current;
     if (!pz) return;
@@ -947,6 +1137,10 @@ function AkariGame() {
     var pz = puzzleRef.current;
     if (!pz || pz.walls.has(idx)) return;
     var cur = cellsRef.current[idx];
+    if (isCoop()) {
+      coopTap(idx);
+      return;
+    }
     if (cur === 3) return; // 鎖定燈不可點掉
     var nv;
     if (modeRef.current === 'draft') {
@@ -975,6 +1169,23 @@ function AkariGame() {
     var pz = puzzleRef.current;
     if (!pz || pz.walls.has(idx)) return;
     if (cellsRef.current[idx] !== 0) return; // 燈/叉/鎖定燈/草稿都不覆寫
+    if (isCoop()) {
+      // 合作拖曳：草稿塗本地層、叉走 ACT 同步（同手勢同 gid，undo 一程一步）
+      if (modeRef.current === 'draft') {
+        if (!coopDraftRef.current.has(idx)) {
+          coopDraftRef.current.add(idx);
+          coopHistRef.current.past.push({
+            gid: actGidRef.current,
+            draft: true,
+            idx: idx,
+            prev: false
+          });
+          coopHistRef.current.future = [];
+          bumpCoop();
+        }
+      } else coopAct(idx, 2);
+      return;
+    }
     var next = cellsRef.current.slice();
     next[idx] = modeRef.current === 'draft' ? 4 : 2;
     applyCells(next);
@@ -1050,9 +1261,9 @@ function AkariGame() {
       var pz = puzzleRef.current;
       if (pz && cellsRef.current[d.idx] === 0 && !pz.walls.has(d.idx)) {
         d.painting = true;
-        histPush(cellsRef.current);
+        if (isCoop()) actGidRef.current++;else histPush(cellsRef.current);
         paintCross(d.idx);
-      } // 一整程拖曳＝一個歷史單位：起手推一次
+      } // 一整程拖曳＝一個歷史單位：起手推一次（coop 改開新 gid 分組）
       else return;
     }
     if (d.painting) {
@@ -1161,6 +1372,15 @@ function AkariGame() {
   }
   function cleanupMp() {
     histReset();
+    ownersRef.current = [];
+    setOwners([]);
+    coopDraftRef.current = new Set();
+    coopHistRef.current = {
+      past: [],
+      future: []
+    };
+    coopWonRef.current = 0;
+    setCoopWonMs(0);
     if (cdIvRef.current) {
       clearInterval(cdIvRef.current);
       cdIvRef.current = null;
@@ -1252,7 +1472,10 @@ function AkariGame() {
       giftCredit: giftCreditRef.current,
       milestone: milestoneRef.current,
       countedWalls: Object.keys(countedWallsRef.current).map(Number),
-      ts: Date.now()
+      ts: Date.now(),
+      mode: isCoop() ? 'coop' : 'race',
+      owners: isCoop() ? ownersRef.current : undefined,
+      drafts: isCoop() ? Array.from(coopDraftRef.current) : undefined
     });
   }
   function loadResumeAny() {
@@ -1704,6 +1927,15 @@ function AkariGame() {
     lastOneDoneRef.current = false;
     lastProgRef.current = -1;
     lastStateRef.current = 0;
+    ownersRef.current = [];
+    setOwners([]);
+    coopDraftRef.current = new Set();
+    coopHistRef.current = {
+      past: [],
+      future: []
+    };
+    coopWonRef.current = 0;
+    setCoopWonMs(0);
     setOutageUntil(0);
     outageRef.current = 0;
     setMyReadySt(false);
@@ -1823,6 +2055,10 @@ function AkariGame() {
           walls: Array.from(puzzleRef.current.walls),
           numbers: Array.from(puzzleRef.current.numbers.entries()),
           solution: Array.from(puzzleRef.current.solution)
+        } : undefined,
+        coopSnap: isCoop() && (phase === 'countdown' || phase === 'playing') ? {
+          cells: cellsRef.current.join(''),
+          owners: ownersRef.current
         } : undefined
       });
     } catch (e) {}
@@ -1846,6 +2082,19 @@ function AkariGame() {
         }
         setCells([]);
         cellsRef.current = [];
+        if (isCoop() && m.coopSnap && typeof m.coopSnap.cells === 'string') {
+          var arrSp = m.coopSnap.cells.split('').map(Number);
+          if (!arrSp.some(function (v) {
+            return !(v >= 0 && v <= 2);
+          })) {
+            setCells(arrSp);
+            cellsRef.current = arrSp;
+            if (m.coopSnap.owners) {
+              ownersRef.current = m.coopSnap.owners;
+              setOwners(m.coopSnap.owners);
+            }
+          }
+        }
         mpRef.current.phase = m.phase;
         setMpPhase(m.phase);
         setScreen('game');
@@ -1876,6 +2125,35 @@ function AkariGame() {
         }
       });
     } catch (e) {}
+    if (isCoop()) {
+      // 合作回座：房主 INIT 的 coopSnap 優先、本地存檔備援；不走競速 raceSync
+      var arrC = null,
+        ownC = null,
+        drC = null;
+      if (m.coopSnap && typeof m.coopSnap.cells === 'string' && m.coopSnap.cells.length === total) {
+        arrC = m.coopSnap.cells.split('').map(Number);
+        ownC = m.coopSnap.owners || null;
+      } else if (save && save.mode === 'coop') {
+        arrC = save.cells.split('').map(Number);
+        ownC = save.owners || null;
+        drC = save.drafts || null;
+      }
+      if (!arrC || arrC.some(function (v) {
+        return !(v >= 0 && v <= 2);
+      })) return;
+      setCells(arrC);
+      cellsRef.current = arrC;
+      if (ownC) {
+        ownersRef.current = ownC;
+        setOwners(ownC);
+      }
+      if (drC) {
+        coopDraftRef.current = new Set(drC);
+        bumpCoop();
+      }
+      itemSay('↩ 已接續合作盤面');
+      return;
+    }
     var cellsArr = null;
     if (save) cellsArr = save.cells.split('').map(Number);else if (m.god && m.god[myId] && typeof m.god[myId].cells === 'string' && m.god[myId].cells.length === total) cellsArr = m.god[myId].cells.split('').map(Number);
     if (!cellsArr || cellsArr.some(function (v) {
@@ -1915,7 +2193,7 @@ function AkariGame() {
   function onMpData(m, conn) {
     if (!m || !m.type) return;
     var H = mpRef.current.isHost;
-    if (H && conn && conn.__uid && m.uid && m.uid !== conn.__uid && ['AKARI_FINISH', 'AKARI_STATE', 'AKARI_PROGRESS', 'AKARI_MILESTONE', 'AKARI_GIFT', 'AKARI_HIT', 'READY', 'REQ_REMATCH'].indexOf(m.type) >= 0) return; // 房主驗寄件者（比照地雷）
+    if (H && conn && conn.__uid && m.uid && m.uid !== conn.__uid && ['AKARI_FINISH', 'AKARI_STATE', 'AKARI_PROGRESS', 'AKARI_MILESTONE', 'AKARI_GIFT', 'AKARI_HIT', 'AKARI_ACT', 'READY', 'REQ_REMATCH'].indexOf(m.type) >= 0) return; // 房主驗寄件者（比照地雷）
     switch (m.type) {
       case 'JOIN':
         if (H) hostOnJoin(m, conn);
@@ -1945,6 +2223,32 @@ function AkariGame() {
         break;
       case 'AKARI_START':
         if (!H) startMatchLocal(m.seed, m.sizeId, m.startAt);
+        break;
+      case 'AKARI_ACT':
+        if (H && isCoop()) {
+          var plA = playersRef.current.find(function (p) {
+            return p.id === m.uid;
+          });
+          if (plA && !plA.spectator && mpRef.current.phase === 'playing') coopApply(m.idx, m.v, m.uid, false, !!m.noHist);
+        }
+        break;
+      // 房主權威：觀戰者/非進行中的 ACT 不受理（比照地雷）
+      case 'AKARI_DO':
+        if (!H && isCoop()) coopApply(m.idx, m.v, m.uid, true, !!m.noHist);
+        break;
+      case 'AKARI_COOP_WIN':
+        if (isCoop() && !coopWonRef.current) {
+          coopWonRef.current = m.ms || 1;
+          setCoopWonMs(m.ms || 1);
+          if (!iAmSpecRef.current) {
+            setStatus('won');
+            statusRef.current = 'won';
+          }
+          try {
+            platAudio().play('win');
+          } catch (e) {}
+          ;
+        }
         break;
       case 'AKARI_PROGRESS':
         godSet(m.uid, {
@@ -2096,7 +2400,7 @@ function AkariGame() {
     mpRef.current = {
       on: true,
       isHost: !!sess.isHost,
-      mode: 'race',
+      mode: sess.mode === 'coop' || st.mode === 'coop' ? 'coop' : 'race',
       tourn: !!sess.tourn,
       tournInfo: sess.tourn || null,
       hub: !!sess.hub,
@@ -2446,7 +2750,7 @@ function AkariGame() {
     window.PlatTopCard.update({
       leaveIcon: mpOn ? '🔌' : '🏠',
       leaveLabel: mpOn ? '退出' : '主選單',
-      modeChip: mpOn ? '⚔️ 競速對戰' : null,
+      modeChip: mpOn ? mpRef.current.mode === 'coop' ? '🤝 合作模式' : '⚔️ 競速對戰' : null,
       dailyChip: !mpOn && isDaily && dailyDate ? '每日 ' + dailyDate.slice(5) + (dailyDate !== todayStr() ? ' 補玩' : '') : null,
       specLabel: '⚙️ ' + (isDaily ? '每日一題 ' + (puzzle ? SIZES[puzzle.w]["short"] : '') : puzzle ? SIZES[puzzle.w].name : ''),
       specClickable: false,
@@ -2460,13 +2764,13 @@ function AkariGame() {
           progress: p.id === myId ? 0 : 0,
           state: 'playing'
         };
-        var pct = Math.floor((p.id === myId ? total ? placed / total : 0 : g.progress || 0) * 100);
+        var pct = Math.floor((p.id === myId || mpRef.current.mode === 'coop' ? total ? placed / total : 0 : g.progress || 0) * 100);
         return {
           key: p.id,
           name: p.name,
           color: p.color,
           isMe: p.id === myId,
-          text: p.spectator ? '👁️' : g.state === 'finished' ? '🏁' : pct + '%'
+          text: p.spectator ? '👁️' : mpRef.current.mode === 'coop' ? pct + '%' : g.state === 'finished' ? '🏁' : pct + '%'
         };
       }) : null,
       leaveMenu: {
@@ -2702,6 +3006,7 @@ function AkariGame() {
           mp: {
             on: mpRef.current.on,
             isHost: mpRef.current.isHost,
+            mode: mpRef.current.mode,
             phase: mpRef.current.phase,
             tourn: mpRef.current.tourn,
             seed: mpRef.current.seed,
@@ -2713,6 +3018,9 @@ function AkariGame() {
           items: Object.assign({}, itemsRef.current),
           giftCredit: giftCreditRef.current,
           milestone: milestoneRef.current,
+          owners: ownersRef.current.slice(),
+          coopWonMs: coopWonRef.current,
+          coopDrafts: Array.from(coopDraftRef.current),
           outageUntil: outageRef.current,
           myOutcome: outcomeRef.current
         };
@@ -2918,13 +3226,13 @@ function AkariGame() {
   }, /*#__PURE__*/React.createElement("button", {
     "data-akari-undo": true,
     onClick: doUndo,
-    disabled: !histRef.current.past.length || !canPlayNow(),
+    disabled: !(mpRef.current.mode === 'coop' ? coopHistRef.current.past.length : histRef.current.past.length) || !canPlayNow(),
     className: "plat-btn-hard px-2 py-0.5 bg-white border-2 border-slate-800 rounded font-bold text-[11px] shadow-[1px_1px_0px_rgba(30,41,59,1)] disabled:opacity-40 disabled:shadow-none text-slate-800",
     title: "\u4E0A\u4E00\u6B65\uFF08\u5FA9\u539F\uFF09"
   }, "\u21A9\uFE0F \u4E0A\u4E00\u6B65"), /*#__PURE__*/React.createElement("button", {
     "data-akari-redo": true,
     onClick: doRedo,
-    disabled: !histRef.current.future.length || !canPlayNow(),
+    disabled: !(mpRef.current.mode === 'coop' ? coopHistRef.current.future.length : histRef.current.future.length) || !canPlayNow(),
     className: "plat-btn-hard px-2 py-0.5 bg-white border-2 border-slate-800 rounded font-bold text-[11px] shadow-[1px_1px_0px_rgba(30,41,59,1)] disabled:opacity-40 disabled:shadow-none text-slate-800",
     title: "\u4E0B\u4E00\u6B65\uFF08\u91CD\u505A\uFF09"
   }, "\u21AA \u4E0B\u4E00\u6B65"), /*#__PURE__*/React.createElement("span", {
@@ -2980,6 +3288,11 @@ function AkariGame() {
       isDraft = cv === 4,
       lit = litVis.has(i),
       bad = confBad.has(i);
+    var ownUid = mpRef.current.mode === 'coop' ? owners[i] || '' : '';
+    var partner = ownUid && ownUid !== myId ? players.find(function (p) {
+      return p.id === ownUid;
+    }) : null;
+    var coopDraft = mpRef.current.mode === 'coop' && cv === 0 && coopDraftRef.current.has(i);
     return /*#__PURE__*/React.createElement("button", {
       key: i,
       "data-cell": i,
@@ -2998,11 +3311,14 @@ function AkariGame() {
         height: cellPx,
         fontSize: Math.round(cellPx * 0.52),
         background: isBulb || isLocked ? '#60a5fa' : lit ? '#dbeafe' : '#ffffff',
-        boxShadow: bad ? 'inset 0 0 0 2px #ef4444' : isLocked ? 'inset 0 0 0 2px #1d4ed8, 0 0 10px 2px rgba(59,130,246,0.55)' : isBulb && !outaged ? '0 0 10px 2px rgba(59,130,246,0.55)' : 'none'
+        boxShadow: bad ? 'inset 0 0 0 2px #ef4444' : isLocked ? 'inset 0 0 0 2px #1d4ed8, 0 0 10px 2px rgba(59,130,246,0.55)' : partner && isBulb ? 'inset 0 0 0 3px ' + partner.color + ', 0 0 10px 2px rgba(59,130,246,0.55)' : isBulb && !outaged ? '0 0 10px 2px rgba(59,130,246,0.55)' : 'none'
       }
     }, isBulb || isLocked ? '💡' : isCross ? /*#__PURE__*/React.createElement("span", {
-      className: "text-slate-400 font-black"
-    }, "\u2715") : isDraft ? /*#__PURE__*/React.createElement("span", {
+      className: "font-black",
+      style: {
+        color: partner ? partner.color : '#94a3b8'
+      }
+    }, "\u2715") : isDraft || coopDraft ? /*#__PURE__*/React.createElement("span", {
       "data-draft": "1",
       className: "flex items-center justify-center rounded-full",
       style: {
@@ -3022,8 +3338,16 @@ function AkariGame() {
       style: {
         fontSize: Math.max(9, Math.round(cellPx * 0.3))
       }
-    }, "\uD83D\uDD12"));
-  }))), mpOn && (myOutcome || iAmSpecRef.current) && puzzle && /*#__PURE__*/React.createElement("div", {
+    }, "\uD83D\uDD12"), partner && isBulb && /*#__PURE__*/React.createElement("span", {
+      "data-partner-dot": "1",
+      className: "absolute top-0 right-0 rounded-full border border-white",
+      style: {
+        width: Math.max(8, Math.round(cellPx * 0.26)),
+        height: Math.max(8, Math.round(cellPx * 0.26)),
+        background: partner.color
+      }
+    }));
+  }))), mpOn && mpRef.current.mode !== 'coop' && (myOutcome || iAmSpecRef.current) && puzzle && /*#__PURE__*/React.createElement("div", {
     className: "mt-4 w-full max-w-[560px] bg-white border-[3px] border-slate-800 rounded-2xl shadow-[3px_3px_0px_rgba(30,41,59,1)] p-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "font-black text-slate-800 mb-2"
@@ -3086,7 +3410,14 @@ function AkariGame() {
     }, "\u2715") : '');
   }))), specUid && !(godBoards[specUid] && typeof godBoards[specUid].cells === 'string') && /*#__PURE__*/React.createElement("p", {
     className: "text-center font-bold text-slate-400 text-sm"
-  }, "\u7B49\u4ED6\u7684\u76E4\u9762\u540C\u6B65\u904E\u4F86\u2026")), status === 'won' && winInfo && !mpOn && /*#__PURE__*/React.createElement("div", {
+  }, "\u7B49\u4ED6\u7684\u76E4\u9762\u540C\u6B65\u904E\u4F86\u2026")), mpOn && mpRef.current.mode === 'coop' && coopWonMs > 0 && /*#__PURE__*/React.createElement("div", {
+    "data-coop-won": "1",
+    className: "mt-4 w-full max-w-[560px] bg-emerald-50 border-[3px] border-emerald-600 rounded-2xl shadow-[3px_3px_0px_rgba(30,41,59,1)] p-4 text-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "font-black text-emerald-800 text-lg"
+  }, "\uD83E\uDD1D \u5171\u540C\u5B8C\u8CFD\uFF01"), /*#__PURE__*/React.createElement("div", {
+    className: "font-bold text-emerald-700 text-sm mt-1"
+  }, "\u5168\u968A\u4E00\u8D77\u9EDE\u4EAE\u4E86\u6574\u76E4\u30FB\u7528\u6642 ", String(Math.floor(coopWonMs / 60000)).padStart(2, '0'), ":", String(Math.floor(coopWonMs / 1000) % 60).padStart(2, '0'))), status === 'won' && winInfo && !mpOn && /*#__PURE__*/React.createElement("div", {
     className: "mt-4 w-full max-w-[560px] bg-white border-[3px] border-slate-800 rounded-2xl shadow-[3px_3px_0px_rgba(30,41,59,1)] p-4 text-center"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-3xl font-black text-slate-800 mb-1"

@@ -46,8 +46,12 @@ const cellEl = (p, i) => p.document.querySelector('#akari-root button[data-cell=
   clickEl(H, H.document.querySelector('#lob-step-room [data-rtab="tourn"]'));
   await sleep(800);
   setSel(H.window, H.document.querySelector('#ta-size'), 7);
-  setSel(H.window, H.document.querySelector('#t-rounds'), 3);
-  H.document.querySelector('#t-order').value = 'alt-a';
+  clickEl(H, H.document.querySelector('[data-tcount="3"]')); // v1.74.0 卡片式選關：3 關
+  await sleep(300);
+  clickEl(H, H.document.querySelector('[data-tpick="0:akari"]')); // 第 1 關美術燈（比照舊 alt-a）
+  clickEl(H, H.document.querySelector('[data-tpick="1:sudoku"]'));
+  clickEl(H, H.document.querySelector('[data-tpick="2:hashi"]'));
+  await sleep(300);
   check('錦標賽設定區有美術燈盤面', !!H.document.querySelector('#ta-size'));
   // 開賽走房間卡流程（比照 test-mines-tourn）：雙邊按準備 → 房主 [data-pr="start"] 亮起才點
   await waitFor(() => (H.document.querySelector('#lob-step-room [data-pr="ready"]') && G.document.querySelector('#lob-step-room [data-pr="ready"]')) ? true : null, 30000, 'both ready btns');
