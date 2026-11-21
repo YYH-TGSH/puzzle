@@ -65,16 +65,22 @@ async function soloPart() {
   ok(w1 > w0 * 1.4, '格寬隨縮放變大（' + w0 + ' → ' + w1 + 'px）');
   const tog = d.querySelector('#view-mines [data-pb="zoom-toggle"]');
   ok(!!tog && tog.textContent.includes('150%'), 'PlatBar 縮放鈕顯示 150%');
+  // v1.72.3 項2：循環鈕改適應模式循環（手動→適應寬度↔️→適應高度↕️→自動🔲）——jsdom 無 layout、適應值只驗「已離開手動值且 glyph 換段」，真值由 CDP fit-mines.log 驗
   ok(clickEl(P, d.querySelector('#view-mines [data-pb="zoom-cycle"]')), '點 PlatBar 循環鈕');
-  ok(!!(await waitFor(() => { const s = dbg(P); return s && s.zoom === 2 ? true : null; }, 10000, 'zoom 2')), '循環 → zoom = 2');
-  ok(clickEl(P, d.querySelector('#view-mines [data-pb="zoom-out"]')), '點 PlatBar －');
-  ok(!!(await waitFor(() => { const s = dbg(P); return s && s.zoom === 1.75 ? true : null; }, 10000, 'zoom 1.75')), '－ → zoom = 1.75');
-  // 卡片內 🔍 那組與 PlatBar 共用同一顆 zoom：開卡片組、按「適應」應回到 1
+  ok(!!(await waitFor(() => { const b = d.querySelector('#view-mines [data-pb="zoom-cycle"]'); return b && b.textContent.includes('↔️') ? true : null; }, 10000, 'glyph fit-w')), '循環 → 適應寬度模式（glyph ↔️）');
+  ok(!!(await waitFor(() => { const s = dbg(P); return s && s.zoom !== 1.5 ? true : null; }, 10000, 'zoom fit')), '循環 → zoom 改為適應值（離開手動 1.5）', 'zoom=' + (dbg(P) || {}).zoom);
+  // 卡片內 🔍 那組與 PlatBar 共用同一顆 zoom：開卡片組、按「適應」應回到 1＋手動模式
   const hdrZoom = [...d.querySelectorAll('#view-mines button')].find(b => (b.getAttribute('title') || '').includes('調整盤面大小'));
   ok(!!hdrZoom, '卡片內 🔍 鈕存在'); if (hdrZoom) hdrZoom.click();
   await sleep(250);
   ok(clickBtn(b => b.textContent.trim() === '適應', d.querySelector('#view-mines')), '卡片內「適應」鈕');
   ok(!!(await waitFor(() => { const s = dbg(P); return s && s.zoom === 1 ? true : null; }, 10000, 'zoom back 1')), '適應 → zoom 回 1（兩組同步）');
+  // 手動步進回歸（原斷言改走 ＋/－ 達成）：＋×4 → 2、－ → 1.75
+  if (!d.querySelector('#view-mines [data-pb="zoom-in"]')) { ok(clickEl(P, d.querySelector('#view-mines [data-pb="zoom-toggle"]')), '重開 PlatBar 縮放選單'); await sleep(250); }
+  for (let k = 0; k < 4; k++) { ok(clickEl(P, d.querySelector('#view-mines [data-pb="zoom-in"]')), '點 PlatBar ＋(' + (k + 1) + ')'); await sleep(200); }
+  ok(!!(await waitFor(() => { const s = dbg(P); return s && s.zoom === 2 ? true : null; }, 10000, 'zoom 2')), '＋×4 → zoom = 2');
+  ok(clickEl(P, d.querySelector('#view-mines [data-pb="zoom-out"]')), '點 PlatBar －');
+  ok(!!(await waitFor(() => { const s = dbg(P); return s && s.zoom === 1.75 ? true : null; }, 10000, 'zoom 1.75')), '－ → zoom = 1.75');
 
   // --- 邊緣虛化＋指示條（jsdom 無 layout：stub 捲動幾何後觸發 scroll/render 更新） ---
   const scroller = d.querySelector('#view-mines .mines-board-scroll');

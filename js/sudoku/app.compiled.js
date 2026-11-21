@@ -3947,8 +3947,22 @@ function SudokuGame() {
   var recalculateZoom = function recalculateZoom(modeIdx) {
     var container = zoomContainerRef.current;
     if (!container) return;
-    var cw = container.clientWidth;
-    var ch = container.clientHeight;
+    // 可用寬高必須扣掉固定 chrome（2026-11-21 項1修）：clientWidth/Height 含容器 padding，
+    // 直接用會讓適應高度把盤面算到容器 pb-28 的底部列遮蔽區裡（實測 bottom 832 vs 底部列頂 776）。
+    // 寬＝內容盒寬；高＝內容盒頂端到實際可視下緣（PlatBar 為 fixed 浮層時取 min(內容盒底, bar 頂)，留 4px 守衛）。
+    var cs = window.getComputedStyle(container);
+    var padL = parseFloat(cs.paddingLeft) || 0,
+      padR = parseFloat(cs.paddingRight) || 0;
+    var padT = parseFloat(cs.paddingTop) || 0,
+      padB = parseFloat(cs.paddingBottom) || 0;
+    var cw = container.clientWidth - padL - padR;
+    var ch = container.clientHeight - padT - padB;
+    var barEl = platBarRef.current && platBarRef.current.firstElementChild;
+    if (barEl) {
+      var br = barEl.getBoundingClientRect();
+      var cr = container.getBoundingClientRect();
+      if (br.height > 0 && br.top > cr.top && br.top < cr.bottom) ch = Math.max(50, Math.min(container.clientHeight - padT, br.top - cr.top - padT - 4));
+    }
     var newZoom = 1;
     if (modeIdx === 0) {
       newZoom = zoomLevelRef.current;

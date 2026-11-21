@@ -378,26 +378,107 @@ function AkariGame() {
     _useState22 = _slicedToArray(_useState21, 2),
     zoom = _useState22[0],
     setZoom = _useState22[1];
-  var _useState23 = useState(null),
+  // 適應模式循環（2026-11-21 項2：比照數獨/數橋補齊；0=手動 1=適應寬度 2=適應高度 3=自動）。預設手動、zoom=1 基線不變
+  var _useState23 = useState(0),
     _useState24 = _slicedToArray(_useState23, 2),
-    winInfo = _useState24[0],
-    setWinInfo = _useState24[1]; // {secs, isDaily, dateStr}
-  var _useState25 = useState(function () {
+    zoomModeIdx = _useState24[0],
+    setZoomModeIdx = _useState24[1];
+  var zoomModeIdxRef = useRef(0);
+  var boardScrollRef = useRef(null);
+  var ZOOM_GLYPHS = ['1X', '↔️', '↕️', '🔲'];
+  var recalcRef = useRef(null);
+  recalcRef.current = function (modeIdx) {
+    // 只碰 ref/DOM/setState（PlatBar cfg 只建一次，閉包必須 ref 安全）
+    var cont = boardScrollRef.current;
+    if (!cont) return;
+    var grid = cont.querySelector('.inline-grid');
+    if (!grid) return;
+    var z0 = zoomRef.current || 1;
+    var natW = grid.offsetWidth / z0,
+      natH = grid.offsetHeight / z0;
+    if (!natW || !natH) return;
+    var availW = cont.clientWidth;
+    var cr = cont.getBoundingClientRect();
+    var visB = window.innerHeight;
+    var barEl = platBarRef.current && platBarRef.current.firstElementChild;
+    if (barEl) {
+      var br = barEl.getBoundingClientRect();
+      if (br.height > 0 && br.top > cr.top) visB = Math.min(visB, br.top);
+    }
+    var availH = visB - cr.top - 4; // 可視下緣（PlatBar 頂）到盤面頂，扣 4px 守衛——同數獨項1修正後算式
+    var z = null;
+    if (modeIdx === 1) z = availW / natW;else if (modeIdx === 2) z = availH / natH;else if (modeIdx === 3) z = Math.min(availW / natW, availH / natH) * 0.95;
+    if (z === null || !isFinite(z)) return;
+    // 格長是整數 px：直接除法會被 Math.round(cellPx) 放大溢出（實測適應寬度 363 > 容器 350）→ 量化到整格邊界（只縮不漲）
+    var gm = /repeat\((\d+),\s*([\d.]+)px\)/.exec(grid.style.gridTemplateColumns || '');
+    if (gm) {
+      var cols = parseInt(gm[1], 10),
+        cellNow = parseFloat(gm[2]),
+        cellBase = cellNow / z0;
+      var rows = Math.round(grid.children.length / cols);
+      var zCell = null;
+      if (modeIdx === 1) zCell = Math.floor((availW - (cols - 1) * 3 - 18) / cols) / cellBase;else if (modeIdx === 2) zCell = Math.floor((availH - (rows - 1) * 3 - 18) / rows) / cellBase;else if (modeIdx === 3) zCell = Math.floor(z * cellBase) / cellBase;
+      if (zCell && isFinite(zCell) && zCell > 0) z = Math.min(z, zCell);
+    }
+    z = Math.max(0.3, Math.round(z * 100) / 100);
+    zoomRef.current = z;
+    setZoom(z);
+  };
+  var cycleRef = useRef(null);
+  cycleRef.current = function () {
+    var next = (zoomModeIdxRef.current + 1) % 4;
+    zoomModeIdxRef.current = next;
+    setZoomModeIdx(next);
+    if (next !== 0) {
+      setTimeout(function () {
+        if (recalcRef.current) recalcRef.current(next);
+      }, 300);
+      setTimeout(function () {
+        if (recalcRef.current && zoomModeIdxRef.current === next) recalcRef.current(next);
+      }, 900);
+    } // 版面未定時先量會失真（實測 cont top 暫態差 54px）→ 300ms 主算＋900ms 定版重算
+  };
+  useEffect(function () {
+    // 進對局/換題時適應模式重算（手動不動）
+    if (screen === 'game' && zoomModeIdxRef.current !== 0) {
+      var t = setTimeout(function () {
+        if (recalcRef.current) recalcRef.current(zoomModeIdxRef.current);
+      }, 300);
+      return function () {
+        return clearTimeout(t);
+      };
+    }
+  }, [screen, puzzle]);
+  useEffect(function () {
+    if (typeof window === 'undefined') return;
+    var onR = function onR() {
+      if (zoomModeIdxRef.current !== 0 && recalcRef.current) recalcRef.current(zoomModeIdxRef.current);
+    };
+    window.addEventListener('resize', onR);
+    return function () {
+      return window.removeEventListener('resize', onR);
+    };
+  }, []);
+  var _useState25 = useState(null),
+    _useState26 = _slicedToArray(_useState25, 2),
+    winInfo = _useState26[0],
+    setWinInfo = _useState26[1]; // {secs, isDaily, dateStr}
+  var _useState27 = useState(function () {
       try {
         return platAudio().isMuted();
       } catch (e) {
         return false;
       }
     }),
-    _useState26 = _slicedToArray(_useState25, 2),
-    muted = _useState26[0],
-    setMuted = _useState26[1];
-  var _useState27 = useState(function () {
+    _useState28 = _slicedToArray(_useState27, 2),
+    muted = _useState28[0],
+    setMuted = _useState28[1];
+  var _useState29 = useState(function () {
       return readDailyStreak();
     }),
-    _useState28 = _slicedToArray(_useState27, 2),
-    streakInfo = _useState28[0],
-    setStreakInfo = _useState28[1];
+    _useState30 = _slicedToArray(_useState29, 2),
+    streakInfo = _useState30[0],
+    setStreakInfo = _useState30[1];
   var screenRef = useRef(screen);
   screenRef.current = screen;
   var sizeIdRef = useRef(sizeId);
@@ -435,79 +516,79 @@ function AkariGame() {
   var platBarRef = useRef(null);
   var platHomeRef = useRef(null); // PlatHome 掛載點（框架層 F1）
   var platFrameRef = useRef(null); // PlatFrame 掛載點（框架修正批 v1.70.0：對局外框改殼持有）
-  var _useState29 = useState(null),
-    _useState30 = _slicedToArray(_useState29, 2),
-    frameBody = _useState30[0],
-    setFrameBody = _useState30[1]; // PlatFrame 內容區節點（盤面 portal 用）
   var _useState31 = useState(null),
     _useState32 = _slicedToArray(_useState31, 2),
-    ptcEl = _useState32[0],
-    setPtcEl = _useState32[1]; // PlatTopCard 掛載點＝外框頂區節點
+    frameBody = _useState32[0],
+    setFrameBody = _useState32[1]; // PlatFrame 內容區節點（盤面 portal 用）
   var _useState33 = useState(null),
     _useState34 = _slicedToArray(_useState33, 2),
-    ptcSlot = _useState34[0],
-    setPtcSlot = _useState34[1]; // PlatTopCard 遊戲槽節點（portal 用）
+    ptcEl = _useState34[0],
+    setPtcEl = _useState34[1]; // PlatTopCard 掛載點＝外框頂區節點
+  var _useState35 = useState(null),
+    _useState36 = _slicedToArray(_useState35, 2),
+    ptcSlot = _useState36[0],
+    setPtcSlot = _useState36[1]; // PlatTopCard 遊戲槽節點（portal 用）
   var newBulbRef = useRef(-1);
   // ---------- 多人狀態 ----------
   var myId = akariUid();
-  var _useState35 = useState(false),
-    _useState36 = _slicedToArray(_useState35, 2),
-    mpOn = _useState36[0],
-    setMpOn = _useState36[1];
-  var _useState37 = useState('waiting'),
+  var _useState37 = useState(false),
     _useState38 = _slicedToArray(_useState37, 2),
-    mpPhase = _useState38[0],
-    setMpPhase = _useState38[1]; // waiting | countdown | playing | done
-  var _useState39 = useState([]),
+    mpOn = _useState38[0],
+    setMpOn = _useState38[1];
+  var _useState39 = useState('waiting'),
     _useState40 = _slicedToArray(_useState39, 2),
-    players = _useState40[0],
-    setPlayers = _useState40[1];
-  var _useState41 = useState({}),
+    mpPhase = _useState40[0],
+    setMpPhase = _useState40[1]; // waiting | countdown | playing | done
+  var _useState41 = useState([]),
     _useState42 = _slicedToArray(_useState41, 2),
-    godBoards = _useState42[0],
-    setGodBoards = _useState42[1];
-  var _useState43 = useState(null),
+    players = _useState42[0],
+    setPlayers = _useState42[1];
+  var _useState43 = useState({}),
     _useState44 = _slicedToArray(_useState43, 2),
-    raceFinal = _useState44[0],
-    setRaceFinal = _useState44[1];
+    godBoards = _useState44[0],
+    setGodBoards = _useState44[1];
   var _useState45 = useState(null),
     _useState46 = _slicedToArray(_useState45, 2),
-    myOutcome = _useState46[0],
-    setMyOutcome = _useState46[1]; // 'finished'
+    raceFinal = _useState46[0],
+    setRaceFinal = _useState46[1];
   var _useState47 = useState(null),
     _useState48 = _slicedToArray(_useState47, 2),
-    cdNum = _useState48[0],
-    setCdNum = _useState48[1];
+    myOutcome = _useState48[0],
+    setMyOutcome = _useState48[1]; // 'finished'
   var _useState49 = useState(null),
     _useState50 = _slicedToArray(_useState49, 2),
-    itemToast = _useState50[0],
-    setItemToast = _useState50[1];
-  var _useState51 = useState({
+    cdNum = _useState50[0],
+    setCdNum = _useState50[1];
+  var _useState51 = useState(null),
+    _useState52 = _slicedToArray(_useState51, 2),
+    itemToast = _useState52[0],
+    setItemToast = _useState52[1];
+  var _useState53 = useState({
       trap: 0
     }),
-    _useState52 = _slicedToArray(_useState51, 2),
-    myItems = _useState52[0],
-    setMyItems = _useState52[1];
-  var _useState53 = useState(0),
     _useState54 = _slicedToArray(_useState53, 2),
-    outageUntil = _useState54[0],
-    setOutageUntil = _useState54[1];
-  var _useState55 = useState(null),
+    myItems = _useState54[0],
+    setMyItems = _useState54[1];
+  var _useState55 = useState(0),
     _useState56 = _slicedToArray(_useState55, 2),
-    specUid = _useState56[0],
-    setSpecUid = _useState56[1];
-  var _useState57 = useState(false),
+    outageUntil = _useState56[0],
+    setOutageUntil = _useState56[1];
+  var _useState57 = useState(null),
     _useState58 = _slicedToArray(_useState57, 2),
-    myReadySt = _useState58[0],
-    setMyReadySt = _useState58[1];
+    specUid = _useState58[0],
+    setSpecUid = _useState58[1];
   var _useState59 = useState(false),
     _useState60 = _slicedToArray(_useState59, 2),
-    leaveArm = _useState60[0],
-    setLeaveArm = _useState60[1];
-  var _useState61 = useState(0),
+    myReadySt = _useState60[0],
+    setMyReadySt = _useState60[1];
+  var _useState61 = useState(false),
     _useState62 = _slicedToArray(_useState61, 2),
-    waitTick = _useState62[0],
-    setWaitTick = _useState62[1];
+    leaveArm = _useState62[0],
+    setLeaveArm = _useState62[1];
+  var _useState63 = useState(0),
+    _useState64 = _slicedToArray(_useState63, 2),
+    waitTick = _useState64[0],
+    setWaitTick = _useState64[1];
   var mpRef = useRef({
     on: false,
     isHost: false,
@@ -631,6 +712,9 @@ function AkariGame() {
     startedAtRef.current = null;
     setWinInfo(null);
     setZoom(1);
+    zoomRef.current = 1;
+    zoomModeIdxRef.current = 0;
+    setZoomModeIdx(0);
     setScreen('game');
   }
   function startSolo(szId) {
@@ -839,18 +923,65 @@ function AkariGame() {
     downRef.current = {
       idx: idx,
       trk: trk,
-      painting: false
+      painting: false,
+      scrollIntent: false,
+      downT: Date.now(),
+      downX: e && typeof e.clientX === 'number' ? e.clientX : 0,
+      downY: e && typeof e.clientY === 'number' ? e.clientY : 0,
+      lastX: e && typeof e.clientX === 'number' ? e.clientX : 0,
+      lastY: e && typeof e.clientY === 'number' ? e.clientY : 0,
+      lastT: Date.now(),
+      isMouse: !!(e && e.pointerType === 'mouse')
     };
+  }
+  // 塗叉 vs 捲動分流（2026-11-21 項3，比照數橋「拖曳絕不能和捲動衝突」站規）：
+  // 觸控手勢在越過 slop 的那一刻用「按下時長＋瞬時速度」判定意圖——快滑（<90ms 已越 slop、或速度 ≥0.55px/ms）
+  // 視為捲動意圖，本次手勢整程不塗、放行容器原生捲動；慢速刻意拖曳才開始塗。滑鼠不分流（無拖曳捲動語意）。
+  // 瀏覽器接管捲動會發 pointercancel → 清 downRef，防殘留手勢在下一次觸碰前誤塗（onBoardMove 另有 buttons 守衛）。
+  function onBoardCancel() {
+    downRef.current = null;
   }
   function onBoardMove(e) {
     var d = downRef.current;
     if (!d || !e || typeof e.clientX !== 'number') return;
+    if (e.buttons === 0) {
+      downRef.current = null;
+      return;
+    }
+    var now = Date.now();
+    var vel = 0;
+    if (d.lastT && now > d.lastT) vel = Math.hypot(e.clientX - d.lastX, e.clientY - d.lastY) / (now - d.lastT);
+    var dx = e.clientX - d.lastX,
+      dy = e.clientY - d.lastY;
+    d.lastX = e.clientX;
+    d.lastY = e.clientY;
+    d.lastT = now;
+    if (d.scrollIntent) {
+      // 格子是 touch-none、瀏覽器不代勞捲動 → 比照數橋手動 pan：以指標位移直接捲容器
+      var cont = e.currentTarget;
+      if (cont) {
+        cont.scrollLeft -= dx;
+        cont.scrollTop -= dy;
+      }
+      return;
+    }
     if (!d.painting) {
       var r = d.trk.move ? d.trk.move(e.clientX, e.clientY) : {
         dragging: false
       };
+      if (!r.dragging) return;
+      if (!d.isMouse && (now - d.downT < 90 || vel >= 0.55)) {
+        // 判定捲動意圖：先把累積位移一次捲掉（手感不跳），之後逐幀跟隨
+        d.scrollIntent = true;
+        var _cont = e.currentTarget;
+        if (_cont) {
+          _cont.scrollLeft -= e.clientX - d.downX;
+          _cont.scrollTop -= e.clientY - d.downY;
+        }
+        return;
+      }
       var pz = puzzleRef.current;
-      if (r.dragging && pz && cellsRef.current[d.idx] === 0 && !pz.walls.has(d.idx)) {
+      if (pz && cellsRef.current[d.idx] === 0 && !pz.walls.has(d.idx)) {
         d.painting = true;
         paintCross(d.idx);
       } else return;
@@ -1465,6 +1596,9 @@ function AkariGame() {
     setElapsed(0);
     setWinInfo(null);
     setZoom(1);
+    zoomRef.current = 1;
+    zoomModeIdxRef.current = 0;
+    setZoomModeIdx(0);
     setScreen('game');
   }
   function startMatchLocal(seed, szId, startAt) {
@@ -2026,13 +2160,21 @@ function AkariGame() {
     onAction: function onAction(name) {
       if (name === 'mode-press') setMode(function (m) {
         return m === 'tap' ? 'cross' : 'tap';
-      });else if (name === 'zoom-in') setZoom(function (z) {
-        return Math.min(2, Math.round((z + 0.25) * 100) / 100);
-      });else if (name === 'zoom-out') setZoom(function (z) {
-        return Math.max(1, Math.round((z - 0.25) * 100) / 100);
-      });else if (name === 'zoom-cycle') setZoom(function (z) {
-        return z >= 2 ? 1 : Math.round((z + 0.25) * 100) / 100;
-      });
+      });else if (name === 'zoom-in') {
+        zoomModeIdxRef.current = 0;
+        setZoomModeIdx(0);
+        setZoom(function (z) {
+          return Math.min(2, Math.round((z + 0.25) * 100) / 100);
+        });
+      } else if (name === 'zoom-out') {
+        zoomModeIdxRef.current = 0;
+        setZoomModeIdx(0);
+        setZoom(function (z) {
+          return Math.max(z < 1 ? 0.5 : 1, Math.round((z - 0.25) * 100) / 100);
+        });
+      } else if (name === 'zoom-cycle') {
+        if (cycleRef.current) cycleRef.current();
+      }
     }
   };
   useEffect(function () {
@@ -2059,8 +2201,8 @@ function AkariGame() {
         label: '塗叉'
       }],
       modeTitle: '切換模式（點按循環／塗叉）',
-      zoomLabel: zoom > 1 ? Math.round(zoom * 100) + '%' : '🔍',
-      zoomGlyph: zoom > 1 ? Math.round(zoom * 100) + '%' : '🔲',
+      zoomLabel: zoomModeIdx === 0 ? zoom > 1 ? Math.round(zoom * 100) + '%' : '🔍' : ZOOM_GLYPHS[zoomModeIdx],
+      zoomGlyph: ZOOM_GLYPHS[zoomModeIdx],
       showInput: false,
       inputMode: 'num',
       showDraw: false
@@ -2710,8 +2852,10 @@ function AkariGame() {
   }, itemToast)), ptcSlot), frameBody && ReactDOM.createPortal( /*#__PURE__*/React.createElement("div", {
     className: "w-full flex flex-col items-center"
   }, /*#__PURE__*/React.createElement("div", {
+    ref: boardScrollRef,
     className: "akari-board-scroll overflow-auto flex justify-center w-full" + (mpOn && iAmSpecRef.current ? " hidden" : ""),
-    onPointerMove: onBoardMove
+    onPointerMove: onBoardMove,
+    onPointerCancel: onBoardCancel
   }, /*#__PURE__*/React.createElement("div", {
     className: "inline-grid gap-[3px] p-[6px] bg-blue-100 border-[3px] border-slate-800 rounded-2xl",
     style: {

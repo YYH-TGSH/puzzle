@@ -1020,7 +1020,83 @@ function MinesGame() {
     _useState56 = _slicedToArray(_useState55, 2),
     zoomOpen = _useState56[0],
     setZoomOpen = _useState56[1];
-  var _useState57 = useState(function () {
+  // 適應模式循環（2026-11-21 項2：比照數獨/數橋補齊；0=手動 1=適應寬度 2=適應高度 3=自動）。預設手動、地雷 zoom=1 適應基線不變（使用者拍板前不默默改起始行為）
+  var _useState57 = useState(0),
+    _useState58 = _slicedToArray(_useState57, 2),
+    zoomModeIdx = _useState58[0],
+    setZoomModeIdx = _useState58[1];
+  var zoomModeIdxRef = useRef(0);
+  var ZOOM_GLYPHS = ['1X', '↔️', '↕️', '🔲'];
+  function recalculateZoom(modeIdx) {
+    var el = boardScrollRef.current;
+    if (!el) return;
+    var natW = spec.w * cellPx + (spec.w - 1) * gapPx + 26; // zoom=1 基線的盤面自然寬高（含盤框 padding/邊框 26，與 colW 同口徑）
+    var natH = spec.h * cellPx + (spec.h - 1) * gapPx + 26;
+    if (!natW || !natH) return;
+    var cs = window.getComputedStyle(el);
+    var padL = parseFloat(cs.paddingLeft) || 0,
+      padR = parseFloat(cs.paddingRight) || 0,
+      padT = parseFloat(cs.paddingTop) || 0;
+    var availW = el.clientWidth - padL - padR;
+    var cr = el.getBoundingClientRect();
+    var visB = window.innerHeight;
+    var barEl = platBarRef.current && platBarRef.current.firstElementChild;
+    if (barEl) {
+      var br = barEl.getBoundingClientRect();
+      if (br.height > 0 && br.top > cr.top) visB = Math.min(visB, br.top);
+    }
+    var availH = visB - cr.top - padT - 4; // 可視下緣（PlatBar 頂）到盤面頂，扣 4px 守衛——同數獨項1修正後算式
+    var z = null;
+    if (modeIdx === 1) z = availW / natW;else if (modeIdx === 2) z = availH / natH;else if (modeIdx === 3) z = Math.min(availW / natW, availH / natH) * 0.95;
+    if (z === null || !isFinite(z)) return;
+    z = Math.max(0.3, Math.round(z * 100) / 100);
+    pz().setRaw(z);
+    setZoom(z);
+  }
+  function handleCycleZoom() {
+    var next = (zoomModeIdxRef.current + 1) % 4;
+    zoomModeIdxRef.current = next;
+    setZoomModeIdx(next);
+    if (next !== 0) {
+      setTimeout(function () {
+        recalculateZoom(next);
+      }, 300);
+      setTimeout(function () {
+        if (zoomModeIdxRef.current === next) recalculateZoom(next);
+      }, 900);
+    } // 版面未定時先量會失真→300ms 主算＋900ms 定版重算（同美術燈）
+  }
+  function stepZoom(d) {
+    // 手動步進：切回手動模式；適應值 <1 時下限放寬 0.5 讓使用者能逐步回來（≥1 時維持既有 [1, 2.5]）
+    zoomModeIdxRef.current = 0;
+    setZoomModeIdx(0);
+    var cur = pz().value();
+    var nz = Math.min(2.5, Math.max(cur < 1 ? 0.5 : 1, Math.round((cur + d) * 100) / 100));
+    pz().setRaw(nz);
+    setZoom(nz);
+  }
+  useEffect(function () {
+    // 切換盤面/進對局時，適應模式要重算（手動模式不動）
+    if (screen === 'game' && zoomModeIdxRef.current !== 0) {
+      var t = setTimeout(function () {
+        recalculateZoom(zoomModeIdxRef.current);
+      }, 300);
+      return function () {
+        return clearTimeout(t);
+      };
+    }
+  }, [screen, spec]);
+  useEffect(function () {
+    if (typeof window === 'undefined') return;
+    var onR = function onR() {
+      if (zoomModeIdxRef.current !== 0) recalculateZoom(zoomModeIdxRef.current);
+    };
+    window.addEventListener('resize', onR);
+    return function () {
+      return window.removeEventListener('resize', onR);
+    };
+  }, []);
+  var _useState59 = useState(function () {
       var c0 = platSave().read('mines_custom_cfg', {
         fallback: null
       });
@@ -1031,24 +1107,24 @@ function MinesGame() {
         mines: 40
       };
     }),
-    _useState58 = _slicedToArray(_useState57, 2),
-    custCfg = _useState58[0],
-    setCustCfg = _useState58[1]; // 單機自訂盤面（寬/高/雷），持久化
+    _useState60 = _slicedToArray(_useState59, 2),
+    custCfg = _useState60[0],
+    setCustCfg = _useState60[1]; // 單機自訂盤面（寬/高/雷），持久化
   // ---------- 框架層 F2：PlatHome / PlatTopCard 掛載點（殼單一實作、本款只給 config 與內容） ----------
   var platHomeRef = useRef(null);
   var platFrameRef = useRef(null); // PlatFrame 掛載點（v1.71.0：對局外框改殼持有，比照美術燈 v1.70.0）
-  var _useState59 = useState(null),
-    _useState60 = _slicedToArray(_useState59, 2),
-    frameBody = _useState60[0],
-    setFrameBody = _useState60[1]; // PlatFrame 內容區節點（盤面/底部列 portal 用）
   var _useState61 = useState(null),
     _useState62 = _slicedToArray(_useState61, 2),
-    ptcEl = _useState62[0],
-    setPtcEl = _useState62[1]; // PlatTopCard 掛載點＝外框頂區節點
+    frameBody = _useState62[0],
+    setFrameBody = _useState62[1]; // PlatFrame 內容區節點（盤面/底部列 portal 用）
   var _useState63 = useState(null),
     _useState64 = _slicedToArray(_useState63, 2),
-    ptcSlot = _useState64[0],
-    setPtcSlot = _useState64[1]; // PlatTopCard 遊戲槽節點（portal 用）
+    ptcEl = _useState64[0],
+    setPtcEl = _useState64[1]; // PlatTopCard 掛載點＝外框頂區節點
+  var _useState65 = useState(null),
+    _useState66 = _slicedToArray(_useState65, 2),
+    ptcSlot = _useState66[0],
+    setPtcSlot = _useState66[1]; // PlatTopCard 遊戲槽節點（portal 用）
   var dailySelRef = useRef(dailySel);
   dailySelRef.current = dailySel;
   var boardScrollRef = useRef(null);
@@ -1802,34 +1878,34 @@ function MinesGame() {
 
   // ---------- 多人（平台模式）：星型拓撲（來賓只連房主、房主轉發全場） ----------
   var myId = myGameId();
-  var _useState65 = useState(false),
-    _useState66 = _slicedToArray(_useState65, 2),
-    mpOn = _useState66[0],
-    setMpOn = _useState66[1];
-  var _useState67 = useState('off'),
+  var _useState67 = useState(false),
     _useState68 = _slicedToArray(_useState67, 2),
-    mpPhase = _useState68[0],
-    setMpPhase = _useState68[1]; // off|waiting|countdown|playing|done
-  var _useState69 = useState([]),
+    mpOn = _useState68[0],
+    setMpOn = _useState68[1];
+  var _useState69 = useState('off'),
     _useState70 = _slicedToArray(_useState69, 2),
-    players = _useState70[0],
-    setPlayers = _useState70[1];
-  var _useState71 = useState(false),
+    mpPhase = _useState70[0],
+    setMpPhase = _useState70[1]; // off|waiting|countdown|playing|done
+  var _useState71 = useState([]),
     _useState72 = _slicedToArray(_useState71, 2),
-    myReadySt = _useState72[0],
-    setMyReadySt = _useState72[1];
-  var _useState73 = useState({}),
+    players = _useState72[0],
+    setPlayers = _useState72[1];
+  var _useState73 = useState(false),
     _useState74 = _slicedToArray(_useState73, 2),
-    godBoards = _useState74[0],
-    setGodBoards = _useState74[1];
-  var _useState75 = useState(null),
+    myReadySt = _useState74[0],
+    setMyReadySt = _useState74[1];
+  var _useState75 = useState({}),
     _useState76 = _slicedToArray(_useState75, 2),
-    godUid = _useState76[0],
-    setGodUid = _useState76[1];
+    godBoards = _useState76[0],
+    setGodBoards = _useState76[1];
   var _useState77 = useState(null),
     _useState78 = _slicedToArray(_useState77, 2),
-    raceFinal = _useState78[0],
-    setRaceFinal = _useState78[1];
+    godUid = _useState78[0],
+    setGodUid = _useState78[1];
+  var _useState79 = useState(null),
+    _useState80 = _slicedToArray(_useState79, 2),
+    raceFinal = _useState80[0],
+    setRaceFinal = _useState80[1];
   useEffect(function () {
     if (raceFinal && raceFinal.winnerUid && raceFinal.winnerUid === myId) {
       try {
@@ -1837,27 +1913,27 @@ function MinesGame() {
       } catch (e) {}
     }
   }, [raceFinal]); // 競速奪冠＝win（PlatAudio，v1.64.0）
-  var _useState79 = useState(null),
-    _useState80 = _slicedToArray(_useState79, 2),
-    myOutcome = _useState80[0],
-    setMyOutcome = _useState80[1]; // 'finished'|'boom'
-  var _useState81 = useState(false),
+  var _useState81 = useState(null),
     _useState82 = _slicedToArray(_useState81, 2),
-    leaveArm = _useState82[0],
-    setLeaveArm = _useState82[1];
-  // 離開選單與標頭規則開合已收編殼 PlatTopCard/PlatLeaveMenu（框架層 F2）：規則預設開合以 PlatTopCard.setRulesOpen 設定（單機/每日展開、多人收合）
-  var _useState83 = useState(''),
+    myOutcome = _useState82[0],
+    setMyOutcome = _useState82[1]; // 'finished'|'boom'
+  var _useState83 = useState(false),
     _useState84 = _slicedToArray(_useState83, 2),
-    coopBoomBy = _useState84[0],
-    setCoopBoomBy = _useState84[1];
-  var _useState85 = useState(null),
+    leaveArm = _useState84[0],
+    setLeaveArm = _useState84[1];
+  // 離開選單與標頭規則開合已收編殼 PlatTopCard/PlatLeaveMenu（框架層 F2）：規則預設開合以 PlatTopCard.setRulesOpen 設定（單機/每日展開、多人收合）
+  var _useState85 = useState(''),
     _useState86 = _slicedToArray(_useState85, 2),
-    cdNum = _useState86[0],
-    setCdNum = _useState86[1];
-  var _useState87 = useState(0),
+    coopBoomBy = _useState86[0],
+    setCoopBoomBy = _useState86[1];
+  var _useState87 = useState(null),
     _useState88 = _slicedToArray(_useState87, 2),
-    waitTick = _useState88[0],
-    setWaitTick = _useState88[1];
+    cdNum = _useState88[0],
+    setCdNum = _useState88[1];
+  var _useState89 = useState(0),
+    _useState90 = _slicedToArray(_useState89, 2),
+    waitTick = _useState90[0],
+    setWaitTick = _useState90[1];
   var mpRef = useRef({
     on: false,
     isHost: false,
@@ -3499,19 +3575,11 @@ function MinesGame() {
       // 殼 PlatBar 左下角縮放組（＋/－/循環）：v1.31 只做了卡片內 🔍 那組、這組沒人接線 → 按了沒反應（使用者 2026-11-04 截圖回報）。
       // 接到與卡片內 🔍 相同的 zoom state，兩組永遠同步；數獨/數橋的 PlatBar 本來就有接，只有地雷漏了。
       else if (name === 'zoom-in') {
-        setZoom(pz().add(0.25));
+        stepZoom(0.25);
       } else if (name === 'zoom-out') {
-        setZoom(pz().add(-0.25));
+        stepZoom(-0.25);
       } else if (name === 'zoom-cycle') {
-        var steps = [1, 1.5, 2, 2.5];
-        var cur = pz().value();
-        var nx = 1;
-        for (var i = 0; i < steps.length; i++) if (steps[i] > cur + 0.001) {
-          nx = steps[i];
-          break;
-        }
-        pz().setRaw(nx);
-        setZoom(nx);
+        handleCycleZoom();
       }
     }
   };
@@ -3590,8 +3658,8 @@ function MinesGame() {
         label: '塗鴉'
       }],
       modeTitle: '切換模式（挖開/插旗/塗鴉）',
-      zoomLabel: zoom > 1 ? Math.round(zoom * 100) + '%' : '🔍',
-      zoomGlyph: zoom > 1 ? Math.round(zoom * 100) + '%' : '🔲',
+      zoomLabel: zoomModeIdx === 0 ? zoom > 1 ? Math.round(zoom * 100) + '%' : '🔍' : ZOOM_GLYPHS[zoomModeIdx],
+      zoomGlyph: ZOOM_GLYPHS[zoomModeIdx],
       showInput: false,
       inputMode: 'num',
       showDraw: inputMode === 'draw',
@@ -4583,26 +4651,33 @@ function MinesGame() {
     className: "flex gap-1 items-center whitespace-nowrap"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
-      return setZoom(pz().add(-0.25));
+      return stepZoom(-0.25);
     },
     className: hbtn,
     title: "\u7E2E\u5C0F",
     tabIndex: zoomOpen ? 0 : -1
   }, "\uFF0D"), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
-      return setZoom(pz().add(0.25));
+      return stepZoom(0.25);
     },
     className: hbtn,
     title: "\u653E\u5927",
     tabIndex: zoomOpen ? 0 : -1
   }, "\uFF0B"), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
-      return setZoom(pz().reset());
+      zoomModeIdxRef.current = 0;
+      setZoomModeIdx(0);
+      setZoom(pz().reset());
     },
     className: hbtn,
     title: "\u56DE\u5230\u9069\u61C9\u87A2\u5E55",
     tabIndex: zoomOpen ? 0 : -1
-  }, "\u9069\u61C9")))), !mpOn && /*#__PURE__*/React.createElement("button", {
+  }, "\u9069\u61C9"), /*#__PURE__*/React.createElement("button", {
+    onClick: handleCycleZoom,
+    className: hbtn,
+    title: "\u5FAA\u74B0\u5207\u63DB\u7E2E\u653E\u6A21\u5F0F\uFF08\u81EA\u52D5\u9069\u61C9\uFF09",
+    tabIndex: zoomOpen ? 0 : -1
+  }, ZOOM_GLYPHS[zoomModeIdx])))), !mpOn && /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       if (dailyDate) startDaily(dailyDate);else newGame(sizeId);
     },

@@ -427,6 +427,51 @@ function MinesGame() {
   const pzRef = useRef(null); // 共用縮放持有（PlatZoom，v1.63.0）：1–2.5、0.25 步進（cleanup2dp 守恆舊 Math.round 淨化）；FLIP 動畫本體不動、僅狀態與上下限收編
   const pz = () => { if (!pzRef.current) pzRef.current = platZoomNew({ min: 1, max: 2.5, value: 1, cleanup2dp: true }); return pzRef.current; };          // 盤面縮放（比照數獨：1=適應螢幕，展開後 －/＋/適應）——卡片內 🔍 與殼 PlatBar 左下角縮放組共用這一顆 state（單一真相）
   const [zoomOpen, setZoomOpen] = useState(false);
+  // 適應模式循環（2026-11-21 項2：比照數獨/數橋補齊；0=手動 1=適應寬度 2=適應高度 3=自動）。預設手動、地雷 zoom=1 適應基線不變（使用者拍板前不默默改起始行為）
+  const [zoomModeIdx, setZoomModeIdx] = useState(0);
+  const zoomModeIdxRef = useRef(0);
+  const ZOOM_GLYPHS = ['1X', '↔️', '↕️', '🔲'];
+  function recalculateZoom(modeIdx) {
+    var el = boardScrollRef.current; if (!el) return;
+    var natW = spec.w * cellPx + (spec.w - 1) * gapPx + 26; // zoom=1 基線的盤面自然寬高（含盤框 padding/邊框 26，與 colW 同口徑）
+    var natH = spec.h * cellPx + (spec.h - 1) * gapPx + 26;
+    if (!natW || !natH) return;
+    var cs = window.getComputedStyle(el);
+    var padL = parseFloat(cs.paddingLeft) || 0, padR = parseFloat(cs.paddingRight) || 0, padT = parseFloat(cs.paddingTop) || 0;
+    var availW = el.clientWidth - padL - padR;
+    var cr = el.getBoundingClientRect();
+    var visB = window.innerHeight;
+    var barEl = platBarRef.current && platBarRef.current.firstElementChild;
+    if (barEl) { var br = barEl.getBoundingClientRect(); if (br.height > 0 && br.top > cr.top) visB = Math.min(visB, br.top); }
+    var availH = visB - cr.top - padT - 4; // 可視下緣（PlatBar 頂）到盤面頂，扣 4px 守衛——同數獨項1修正後算式
+    var z = null;
+    if (modeIdx === 1) z = availW / natW;
+    else if (modeIdx === 2) z = availH / natH;
+    else if (modeIdx === 3) z = Math.min(availW / natW, availH / natH) * 0.95;
+    if (z === null || !isFinite(z)) return;
+    z = Math.max(0.3, Math.round(z * 100) / 100);
+    pz().setRaw(z); setZoom(z);
+  }
+  function handleCycleZoom() {
+    var next = (zoomModeIdxRef.current + 1) % 4;
+    zoomModeIdxRef.current = next; setZoomModeIdx(next);
+    if (next !== 0) { setTimeout(function () { recalculateZoom(next); }, 300); setTimeout(function () { if (zoomModeIdxRef.current === next) recalculateZoom(next); }, 900); } // 版面未定時先量會失真→300ms 主算＋900ms 定版重算（同美術燈）
+  }
+  function stepZoom(d) { // 手動步進：切回手動模式；適應值 <1 時下限放寬 0.5 讓使用者能逐步回來（≥1 時維持既有 [1, 2.5]）
+    zoomModeIdxRef.current = 0; setZoomModeIdx(0);
+    var cur = pz().value();
+    var nz = Math.min(2.5, Math.max(cur < 1 ? 0.5 : 1, Math.round((cur + d) * 100) / 100));
+    pz().setRaw(nz); setZoom(nz);
+  }
+  useEffect(() => { // 切換盤面/進對局時，適應模式要重算（手動模式不動）
+    if (screen === 'game' && zoomModeIdxRef.current !== 0) { var t = setTimeout(function () { recalculateZoom(zoomModeIdxRef.current); }, 300); return () => clearTimeout(t); }
+  }, [screen, spec]);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    var onR = function () { if (zoomModeIdxRef.current !== 0) recalculateZoom(zoomModeIdxRef.current); };
+    window.addEventListener('resize', onR);
+    return () => window.removeEventListener('resize', onR);
+  }, []);
   const [custCfg, setCustCfg] = useState(() => { var c0 = platSave().read('mines_custom_cfg', { fallback: null }); if (c0) return clampCustomSpec(c0.w, c0.h, c0.mines); return { w: 16, h: 16, mines: 40 }; }); // 單機自訂盤面（寬/高/雷），持久化
   // ---------- 框架層 F2：PlatHome / PlatTopCard 掛載點（殼單一實作、本款只給 config 與內容） ----------
   const platHomeRef = useRef(null);
@@ -1378,9 +1423,9 @@ function MinesGame() {
       else if (name === 'draw-clear') { clearAllStrokes(); }
       // 殼 PlatBar 左下角縮放組（＋/－/循環）：v1.31 只做了卡片內 🔍 那組、這組沒人接線 → 按了沒反應（使用者 2026-11-04 截圖回報）。
       // 接到與卡片內 🔍 相同的 zoom state，兩組永遠同步；數獨/數橋的 PlatBar 本來就有接，只有地雷漏了。
-      else if (name === 'zoom-in') { setZoom(pz().add(0.25)); }
-      else if (name === 'zoom-out') { setZoom(pz().add(-0.25)); }
-      else if (name === 'zoom-cycle') { var steps = [1, 1.5, 2, 2.5]; var cur = pz().value(); var nx = 1; for (var i = 0; i < steps.length; i++) if (steps[i] > cur + 0.001) { nx = steps[i]; break; } pz().setRaw(nx); setZoom(nx); }
+      else if (name === 'zoom-in') { stepZoom(0.25); }
+      else if (name === 'zoom-out') { stepZoom(-0.25); }
+      else if (name === 'zoom-cycle') { handleCycleZoom(); }
     }
   };
   // F3（v1.56.0）：縮放過渡（FLIP 式）——版面直接跳到新尺寸，視覺先以 transform 從舊比例開始、200ms travel 曲線收回 1；
@@ -1429,8 +1474,8 @@ function MinesGame() {
       mode: inputMode === 'flag' ? 1 : inputMode === 'draw' ? 2 : 0,
       modes: [{ icon: '⛏️', label: '挖開' }, { icon: '🚩', label: '插旗' }, { icon: '🖌️', label: '塗鴉' }],
       modeTitle: '切換模式（挖開/插旗/塗鴉）',
-      zoomLabel: zoom > 1 ? Math.round(zoom * 100) + '%' : '🔍',
-      zoomGlyph: zoom > 1 ? Math.round(zoom * 100) + '%' : '🔲',
+      zoomLabel: zoomModeIdx === 0 ? (zoom > 1 ? Math.round(zoom * 100) + '%' : '🔍') : ZOOM_GLYPHS[zoomModeIdx],
+      zoomGlyph: ZOOM_GLYPHS[zoomModeIdx],
       showInput: false, inputMode: 'num', showDraw: inputMode === 'draw', drawTool: drawTool, showHostClear: !!(mpOn && mpRef.current.mode === 'coop' && mpRef.current.isHost)
     });
   });
@@ -1936,9 +1981,10 @@ function MinesGame() {
               <div className="flex gap-1 items-center shrink-0">
                 <button onClick={() => setZoomOpen(!zoomOpen)} className={hbtn} title="調整盤面大小（比照數獨的縮放）">🔍{zoom > 1 && (<span className="ml-0.5 text-[10px]">{Math.round(zoom * 100)}%</span>)}</button>
                 <span className={"plat-collapse-x" + (zoomOpen ? " open" : "")}><span className="flex gap-1 items-center whitespace-nowrap">
-                  <button onClick={() => setZoom(pz().add(-0.25))} className={hbtn} title="縮小" tabIndex={zoomOpen ? 0 : -1}>－</button>
-                  <button onClick={() => setZoom(pz().add(0.25))} className={hbtn} title="放大" tabIndex={zoomOpen ? 0 : -1}>＋</button>
-                  <button onClick={() => setZoom(pz().reset())} className={hbtn} title="回到適應螢幕" tabIndex={zoomOpen ? 0 : -1}>適應</button>
+                  <button onClick={() => stepZoom(-0.25)} className={hbtn} title="縮小" tabIndex={zoomOpen ? 0 : -1}>－</button>
+                  <button onClick={() => stepZoom(0.25)} className={hbtn} title="放大" tabIndex={zoomOpen ? 0 : -1}>＋</button>
+                  <button onClick={() => { zoomModeIdxRef.current = 0; setZoomModeIdx(0); setZoom(pz().reset()); }} className={hbtn} title="回到適應螢幕" tabIndex={zoomOpen ? 0 : -1}>適應</button>
+                  <button onClick={handleCycleZoom} className={hbtn} title="循環切換縮放模式（自動適應）" tabIndex={zoomOpen ? 0 : -1}>{ZOOM_GLYPHS[zoomModeIdx]}</button>
                 </span></span>
               </div>
               {!mpOn && (<button onClick={() => { if (dailyDate) startDaily(dailyDate); else newGame(sizeId); }} className={hbtn} title="重開一局">🔄<span className="hidden sm:inline ml-1">重開</span></button>)}

@@ -70,6 +70,7 @@ const SUITES = [
   ['test-mines-zoomcustom.js', {}],
   ['test-resume.js', {}],
   ['test-layout-width.js', {}], // 真引擎排版寬度（CDP/Chromium；jsdom 量不到溢出，v1.72.2 起常設）
+  ['test-akari-dragscroll.js', {}], // 美術燈塗叉/捲動分流（v1.72.3 項3）
 ];
 
 const filter = process.argv[2] || '';

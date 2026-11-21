@@ -129,6 +129,58 @@ function AkariGame() {
   const [elapsed, setElapsed] = useState(0);
   const [mode, setMode] = useState('tap'); // tap | cross（PlatBar 模式）
   const [zoom, setZoom] = useState(1);
+  // 適應模式循環（2026-11-21 項2：比照數獨/數橋補齊；0=手動 1=適應寬度 2=適應高度 3=自動）。預設手動、zoom=1 基線不變
+  const [zoomModeIdx, setZoomModeIdx] = useState(0);
+  const zoomModeIdxRef = useRef(0);
+  const boardScrollRef = useRef(null);
+  const ZOOM_GLYPHS = ['1X', '↔️', '↕️', '🔲'];
+  const recalcRef = useRef(null);
+  recalcRef.current = function (modeIdx) { // 只碰 ref/DOM/setState（PlatBar cfg 只建一次，閉包必須 ref 安全）
+    var cont = boardScrollRef.current; if (!cont) return;
+    var grid = cont.querySelector('.inline-grid'); if (!grid) return;
+    var z0 = zoomRef.current || 1;
+    var natW = grid.offsetWidth / z0, natH = grid.offsetHeight / z0;
+    if (!natW || !natH) return;
+    var availW = cont.clientWidth;
+    var cr = cont.getBoundingClientRect();
+    var visB = window.innerHeight;
+    var barEl = platBarRef.current && platBarRef.current.firstElementChild;
+    if (barEl) { var br = barEl.getBoundingClientRect(); if (br.height > 0 && br.top > cr.top) visB = Math.min(visB, br.top); }
+    var availH = visB - cr.top - 4; // 可視下緣（PlatBar 頂）到盤面頂，扣 4px 守衛——同數獨項1修正後算式
+    var z = null;
+    if (modeIdx === 1) z = availW / natW;
+    else if (modeIdx === 2) z = availH / natH;
+    else if (modeIdx === 3) z = Math.min(availW / natW, availH / natH) * 0.95;
+    if (z === null || !isFinite(z)) return;
+    // 格長是整數 px：直接除法會被 Math.round(cellPx) 放大溢出（實測適應寬度 363 > 容器 350）→ 量化到整格邊界（只縮不漲）
+    var gm = /repeat\((\d+),\s*([\d.]+)px\)/.exec(grid.style.gridTemplateColumns || '');
+    if (gm) {
+      var cols = parseInt(gm[1], 10), cellNow = parseFloat(gm[2]), cellBase = cellNow / z0;
+      var rows = Math.round(grid.children.length / cols);
+      var zCell = null;
+      if (modeIdx === 1) zCell = Math.floor((availW - (cols - 1) * 3 - 18) / cols) / cellBase;
+      else if (modeIdx === 2) zCell = Math.floor((availH - (rows - 1) * 3 - 18) / rows) / cellBase;
+      else if (modeIdx === 3) zCell = Math.floor(z * cellBase) / cellBase;
+      if (zCell && isFinite(zCell) && zCell > 0) z = Math.min(z, zCell);
+    }
+    z = Math.max(0.3, Math.round(z * 100) / 100);
+    zoomRef.current = z; setZoom(z);
+  };
+  const cycleRef = useRef(null);
+  cycleRef.current = function () {
+    var next = (zoomModeIdxRef.current + 1) % 4;
+    zoomModeIdxRef.current = next; setZoomModeIdx(next);
+    if (next !== 0) { setTimeout(function () { if (recalcRef.current) recalcRef.current(next); }, 300); setTimeout(function () { if (recalcRef.current && zoomModeIdxRef.current === next) recalcRef.current(next); }, 900); } // 版面未定時先量會失真（實測 cont top 暫態差 54px）→ 300ms 主算＋900ms 定版重算
+  };
+  useEffect(() => { // 進對局/換題時適應模式重算（手動不動）
+    if (screen === 'game' && zoomModeIdxRef.current !== 0) { var t = setTimeout(function () { if (recalcRef.current) recalcRef.current(zoomModeIdxRef.current); }, 300); return () => clearTimeout(t); }
+  }, [screen, puzzle]);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    var onR = function () { if (zoomModeIdxRef.current !== 0 && recalcRef.current) recalcRef.current(zoomModeIdxRef.current); };
+    window.addEventListener('resize', onR);
+    return () => window.removeEventListener('resize', onR);
+  }, []);
   const [winInfo, setWinInfo] = useState(null); // {secs, isDaily, dateStr}
   const [muted, setMuted] = useState(() => { try { return platAudio().isMuted(); } catch (e) { return false; } });
   const [streakInfo, setStreakInfo] = useState(() => readDailyStreak());
@@ -236,7 +288,7 @@ function AkariGame() {
     setCells(new Array(p.w * p.h).fill(0));
     setIsDaily(!!daily); setDailyDate(dateStr || null);
     setStatus('ready'); setElapsed(0); startedAtRef.current = null;
-    setWinInfo(null); setZoom(1);
+    setWinInfo(null); setZoom(1); zoomRef.current = 1; zoomModeIdxRef.current = 0; setZoomModeIdx(0);
     setScreen('game');
   }
   function startSolo(szId) {
@@ -353,14 +405,37 @@ function AkariGame() {
   function onCellDown(idx, e) {
     const trk = platTapNew({ slop: 22, suppressMs: 500 });
     if (e && typeof e.clientX === 'number') trk.down(e.clientX, e.clientY, Date.now());
-    downRef.current = { idx: idx, trk: trk, painting: false };
+    downRef.current = { idx: idx, trk: trk, painting: false, scrollIntent: false, downT: Date.now(), downX: e && typeof e.clientX === 'number' ? e.clientX : 0, downY: e && typeof e.clientY === 'number' ? e.clientY : 0, lastX: e && typeof e.clientX === 'number' ? e.clientX : 0, lastY: e && typeof e.clientY === 'number' ? e.clientY : 0, lastT: Date.now(), isMouse: !!(e && e.pointerType === 'mouse') };
   }
+  // 塗叉 vs 捲動分流（2026-11-21 項3，比照數橋「拖曳絕不能和捲動衝突」站規）：
+  // 觸控手勢在越過 slop 的那一刻用「按下時長＋瞬時速度」判定意圖——快滑（<90ms 已越 slop、或速度 ≥0.55px/ms）
+  // 視為捲動意圖，本次手勢整程不塗、放行容器原生捲動；慢速刻意拖曳才開始塗。滑鼠不分流（無拖曳捲動語意）。
+  // 瀏覽器接管捲動會發 pointercancel → 清 downRef，防殘留手勢在下一次觸碰前誤塗（onBoardMove 另有 buttons 守衛）。
+  function onBoardCancel() { downRef.current = null; }
   function onBoardMove(e) {
     const d = downRef.current; if (!d || !e || typeof e.clientX !== 'number') return;
+    if (e.buttons === 0) { downRef.current = null; return; }
+    const now = Date.now();
+    let vel = 0;
+    if (d.lastT && now > d.lastT) vel = Math.hypot(e.clientX - d.lastX, e.clientY - d.lastY) / (now - d.lastT);
+    const dx = e.clientX - d.lastX, dy = e.clientY - d.lastY;
+    d.lastX = e.clientX; d.lastY = e.clientY; d.lastT = now;
+    if (d.scrollIntent) { // 格子是 touch-none、瀏覽器不代勞捲動 → 比照數橋手動 pan：以指標位移直接捲容器
+      const cont = e.currentTarget;
+      if (cont) { cont.scrollLeft -= dx; cont.scrollTop -= dy; }
+      return;
+    }
     if (!d.painting) {
       const r = d.trk.move ? d.trk.move(e.clientX, e.clientY) : { dragging: false };
+      if (!r.dragging) return;
+      if (!d.isMouse && (now - d.downT < 90 || vel >= 0.55)) { // 判定捲動意圖：先把累積位移一次捲掉（手感不跳），之後逐幀跟隨
+        d.scrollIntent = true;
+        const cont = e.currentTarget;
+        if (cont) { cont.scrollLeft -= (e.clientX - d.downX); cont.scrollTop -= (e.clientY - d.downY); }
+        return;
+      }
       const pz = puzzleRef.current;
-      if (r.dragging && pz && cellsRef.current[d.idx] === 0 && !pz.walls.has(d.idx)) { d.painting = true; paintCross(d.idx); }
+      if (pz && cellsRef.current[d.idx] === 0 && !pz.walls.has(d.idx)) { d.painting = true; paintCross(d.idx); }
       else return;
     }
     if (d.painting) {
@@ -608,7 +683,7 @@ function AkariGame() {
     setIsDaily(false); setDailyDate(null);
     setStatus('ready'); statusRef.current = 'ready';
     startedAtRef.current = startAt; setElapsed(0);
-    setWinInfo(null); setZoom(1);
+    setWinInfo(null); setZoom(1); zoomRef.current = 1; zoomModeIdxRef.current = 0; setZoomModeIdx(0);
     setScreen('game');
   }
   function startMatchLocal(seed, szId, startAt) {
@@ -839,9 +914,9 @@ function AkariGame() {
     accent: ACCENT,
     onAction: (name) => {
       if (name === 'mode-press') setMode(m => (m === 'tap' ? 'cross' : 'tap'));
-      else if (name === 'zoom-in') setZoom(z => Math.min(2, Math.round((z + 0.25) * 100) / 100));
-      else if (name === 'zoom-out') setZoom(z => Math.max(1, Math.round((z - 0.25) * 100) / 100));
-      else if (name === 'zoom-cycle') setZoom(z => (z >= 2 ? 1 : Math.round((z + 0.25) * 100) / 100));
+      else if (name === 'zoom-in') { zoomModeIdxRef.current = 0; setZoomModeIdx(0); setZoom(z => Math.min(2, Math.round((z + 0.25) * 100) / 100)); }
+      else if (name === 'zoom-out') { zoomModeIdxRef.current = 0; setZoomModeIdx(0); setZoom(z => Math.max(z < 1 ? 0.5 : 1, Math.round((z - 0.25) * 100) / 100)); }
+      else if (name === 'zoom-cycle') { if (cycleRef.current) cycleRef.current(); }
     }
   };
   useEffect(() => {
@@ -862,8 +937,8 @@ function AkariGame() {
       mode: mode === 'cross' ? 1 : 0,
       modes: [{ icon: '💡', label: '點按' }, { icon: '✖️', label: '塗叉' }],
       modeTitle: '切換模式（點按循環／塗叉）',
-      zoomLabel: zoom > 1 ? Math.round(zoom * 100) + '%' : '🔍',
-      zoomGlyph: zoom > 1 ? Math.round(zoom * 100) + '%' : '🔲',
+      zoomLabel: zoomModeIdx === 0 ? (zoom > 1 ? Math.round(zoom * 100) + '%' : '🔍') : ZOOM_GLYPHS[zoomModeIdx],
+      zoomGlyph: ZOOM_GLYPHS[zoomModeIdx],
       showInput: false, inputMode: 'num', showDraw: false
     });
   });
@@ -1199,7 +1274,7 @@ function AkariGame() {
       {frameBody && ReactDOM.createPortal((
         <div className="w-full flex flex-col items-center">
         {/* 盤面 */}
-        <div className={"akari-board-scroll overflow-auto flex justify-center w-full" + (mpOn && iAmSpecRef.current ? " hidden" : "")} onPointerMove={onBoardMove}>
+        <div ref={boardScrollRef} className={"akari-board-scroll overflow-auto flex justify-center w-full" + (mpOn && iAmSpecRef.current ? " hidden" : "")} onPointerMove={onBoardMove} onPointerCancel={onBoardCancel}>
           <div className="inline-grid gap-[3px] p-[6px] bg-blue-100 border-[3px] border-slate-800 rounded-2xl" style={{ gridTemplateColumns: 'repeat(' + (puzzle ? puzzle.w : 10) + ', ' + cellPx + 'px)' }}>
             {puzzle && cells.map((cv, i) => {
               const isWall = P.walls.has(i);
