@@ -76,19 +76,6 @@ function PlatNum(props) {
       return 1;
     }
 
-    function GameTimer({ startTime, endTime, isRunning }) {
-        const [now, setNow] = useState(Date.now());
-        useEffect(() => {
-            if (!isRunning) return;
-            setNow(Date.now());
-            const t = setInterval(() => setNow(Date.now()), 1000);
-            return () => clearInterval(t);
-        }, [isRunning, startTime]);
-
-        const timeToUse = endTime ? endTime : now;
-        const secs = Math.max(0, Math.floor((timeToUse - startTime) / 1000));
-        return <span>⏱ {formatTime(secs)}</span>;
-    }
 
     // ==========================================
     // 每日一題：確定性隨機（零伺服器，同一天全世界同一題）
@@ -424,14 +411,12 @@ function platAudio() {
 
       const [zoomLevel, setZoomLevel] = useState(1);
       const [showSolution, setShowSolution] = useState(false);
-      const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(true);
 
       const [showSaveModal, setShowSaveModal] = useState(false);
-      const [showSettingsModal, setShowSettingsModal] = useState(false); // 設定難度 modal（v1.43 Q2：設定入口三款統一 modal 式，廢標頭 select）
       const [soloPick, setSoloPick] = useState(false); // 單機入口先選難度（v1.58.0 使用者要求，比照數獨設定畫面／地雷 setup）：由主畫面「單機挑戰」開 modal 時為 true，取消＝回主畫面、選定才開局
+      const soloPickRef = useRef(false); // soloPick 的 ref 鏡像：startSinglePlayer 同步 setState 後立刻 openHashiSetup，cfg 閉包讀 state 會拿到舊值（F3 施工抓到：副標/存檔/取消回主畫面全失效），故 cfg 一律讀 ref
       const [saveCode, setSaveCode] = useState("");
 
-      const [showCustomModal, setShowCustomModal] = useState(false);
       const [tempWidth, setTempWidth] = useState(30);
       const [tempHeight, setTempHeight] = useState(30);
 
@@ -638,8 +623,6 @@ function platAudio() {
       };
 
       // 首次教學導覽
-      const [showTutorial, setShowTutorial] = useState(false);
-      const [tutorialStep, setTutorialStep] = useState(0);
 
       // 靜音偏好（與全域音效引擎同步）
       const [muted, setMuted] = useState(() => platAudio().isMuted()); // 靜音統一殼級 plat_muted（PlatAudio，v1.64.0）
@@ -669,7 +652,6 @@ function platAudio() {
       const [resultsDismissedUi, setResultsDismissedUi] = useState(false); // 結果卡被「看盤面」關掉後，畫面留一顆🏆結果鈕可隨時叫回
       const [leaveArm, setLeaveArm] = useState(false); // 結果卡「離開」兩段確認（防誤按就拆連線退場、結果再也叫不回）
       const leaveArmTimerRef = useRef(null);
-      const [showExitMenu, setShowExitMenu] = useState(false); // 標頭「退出」選單（錦標賽房主進行中按退出才開，內含「結束本局」防誤觸）
       const [raceCountdown, setRaceCountdown] = useState(null);
 
       // ⭐ 星級評分
@@ -824,14 +806,11 @@ function platAudio() {
       useEffect(() => { zoomLevelRef.current = zoomLevel; pz().setRaw(zoomLevel); }, [zoomLevel]);
       useEffect(() => { zoomModeIdxRef.current = zoomModeIdx; }, [zoomModeIdx]);
 
-      // 首次進入遊戲時顯示教學導覽（localStorage 記錄）
+      // 首次進入遊戲時顯示教學導覽（localStorage 記錄；F3 改開殼 PlatTutorial，關閉時由 openHashiTutorial 的 onClose 寫 seen）
       useEffect(function() {
         let seen = false;
         seen = platSave().getStr('hashi_tutorial_seen', '') === '1';
-        if (!seen) {
-            setTutorialStep(0);
-            setShowTutorial(true);
-        }
+        if (!seen) openHashiTutorial();
       }, []);
 
       useEffect(function() {
@@ -876,7 +855,7 @@ function platAudio() {
             lastPinchDist.current = dist;
           } else if (e.touches.length === 1 && touchStartY !== null) {
             const dy = e.touches[0].clientY - touchStartY;
-            if (Math.abs(dy) > 30 && !isHeaderCollapsed) { setIsHeaderCollapsed(true); }
+            if (Math.abs(dy) > 30 && rulesOpenNow()) { collapseRules(); }
           }
         };
         const handleTouchEnd = () => {
@@ -888,7 +867,7 @@ function platAudio() {
         };
         const handleWheel = (e) => {
             if (interactionMode >= 2) return;
-            if (Math.abs(e.deltaY) > 10 && !isHeaderCollapsed) { setIsHeaderCollapsed(true); }
+            if (Math.abs(e.deltaY) > 10 && rulesOpenNow()) { collapseRules(); }
             if (e.ctrlKey && zoomModeIdxRef.current !== 0) {
                  setZoomModeIdx(0);
                  zoomModeIdxRef.current = 0;
@@ -908,7 +887,7 @@ function platAudio() {
           el.removeEventListener('touchcancel', handleTouchEnd);
           el.removeEventListener('wheel', handleWheel);
         };
-      }, [screen, isHeaderCollapsed, interactionMode, svgW, svgH, zoomLevel]);
+      }, [screen, interactionMode, svgW, svgH, zoomLevel]); // F3：規則開合改殼 PlatTopCard 持有、handler 即時讀 _debug
 
       useEffect(function() {
         if (screen !== 'game') return;
@@ -2090,6 +2069,138 @@ function platAudio() {
         window.PlatBar.update(st);
       });
 
+      // ===== 框架層 F3（v1.72.0）：主畫面/頂欄/外框改掛殼 PlatHome/PlatTopCard/PlatFrame（單一實作） =====
+      // 規則開合改殼 PlatTopCard 持有（數橋各入口一律收合開始）；讀寫走 setRulesOpen/_debug
+      const rulesOpenNow = () => { try { return !!(window.PlatTopCard && window.PlatTopCard._debug().rulesOpen); } catch (e) { return false; } };
+      const collapseRules = () => { if (typeof window !== 'undefined' && window.PlatTopCard) window.PlatTopCard.setRulesOpen(false); };
+      const platHomeRef = useRef(null);
+      const [platHomeMounted, setPlatHomeMounted] = useState(false);
+      const [rulesOpenUi, setRulesOpenUi] = useState(false); // 規則開合 React 鏡像（供對局說明列；真值在殼、PTC update effect 同步）
+      const platFrameRef = useRef(null);
+      const [frameBody, setFrameBody] = useState(null);
+      const [ptcSlot, setPtcSlot] = useState(null);
+      const [ptcTick, setPtcTick] = useState(0);
+      useEffect(() => { if (screen !== 'game') return; const t = setInterval(() => setPtcTick(x => x + 1), 1000); return () => clearInterval(t); }, [screen]);
+      const platHomeCfgStable = useRef(null);
+      if (!platHomeCfgStable.current) platHomeCfgStable.current = {
+        accent: '#4ade80', titleChars: ['數', '橋'], enName: 'Hashi Puzzle', dailyLabel: '每日一題',
+        onAction: (name) => {
+          if (name === 'solo') startSinglePlayer();
+          else if (name === 'daily') startDailyMode(dailyMenuDate);
+          else if (name === 'prev') setDailyMenuDate(d => clampDailyDate(HASHI_PUZZLE.shiftDateStr(d, -1)));
+          else if (name === 'next') setDailyMenuDate(d => clampDailyDate(HASHI_PUZZLE.shiftDateStr(d, 1)));
+          else if (name === 'cal') openDailyCal(); // PlatHome 日期鈕的 action 名是 'cal'（F1/F2 既定契約、地雷/美術燈同款）；F3 初版誤寫 'date' → 主畫面點日期鈕沒反應、月曆打不開（test-daily-cal 抓到）
+          else if (name === 'tutorial') openHashiTutorial();
+          else if (name === 'lobby') { if (window.PLAT_show) window.PLAT_show('home'); }
+        }
+      };
+      useEffect(() => {
+        if (typeof window === 'undefined' || typeof window.PlatHome === 'undefined') return;
+        const el = platHomeRef.current;
+        if (screen === 'home') {
+          if (el) {
+            if (window.PlatHome._el() !== el || !window.PlatHome._elConnected()) window.PlatHome.attach(el, platHomeCfgStable.current);
+            if (!platHomeMounted) setPlatHomeMounted(true);
+          }
+        } else if (window.PlatHome.isAttached() && !window.PlatHome._elConnected()) {
+          window.PlatHome.detach(window.PlatHome._el()); // 只清「已斷線的殘留持有者」；detach() 無參數會清掉目前持有者——他款正顯示的主畫面會被本款在對局中的每秒 render 誤殺（F3 回歸實測，改 mines/akari 同款守衛）
+        }
+      });
+      useEffect(() => {
+        if (typeof window === 'undefined' || typeof window.PlatHome === 'undefined' || !window.PlatHome.isAttached()) return;
+        window.PlatHome.update({
+          dailyDate: dailyMenuDate, dailyIsToday: dailyMenuDate === HASHI_PUZZLE.getDailyDateStr(), dailyDone: !!(dailyStatus && dailyStatus.done),
+          canPrev: dailyMenuDate > MIN_DAILY_DATE, canNext: dailyMenuDate < HASHI_PUZZLE.getDailyDateStr(),
+          streak: dailyStatus ? (dailyStatus.streak || 0) : 0, bestText: (dailyStatus && dailyStatus.done) ? formatTime(dailyStatus.done.time) : null,
+          inPlatform: !!PLAT_MODE
+        });
+      });
+
+      const openHashiSetup = (selOverride, custOverride) => { // selOverride/custOverride：startSinglePlayer 同步還原上次難度時傳入（setState 尚未生效，讀 closure 會拿到舊值）
+        if (typeof window === 'undefined' || typeof window.PlatSetup === 'undefined') return;
+        window.PlatSetup.show({
+          accent: '#4ade80', title: '⚙️ 設定難度',
+          subtitle: soloPickRef.current ? '選一個難度，開始一局新的挑戰。' : '選一個難度，立刻換一題新的。',
+          mode: 'list', instant: true,
+          options: LEVELS.filter(l => l.id !== 'custom').map(l => ({ id: l.id, label: l.name, sub: l.description })),
+          selectedId: selOverride != null ? selOverride : currentLevelId,
+          custom: { label: '⚙️ 自訂尺寸', fields: [{ key: 'w', label: '寬度（橫向島嶼數）', min: 5, max: 100 }, { key: 'h', label: '長度（直向島嶼數）', min: 5, max: 100 }], values: custOverride || { w: tempWidth, h: tempHeight },
+            validate: (vals) => { const w = Math.max(5, Math.min(100, parseInt(vals.w) || 5)); const h = Math.max(5, Math.min(100, parseInt(vals.h) || 5)); return { values: { w: w, h: h }, note: '輸入專屬長寬（5 ~ 100），生成超大型地圖', startText: '產生（' + w + 'x' + h + '）' }; } },
+          onStart: (id, vals) => {
+            if (id === 'custom') { handleCustomGenerate(vals && vals.w, vals && vals.h); return; }
+            if (soloPickRef.current) { platSave().setStr('hashi_solo_level', String(id)); soloPickRef.current = false; setSoloPick(false); }
+            setScreen('game'); if (window.PlatTopCard) window.PlatTopCard.setRulesOpen(false);
+            handleLevelChange(id);
+          },
+          onCancel: () => { if (soloPickRef.current) { soloPickRef.current = false; setSoloPick(false); setScreen('home'); } }
+        });
+      };
+
+      const HASHI_TUT_DEMOS = {
+        bridge: '<div class="bdemo mb-4" aria-hidden="true"><div class="bdemo-section bdemo-sec1">拖曳</div><div class="bdemo-section bdemo-sec2">點擊</div><div class="bdemo-label bdemo-l1">👆 按住拖曳，放開架橋</div><div class="bdemo-label bdemo-l2">點一下：1 座橋</div><div class="bdemo-label bdemo-l3">點兩下：2 座橋</div><div class="bdemo-label bdemo-l4">點三下：取消</div><div class="bdemo-scene"><div class="bdemo-island" style="left:30px">3</div><div class="bdemo-island" style="left:210px">2</div><div class="bdemo-preview"></div><div class="bdemo-bridge bdemo-b1"></div><div class="bdemo-bridge bdemo-bd1"></div><div class="bdemo-bridge bdemo-bd2"></div><div class="bdemo-finger">👆</div><div class="bdemo-ripple"></div></div></div>',
+        draft: '<div class="bdemo mb-4" aria-hidden="true"><div class="bdemo-label ddemo-l1">✏️ 草稿：拖曳畫出虛線</div><div class="bdemo-label ddemo-l2">👆 點擊：點兩下 2 條虛線</div><div class="bdemo-label ddemo-l3">切回畫筆模式 ✎</div><div class="bdemo-label ddemo-l4">點一下：虛線直接變實線！</div><div class="bdemo-scene"><div class="ddemo-mode"><span class="ddemo-m ddemo-m-draft">✏️ 草稿</span><span class="ddemo-m ddemo-m-pen">✎ 畫筆</span></div><div class="bdemo-island" style="left:30px">3</div><div class="bdemo-island" style="left:210px">2</div><div class="bdemo-preview ddemo-preview"></div><div class="ddemo-dash ddemo-db1"></div><div class="ddemo-dash ddemo-dbA"></div><div class="ddemo-dash ddemo-dbB"></div><div class="bdemo-bridge ddemo-sbA"></div><div class="bdemo-bridge ddemo-sbB"></div><div class="bdemo-finger ddemo-finger">👆</div><div class="bdemo-ripple ddemo-ripple"></div></div></div>',
+        connect: '<div class="conn-demo mb-4" aria-hidden="true"><div class="conn-phone conn-host"><div class="conn-ptitle">🏠 房主</div><div class="conn-btn">建立房間</div><div class="conn-code"><span>1</span><span>2</span><span>3</span><span>4</span></div></div><div class="conn-wire"><div class="conn-chip">1234</div></div><div class="conn-phone conn-guest"><div class="conn-ptitle">🚪 朋友</div><div class="conn-input"><span>1</span><span>2</span><span>3</span><span>4</span></div><div class="conn-btn">加入房間</div></div><div class="conn-success">✅ 連線成功！</div></div>'
+      };
+      const openHashiTutorial = () => {
+        if (typeof window === 'undefined' || typeof window.PlatTutorial === 'undefined') return;
+        window.PlatTutorial.show({ accent: '#4ade80', title: '❓ 玩法教學', onClose: () => { platSave().setStr('hashi_tutorial_seen', '1'); }, steps: TUTORIAL_STEPS.map(s => ({
+          html: (s.demo ? (HASHI_TUT_DEMOS[s.demo] || '') : '<div class="text-7xl text-center">' + s.icon + '</div>')
+            + '<h3 class="text-lg font-black text-slate-800 text-center mt-1">' + s.title + '</h3><p class="text-[13px] font-bold text-slate-600 leading-relaxed text-center mt-1">' + s.body + '</p>'
+        })) });
+      };
+
+      const hashiRulesHtml = () => '<div class="bg-white border-[3px] border-[#1e293b] rounded-xl p-3 text-[#1e293b] shadow-[4px_4px_0px_#1e293b] flex flex-col md:flex-row gap-3"><div class="flex-1"><h3 class="text-sm md:text-base font-black mb-1 border-b-[3px] border-[#4ade80] inline-block pb-0.5">📜 遊戲四大規則</h3><ol class="list-decimal list-outside ml-4 space-y-1 text-xs md:text-sm leading-relaxed font-bold"><li>每個圓圈是一座「島」，數字代表需要幾座橋樑。</li><li>橋樑必須是垂直或水平方向。</li><li>橋樑之間絕對不能交叉或重疊。</li><li>兩座島之間最多架設 2 座橋，且完成時所有島嶼必須全部連通。</li></ol></div><div class="md:w-1/3 bg-[#4ade80]/20 p-2 md:p-3 rounded-xl border-[3px] border-dashed border-[#1e293b] flex flex-col justify-center"><p class="text-[#1e293b] font-black text-xs md:text-sm mb-1">💡 提示與狀態：</p><p class="text-slate-700 text-xs md:text-sm font-bold leading-relaxed">' + ((cLevel && cLevel.description) || '') + '</p></div></div>';
+      const platFrameCfgStable = useRef(null);
+      if (!platFrameCfgStable.current) platFrameCfgStable.current = { paper: '#f6fdf6', bodyCls: 'flex-1 w-full flex flex-col min-h-0' };
+      const platTopCfgStable = useRef(null);
+      if (!platTopCfgStable.current) platTopCfgStable.current = {
+        accent: '#4ade80', logo: '🌉', name: '數橋 - HASHI', frame: false, rulesRaw: true, rulesHtml: '',
+        onAction: (name) => {
+          if (name === 'mute') { const m = platAudio().toggleMuted(); setMuted(m); }
+          else if (name === 'spec') openHashiSetup();
+          else if (name === 'leave-home') handleGoHome();
+          else if (name === 'leave-lobby') requestLobby();
+          else if (name === 'leave-leave') handleGoHome('leave');
+          else if (name === 'leave-forceend') { if (window.__PLAT_TOURN_FORCEEND) window.__PLAT_TOURN_FORCEEND(); }
+        }
+      };
+      useEffect(() => { // PlatFrame 自我修復掛載（先於 PlatTopCard）
+        if (typeof window === 'undefined' || typeof window.PlatFrame === 'undefined') return;
+        const el = platFrameRef.current;
+        if (el) {
+          if (window.PlatFrame._el() !== el || !window.PlatFrame._elConnected()) { window.PlatFrame.attach(el, platFrameCfgStable.current); setFrameBody(window.PlatFrame.getBody()); }
+          else if (frameBody !== window.PlatFrame.getBody()) setFrameBody(window.PlatFrame.getBody());
+        }
+      });
+      useEffect(() => { // PlatTopCard 自我修復掛載（掛進外框框頂）
+        if (typeof window === 'undefined' || typeof window.PlatTopCard === 'undefined') return;
+        if (typeof window.PlatFrame === 'undefined' || !window.PlatFrame.isAttached()) return;
+        const el = window.PlatFrame.getTop();
+        if (el) {
+          if (window.PlatTopCard._el() !== el || !window.PlatTopCard._elConnected()) window.PlatTopCard.attach(el, platTopCfgStable.current);
+          const slot = window.PlatTopCard.getSlot();
+          if (slot !== ptcSlot) setPtcSlot(slot);
+        }
+      });
+      useEffect(() => {
+        if (typeof window === 'undefined' || typeof window.PlatTopCard === 'undefined' || !window.PlatTopCard.isAttached()) return;
+        if (screen !== 'game') return;
+        const ro = window.PlatTopCard._debug().rulesOpen; if (ro !== rulesOpenUi) setRulesOpenUi(ro);
+        const secs = startTime ? Math.max(0, Math.floor(((endTime || Date.now()) - startTime) / 1000)) : 0;
+        window.PlatTopCard.update({
+          leaveIcon: isMultiplayer ? '🔌' : '🏠', leaveLabel: isMultiplayer ? '退出' : '回首頁',
+          modeChip: isMultiplayer ? (inRace ? '⚔️ 競速對戰' : '🌐 合作模式') : null,
+          dailyChip: null,
+          specLabel: (currentLevelId === 'daily' || isDailyMode) ? ('📅 每日一題' + (cLevel && cLevel.width ? ' ' + cLevel.width + 'x' + cLevel.height : '')) : (currentLevelId === 'custom' && randomLevelData) ? ('⚙️ 自訂 (' + randomLevelData.width + 'x' + randomLevelData.height + ')') : (((LEVELS.find(l => String(l.id) === String(currentLevelId)) || {}).name) || (cLevel && cLevel.width ? cLevel.width + 'x' + cLevel.height : '10x10 標準')),
+          specClickable: !(isDailyMode || inRace || (isMultiplayer && !isHostRef.current)),
+          statText: null,
+          timerText: formatTime(secs),
+          muted: muted,
+          players: null,
+          rulesHtml: hashiRulesHtml(),
+          leaveMenu: { mode: isMultiplayer ? 'mp' : 'solo', canForceEnd: !!(typeof window !== 'undefined' && window.__PLAT_TOURN_CAN_FORCEEND && window.__PLAT_TOURN_CAN_FORCEEND()) }
+        });
+      });
 
       useEffect(() => {
         if (typeof window === 'undefined' || !window.PlatCountdown) return;
@@ -2241,7 +2352,7 @@ function platAudio() {
         if (preGenRef.current.key !== currentLevelId) invalidatePreGen();
         const t = setTimeout(() => { if (preGenContextOk()) startPreGen(currentLevelId); }, 1500);
         return () => clearTimeout(t);
-      }, [screen, currentLevelId, showSettingsModal]);
+      }, [screen, currentLevelId]); // F3：設定改殼 overlay（非 React state），modal 開關不再觸發本 effect（回主畫面由 screen 變化覆蓋）
       // 分片跑完一個 job（單機 miss／房主開局共用）：片長 ≤40ms、PlatGenerating 逾 300ms 顯示、放棄以 token 作廢待套用
       const genRunRef = useRef(0);
       const runJobToCompletion = (job, key, onDone, onAbort) => {
@@ -2264,7 +2375,7 @@ function platAudio() {
         if (engineRef.current !== 'none' && !isHostRef.current) return;
 
         if (newLevelId === 'custom') {
-            setShowCustomModal(true);
+            openHashiSetup(); // F3：自訂改殼 PlatSetup 自訂區塊（原自訂 modal 已刪）
             return;
         }
 
@@ -2294,13 +2405,12 @@ function platAudio() {
         }, 100);
       };
 
-      const handleCustomGenerate = () => {
-          let w = Math.max(5, Math.min(100, tempWidth));
-          let h = Math.max(5, Math.min(100, tempHeight));
-          if (soloPick) { platSave().setStr('hashi_solo_level', 'custom'); platSave().write('hashi_solo_custom', { w: w, h: h }); setSoloPick(false); }
+      const handleCustomGenerate = (cw, ch) => { // F3：PlatSetup 自訂區塊直接傳已 clamp 的值（state 尚未生效時不讀舊值）
+          let w = Math.max(5, Math.min(100, cw != null ? cw : tempWidth));
+          let h = Math.max(5, Math.min(100, ch != null ? ch : tempHeight));
+          if (soloPickRef.current) { platSave().setStr('hashi_solo_level', 'custom'); platSave().write('hashi_solo_custom', { w: w, h: h }); soloPickRef.current = false; setSoloPick(false); }
           setTempWidth(w);
           setTempHeight(h);
-          setShowCustomModal(false);
 
           setIsGenerating(true);
           setTimeout(() => {
@@ -2356,24 +2466,19 @@ function platAudio() {
         resetWinMeta();
         switchToOffline();
         // v1.58.0：單機入口先選難度（不要直接開局）——還原上次單機選的難度供 modal 反綠，再開設定 modal；
-        // 選定才生成題目（handleLevelChange/handleCustomGenerate），取消則回主畫面（closeSettingsModal 處理）
+        // 選定才生成題目（handleLevelChange/handleCustomGenerate），取消則留主畫面（PlatSetup onCancel 處理）
+        let restoredSel = null, restoredCust = null;
         try {
           var lastSolo = platSave().getStr('hashi_solo_level', '');
           if (lastSolo === 'custom') {
             var cd = platSave().read('hashi_solo_custom', { fallback: null });
-            if (cd && cd.w && cd.h) { setTempWidth(cd.w); setTempHeight(cd.h); }
-            setCurrentLevelId('custom');
-          } else if (lastSolo && LEVELS.some(l => String(l.id) === String(lastSolo))) setCurrentLevelId(Number(lastSolo));
-          else if (!LEVELS.some(l => String(l.id) === String(currentLevelId))) setCurrentLevelId(2); // 'daily' 等偽難度不可沿用
+            if (cd && cd.w && cd.h) { setTempWidth(cd.w); setTempHeight(cd.h); restoredCust = { w: cd.w, h: cd.h }; }
+            setCurrentLevelId('custom'); restoredSel = 'custom';
+          } else if (lastSolo && LEVELS.some(l => String(l.id) === String(lastSolo))) { const nid = Number(lastSolo); setCurrentLevelId(nid); restoredSel = nid; }
+          else if (!LEVELS.some(l => String(l.id) === String(currentLevelId))) { setCurrentLevelId(2); restoredSel = 2; } // 'daily' 等偽難度不可沿用
         } catch (e) {}
-        setSoloPick(true);
-        setScreen('game'); setIsHeaderCollapsed(true);
-        setShowSettingsModal(true);
-      };
-      // 設定 modal 的關閉：單機選難度途中取消＝回主畫面（局還沒開）；局內開啟則只關 modal
-      const closeSettingsModal = () => {
-        setShowSettingsModal(false);
-        if (soloPick) { setSoloPick(false); setScreen('home'); }
+        soloPickRef.current = true; setSoloPick(true);
+        openHashiSetup(restoredSel, restoredCust); // F3：先選難度改殼 PlatSetup（疊主畫面）；還原值直接傳入（state 尚未生效）；選定才進對局畫面開局、取消留主畫面（onCancel 處理 soloPick）
       };
 
       // 每日一題：紀錄過關（只在每日模式呼叫）
@@ -2427,7 +2532,7 @@ function platAudio() {
         setInteractionMode(0);
         switchToOffline();
         setScreen('game');
-        setIsHeaderCollapsed(true);
+        if (window.PlatTopCard) window.PlatTopCard.setRulesOpen(false);
       };
 
       // ===== 📅 每日一題月曆（亮燈=已完成、未來反灰不可選；點日期直接開那天的題目） =====
@@ -2586,7 +2691,7 @@ function platAudio() {
         saveNickname(name);
         joinActiveRef.current = false;
         setIsConnecting(false);
-        setScreen('game'); setIsHeaderCollapsed(true);
+        setScreen('game'); if (window.PlatTopCard) window.PlatTopCard.setRulesOpen(false);
         if (mpModeRef.current === 'race') { setRaceState('lobby'); raceStateRef.current = 'lobby'; }
       };
 
@@ -2608,7 +2713,7 @@ function platAudio() {
           const hcJoin = hubPlatColor();
           if (hcJoin) { myColorRef.current = hcJoin; joinMsg.color = hcJoin; } // hub 模式：render 會用名單覆寫 myColorRef，故在送出點補釘並把殼的代表色帶進 JOIN（房主以 m.color 為準）；非 hub 不帶色、維持原行為
           connRef.current.send(joinMsg);
-          setScreen('game'); setIsHeaderCollapsed(true); setIsConnecting(false);
+          setScreen('game'); if (window.PlatTopCard) window.PlatTopCard.setRulesOpen(false); setIsConnecting(false);
         } else {
           setIsConnecting(false);
           showToast("⚠️ 連線已中斷，請重試");
@@ -3748,143 +3853,41 @@ function platAudio() {
         }
       };
 
-      // === 首次教學導覽 overlay（可在任何畫面開啟） ===
-      const closeTutorial = () => {
-        platSave().setStr('hashi_tutorial_seen', '1');
-        setShowTutorial(false);
-      };
+      // === 首次教學導覽：改掛殼 PlatTutorial（F3）；動畫改 HTML 字串（HASHI_TUT_DEMOS，CSS 動畫類別不變） ===
       // ===== 👆 架橋教學動畫（兩幕：拖曳 → 點擊三連拍） =====
-      const BridgeDemo = () => (
-        <div className="bdemo mb-4" aria-hidden="true">
-          <div className="bdemo-section bdemo-sec1">拖曳</div>
-          <div className="bdemo-section bdemo-sec2">點擊</div>
-          <div className="bdemo-label bdemo-l1">👆 按住拖曳，放開架橋</div>
-          <div className="bdemo-label bdemo-l2">點一下：1 座橋</div>
-          <div className="bdemo-label bdemo-l3">點兩下：2 座橋</div>
-          <div className="bdemo-label bdemo-l4">點三下：取消</div>
-          <div className="bdemo-scene">
-            <div className="bdemo-island" style={{ left: '30px' }}>3</div>
-            <div className="bdemo-island" style={{ left: '210px' }}>2</div>
-            <div className="bdemo-preview"></div>
-            <div className="bdemo-bridge bdemo-b1"></div>
-            <div className="bdemo-bridge bdemo-bd1"></div>
-            <div className="bdemo-bridge bdemo-bd2"></div>
-            <div className="bdemo-finger">👆</div>
-            <div className="bdemo-ripple"></div>
-          </div>
-        </div>
-      );
 
       // ===== ✏️ 草稿教學動畫：虛線兩法 → 切畫筆一點變實線 =====
-      const DraftDemo = () => (
-        <div className="bdemo mb-4" aria-hidden="true">
-          <div className="bdemo-label ddemo-l1">✏️ 草稿：拖曳畫出虛線</div>
-          <div className="bdemo-label ddemo-l2">👆 點擊：點兩下 2 條虛線</div>
-          <div className="bdemo-label ddemo-l3">切回畫筆模式 ✎</div>
-          <div className="bdemo-label ddemo-l4">點一下：虛線直接變實線！</div>
-          <div className="bdemo-scene">
-            <div className="ddemo-mode"><span className="ddemo-m ddemo-m-draft">✏️ 草稿</span><span className="ddemo-m ddemo-m-pen">✎ 畫筆</span></div>
-            <div className="bdemo-island" style={{ left: '30px' }}>3</div>
-            <div className="bdemo-island" style={{ left: '210px' }}>2</div>
-            <div className="bdemo-preview ddemo-preview"></div>
-            <div className="ddemo-dash ddemo-db1"></div>
-            <div className="ddemo-dash ddemo-dbA"></div>
-            <div className="ddemo-dash ddemo-dbB"></div>
-            <div className="bdemo-bridge ddemo-sbA"></div>
-            <div className="bdemo-bridge ddemo-sbB"></div>
-            <div className="bdemo-finger ddemo-finger">👆</div>
-            <div className="bdemo-ripple ddemo-ripple"></div>
-          </div>
-        </div>
-      );
 
       // ===== 🔌 連線教學動畫：房主建房拿代碼 → 代碼飛給朋友 → 朋友輸入加入 → 成功 =====
-      const ConnectDemo = () => (
-        <div className="conn-demo mb-4" aria-hidden="true">
-          <div className="conn-phone conn-host">
-            <div className="conn-ptitle">🏠 房主</div>
-            <div className="conn-btn">建立房間</div>
-            <div className="conn-code"><span>1</span><span>2</span><span>3</span><span>4</span></div>
-          </div>
-          <div className="conn-wire"><div className="conn-chip">1234</div></div>
-          <div className="conn-phone conn-guest">
-            <div className="conn-ptitle">🚪 朋友</div>
-            <div className="conn-input"><span>1</span><span>2</span><span>3</span><span>4</span></div>
-            <div className="conn-btn">加入房間</div>
-          </div>
-          <div className="conn-success">✅ 連線成功！</div>
-        </div>
-      );
 
-      const openTutorial = () => {
-        setTutorialStep(0);
-        setShowTutorial(true);
-      };
 
-      const tutorialOverlay = showTutorial ? (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4" onClick={closeTutorial}>
-          <div className="bg-[#fffaf0] border-4 border-slate-800 rounded-2xl shadow-[10px_10px_0px_rgba(30,41,59,1)] max-w-lg w-full max-h-[92vh] overflow-y-auto p-6 relative" onClick={(e) => e.stopPropagation()}>
-            <button onClick={closeTutorial} className="absolute top-3 right-3 w-11 h-11 rounded-full bg-white border-4 border-slate-800 text-xl font-black text-slate-800 shadow-[3px_3px_0px_rgba(30,41,59,1)] z-20 flex items-center justify-center">✕</button>
-            <h2 className="text-3xl font-black text-slate-800 border-b-8 border-[#4ade80] pb-2 inline-block mb-5 relative z-10">❓ 玩法教學</h2>
-            <div className="bg-white border-[3px] border-slate-800 rounded-xl p-4 mb-4 shadow-[4px_4px_0px_rgba(30,41,59,1)] h-[400px] flex flex-col">
-              <div className="h-[196px] shrink-0 flex items-center justify-center overflow-hidden w-full">
-                {TUTORIAL_STEPS[tutorialStep].demo === 'connect' && <div className="w-full"><ConnectDemo /></div>}
-                {TUTORIAL_STEPS[tutorialStep].demo === 'bridge' && <div className="w-full"><BridgeDemo /></div>}
-                {TUTORIAL_STEPS[tutorialStep].demo === 'draft' && <div className="w-full"><DraftDemo /></div>}
-                {!TUTORIAL_STEPS[tutorialStep].demo && <div className="text-7xl">{TUTORIAL_STEPS[tutorialStep].icon}</div>}
-              </div>
-              <h3 className="text-lg font-black text-slate-800 text-center mt-1">{TUTORIAL_STEPS[tutorialStep].title}</h3>
-              <p className="text-[13px] font-bold text-slate-600 leading-relaxed text-center mt-1">{TUTORIAL_STEPS[tutorialStep].body}</p>
-            </div>
-            <div className="flex justify-center gap-2 mb-5">
-              {TUTORIAL_STEPS.map((_, idx) => (
-                <div key={idx} className={`w-3.5 h-3.5 rounded-full border-2 border-slate-800 ${idx === tutorialStep ? 'bg-[#4ade80]' : 'bg-white'}`} />
-              ))}
-            </div>
-            <div className="flex gap-3">
-              {tutorialStep > 0 ? (
-                <button onClick={() => { setTutorialStep(tutorialStep - 1); }} className="flex-1 py-4 bg-white border-4 border-slate-800 rounded-xl font-black text-xl text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)]">上一步</button>
-              ) : (<div className="flex-1"></div>)}
-              <button onClick={closeTutorial} className="flex-1 py-4 bg-white border-4 border-slate-800 rounded-xl font-black text-xl text-slate-400 shadow-[4px_4px_0px_rgba(30,41,59,1)]">跳過</button>
-              {tutorialStep < TUTORIAL_STEPS.length - 1 ? (
-                <button onClick={() => { setTutorialStep(tutorialStep + 1); }} className="flex-1 py-4 bg-[#4ade80] border-4 border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[4px_4px_0px_rgba(30,41,59,1)]">下一步</button>
-              ) : (
-                <button onClick={closeTutorial} className="flex-1 py-4 bg-[#34d399] border-4 border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[4px_4px_0px_rgba(30,41,59,1)]">開始遊戲 🎮</button>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : null;
 
       if (screen === 'home') {
         return (
-          <div className="h-screen w-screen flex flex-col items-center justify-center p-4 relative overflow-hidden animate-fadeIn">
+          <div key="hashi-home" className="h-screen w-screen flex flex-col items-center justify-center p-4 relative overflow-hidden animate-fadeIn">
+            <div ref={platHomeRef} className="contents"></div>
+            {!platHomeMounted && (
+            <React.Fragment>
             <div className="flex-1 flex flex-col justify-center w-full max-w-md items-center">
               <div className="bg-[#f6fdf6] border-4 border-slate-800 p-10 rounded-xl shadow-[10px_10px_0px_rgba(30,41,59,1)] w-full text-center relative transform -rotate-1 z-10">
                  <h1 className="text-6xl font-black text-slate-800 mb-6 tracking-widest flex justify-center gap-3">
                     <span className="inline-block animate-float-slow bg-[#4ade80] px-4 py-2 border-4 border-slate-800 rounded-xl transform rotate-3 shadow-[4px_4px_0px_rgba(30,41,59,1)]">數</span>
                     <span className="inline-block animate-float-slow animate-float-slow-d bg-[#4ade80] px-4 py-2 border-4 border-slate-800 rounded-xl transform -rotate-2 shadow-[4px_4px_0px_rgba(30,41,59,1)]">橋</span>
-
                  </h1>
                  <div className="inline-block border-[3px] border-dashed border-slate-800 rounded-xl px-6 py-2 mb-8 bg-white shadow-[4px_4px_0px_rgba(30,41,59,1)] transform rotate-2">
                     <p className="text-slate-800 font-black text-xl tracking-widest uppercase italic">Hashi Puzzle</p>
                  </div>
                  <div className="flex flex-col gap-5">
                     <button onClick={startSinglePlayer} className="plat-btn-hard w-full py-4 bg-white border-4 border-slate-800 rounded-xl font-black text-xl text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)] transform rotate-1">👤 單機挑戰</button>
-                    <button onClick={() => startDailyMode(dailyMenuDate)} className="plat-btn-hard w-full py-4 bg-[#4ade80] border-4 border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[4px_4px_0px_rgba(30,41,59,1)] transform rotate-1">📅 每日一題</button>
-                    <div className="-mt-2 flex items-center justify-center gap-1.5">
-                      <span className="text-slate-500 font-semibold text-xs whitespace-nowrap">🕘 以前的題目</span>
-                      <button onClick={() => setDailyMenuDate(d => clampDailyDate(HASHI_PUZZLE.shiftDateStr(d, -1)))} disabled={dailyMenuDate <= MIN_DAILY_DATE} className="plat-btn-hard plat-btn-hard-2 px-2 py-1 bg-white border-2 border-slate-800 rounded-md font-black text-xs text-slate-800 shadow-[2px_2px_0px_rgba(30,41,59,1)] disabled:opacity-30 active:translate-y-0.5">◀</button>
-                      <button onClick={openDailyCal} className="plat-btn-hard plat-btn-hard-2 border-2 border-slate-800 rounded-md px-2 py-1 font-bold text-sm bg-white text-slate-800 shadow-[2px_2px_0px_rgba(30,41,59,1)] active:translate-y-0.5">📅 {dailyMenuDate}</button>
-                      <button onClick={() => setDailyMenuDate(d => clampDailyDate(HASHI_PUZZLE.shiftDateStr(d, 1)))} disabled={dailyMenuDate >= HASHI_PUZZLE.getDailyDateStr()} className="plat-btn-hard plat-btn-hard-2 px-2 py-1 bg-white border-2 border-slate-800 rounded-md font-black text-xs text-slate-800 shadow-[2px_2px_0px_rgba(30,41,59,1)] disabled:opacity-30 active:translate-y-0.5">▶</button>
+                    <button onClick={() => startDailyMode(dailyMenuDate)} className="plat-btn-hard w-full py-4 bg-[#4ade80] border-4 border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[4px_4px_0px_rgba(30,41,59,1)] transform rotate-1">📅 每日一題{dailyMenuDate !== HASHI_PUZZLE.getDailyDateStr() ? '（' + dailyMenuDate.slice(5) + '）' : ''}{(dailyStatus && dailyStatus.done) ? ' ✓' : ''}</button>
+                    <div className="flex items-center justify-center gap-2 flex-wrap">
+                      <button onClick={() => setDailyMenuDate(d => clampDailyDate(HASHI_PUZZLE.shiftDateStr(d, -1)))} disabled={dailyMenuDate <= MIN_DAILY_DATE} className="plat-btn-hard plat-btn-hard-2 w-9 h-9 bg-white border-[3px] border-slate-800 rounded-lg font-black shadow-[2px_2px_0px_rgba(30,41,59,1)] disabled:opacity-30">◀</button>
+                      <button onClick={openDailyCal} className="plat-btn-hard plat-btn-hard-2 border-[3px] border-slate-800 rounded-lg px-2 py-1.5 font-black bg-white text-sm text-slate-800 shadow-[2px_2px_0px_rgba(30,41,59,1)]">📅 {dailyMenuDate}</button>
+                      <button onClick={() => setDailyMenuDate(d => clampDailyDate(HASHI_PUZZLE.shiftDateStr(d, 1)))} disabled={dailyMenuDate >= HASHI_PUZZLE.getDailyDateStr()} className="plat-btn-hard plat-btn-hard-2 w-9 h-9 bg-white border-[3px] border-slate-800 rounded-lg font-black shadow-[2px_2px_0px_rgba(30,41,59,1)] disabled:opacity-30">▶</button>
+                      <span className="font-black text-sm text-orange-600">🔥 連續 <PlatNum value={dailyStatus ? (dailyStatus.streak || 0) : 0} /> 天</span>
+                      {(dailyStatus && dailyStatus.done) ? <span className="font-black text-sm text-emerald-600">最佳 <PlatNum value={formatTime(dailyStatus.done.time)} /></span> : null}
                     </div>
-                    {dailyStatus && (
-                      <p className="text-slate-600 font-bold text-sm -mt-2">
-                        {dailyStatus.done ? `✅ 已完成 ${formatTime(dailyStatus.done.time)}` : `📅 ${dailyStatus.dateStr}`}
-                        {dailyStatus.streak > 1 ? `  🔥 連擊 x${dailyStatus.streak}` : ''}
-                      </p>
-                    )}
-                    <button onClick={openTutorial} className="plat-btn-hard w-full py-4 bg-white border-4 border-slate-800 rounded-xl font-black text-xl text-slate-600 shadow-[4px_4px_0px_rgba(30,41,59,1)]">❓ 玩法教學</button>
+                    <button onClick={openHashiTutorial} className="plat-btn-hard w-full py-4 bg-white border-4 border-slate-800 rounded-xl font-black text-xl text-slate-600 shadow-[4px_4px_0px_rgba(30,41,59,1)]">❓ 玩法教學</button>
                   {PLAT_MODE && (
                     <div className="flex items-center gap-2">
                       <button onClick={() => { if (window.PLAT_show) window.PLAT_show('home'); }} className="plat-btn-hard flex-1 py-3 bg-sky-400 border-4 border-slate-800 rounded-xl font-black text-lg text-slate-900 shadow-[4px_4px_0px_rgba(30,41,59,1)]">🏠 回大廳</button>
@@ -3895,8 +3898,8 @@ function platAudio() {
               </div>
             </div>
             <div className="shrink-0 pb-4 text-slate-800 font-black text-sm opacity-60 tracking-wider z-10">Copyright © 2026 葉大帥. All rights reserved.{' (v' + (window.PLAT_VERSION || '2.18') + ')'}</div>
-            {tutorialOverlay}
-            
+            </React.Fragment>
+            )}
           </div>
         );
       }
@@ -3920,88 +3923,61 @@ function platAudio() {
       const tournStartNote = (tournAllPresent && tournAllReady) ? '全員準備好了，等房主開始！' : (tournWaited ? '已等滿 1 分鐘，房主可強制開始' : (!tournAllPresent ? ('等待選手到齊…（或 ' + Math.max(0, 60 - Math.floor(tournWaitMs / 1000)) + ' 秒後可強制開始）') : ('等待全員準備（或 ' + Math.max(0, 60 - Math.floor(tournWaitMs / 1000)) + ' 秒後可強制開始）')));
 
       return (
-        <div className="h-screen w-screen p-1 md:p-4 flex flex-col items-center font-sans relative" style={{ backgroundColor: '#e9f7e9', backgroundImage: 'radial-gradient(#b7ddb7 2px, transparent 2px)', backgroundSize: '12px 12px' }}>
-          <div className="w-full max-w-[1200px] bg-[#f6fdf6] rounded-xl border-4 border-slate-800 shadow-[10px_10px_0px_rgba(30,41,59,1)] flex flex-col h-full relative z-10 overflow-hidden">
-
-            <div className={`bg-gradient-to-b from-[#ffd633] to-[#4ade80] border-b-4 border-slate-800 shrink-0 z-50 relative transition-all duration-300 ease-in-out px-2 md:px-4 py-2 flex flex-col gap-2`}>
-               <div className="flex items-center justify-between gap-1 w-full">
-                  <div className="flex items-center gap-2 flex-wrap">
-                     <h1 className="font-black tracking-tight uppercase text-lg md:text-2xl text-[#1e293b] flex items-center gap-1">🌉<span className="hidden sm:inline">數橋</span></h1>
-                     <div className="flex items-center gap-1 bg-[#1e293b] text-white px-2 py-1 rounded-md font-mono font-bold shadow-[2px_2px_0px_rgba(0,0,0,0.4)] text-xs md:text-sm whitespace-nowrap">
-                        <GameTimer startTime={startTime} endTime={endTime} isRunning={!isWon && screen === 'game'} />
-                     </div>
-                     {isDailyMode && ( <span className="flex items-center gap-0.5 bg-[#4ade80] text-[#1e293b] pl-1 pr-1.5 py-1 rounded-md border-2 border-[#1e293b] font-black text-xs md:text-sm shadow-[2px_2px_0px_rgba(0,0,0,0.3)] whitespace-nowrap">
-                       <button onClick={() => startDailyMode(HASHI_PUZZLE.shiftDateStr(dailyDateStr, -1))} disabled={dailyDateStr <= MIN_DAILY_DATE} className="disabled:opacity-30 px-1" title="前一天的題目">◀</button>
-                       <span>📅 {dailyDateStr}</span>
-                       <button onClick={() => startDailyMode(HASHI_PUZZLE.shiftDateStr(dailyDateStr, 1))} disabled={dailyDateStr >= HASHI_PUZZLE.getDailyDateStr()} className="disabled:opacity-30 px-1" title="後一天的題目">▶</button>
-                     </span> )}
-                     {isDailyMode && dailyStreak > 0 && ( <span className="bg-red-500 text-white px-2 py-1 rounded-md border-2 border-[#1e293b] font-black text-xs md:text-sm shadow-[2px_2px_0px_rgba(0,0,0,0.3)] whitespace-nowrap">🔥 x<PlatNum value={dailyStreak} /></span> )}
-                     {!PLAT_MODE && (videoOn || Object.keys(remoteVideos).length > 0) && (
-              <div className="px-4 py-2 bg-slate-800 flex gap-3 items-start overflow-x-auto shrink-0">
-                <div className="flex flex-col items-center shrink-0">
-                  <div className="w-14 h-14 rounded-full overflow-hidden border-[3px] border-[#4ade80] shadow relative bg-slate-600">
-                    {localStream ? (
-                      <video ref={el => { if (el) el.srcObject = localStream; }} autoPlay playsInline muted className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-white font-black text-lg" style={{ backgroundColor: myColorRef.current === 'rainbow' ? '#a855f7' : (myColorRef.current || '#3b82f6') }}>{(myNameRef.current || '你').slice(0, 1)}</div>
-                    )}
-                  </div>
-                  <span className="text-white text-[10px] font-bold mt-0.5">你{micMuted ? ' 🔇' : ''}</span>
+        <div key="hashi-game" className="h-screen w-screen p-1 md:p-4 flex flex-col items-center font-sans relative">
+          <div ref={platFrameRef} className="w-full max-w-[1200px] flex-1 min-h-0"></div>
+          {ptcSlot && ReactDOM.createPortal((
+            <React.Fragment>
+              {isDailyMode && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="flex items-center gap-0.5 bg-[#4ade80] text-[#1e293b] pl-1 pr-1.5 py-1 rounded-md border-2 border-[#1e293b] font-black text-xs md:text-sm shadow-[2px_2px_0px_rgba(0,0,0,0.3)] whitespace-nowrap">
+                    <button onClick={() => startDailyMode(HASHI_PUZZLE.shiftDateStr(dailyDateStr, -1))} disabled={dailyDateStr <= MIN_DAILY_DATE} className="disabled:opacity-30 px-1" title="前一天的題目">◀</button>
+                    <span>📅 {dailyDateStr}</span>
+                    <button onClick={() => startDailyMode(HASHI_PUZZLE.shiftDateStr(dailyDateStr, 1))} disabled={dailyDateStr >= HASHI_PUZZLE.getDailyDateStr()} className="disabled:opacity-30 px-1" title="後一天的題目">▶</button>
+                  </span>
+                  {dailyStreak > 0 && (<span className="bg-red-500 text-white px-2 py-1 rounded-md border-2 border-[#1e293b] font-black text-xs md:text-sm shadow-[2px_2px_0px_rgba(0,0,0,0.3)] whitespace-nowrap">🔥 x<PlatNum value={dailyStreak} /></span>)}
                 </div>
-                {Object.entries(remoteVideos).map(entry => {
-                  const uid = entry[0]; const stream = entry[1];
-                  const pl = playersList.find(p => p.id === uid);
-                  const nm = pl ? pl.name : '對手';
-                  return (
-                    <div key={uid} className="flex flex-col items-center shrink-0">
-                      <div className="w-14 h-14 rounded-full overflow-hidden border-[3px] border-white shadow relative bg-slate-600">
-                        <video ref={el => { if (el) { el.srcObject = stream; try { el.muted = !speakerOnRef.current; } catch (e) {} } }} autoPlay playsInline muted className="remote-video-el w-full h-full object-cover" />
-                      </div>
-                      <span className="text-white text-[10px] font-bold mt-0.5 max-w-[64px] truncate">{nm}{remoteMic[uid] === false ? ' 🎤' : ''}</span>
-                    </div>
-                  );
-                })}
+              )}
+              {isMultiplayer && (<span className="bg-emerald-400 text-slate-900 px-2 py-1 rounded-md border-2 border-slate-800 font-black text-xs md:text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)] flex items-center gap-1 whitespace-nowrap self-start">{isHostRef.current ? '👑 主機' : '👤 玩家'} | 代碼: {roomId}</span>)}
+              <div className="flex gap-1 md:gap-2 flex-wrap items-center w-full">
+                <div className="flex gap-1 md:gap-2 flex-wrap items-center ml-auto">
+                  {!isWon && hasSolution && !showSolution && !inRace && (<button onClick={handleShowSolution} className="plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-green-400 text-[#1e293b] border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1" title="解答">💡<span className="hidden sm:inline">解答</span></button>)}
+                  {!isDailyMode && !inRace && (<button onClick={handleRegenerateRandom} className="plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-blue-500 text-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1" title="新題">🎲<span className="hidden sm:inline">新題</span></button>)}
+                  {!isMultiplayer && (<button onClick={handleUndo} disabled={history.length === 0 || isWon} className="plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)] disabled:opacity-50 disabled:shadow-none flex items-center gap-1 text-[#1e293b]" title="復原">↩️<span className="hidden sm:inline">復原</span></button>)}
+                  <button onClick={handleReset} className="plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-red-500 text-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1" title="重置">🔄<span className="hidden sm:inline">重置</span></button>
+                  <button onClick={() => setShowSaveModal(true)} className="plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-blue-500 text-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1" title="存檔/讀檔">💾<span className="hidden sm:inline">存檔</span></button>
+                </div>
               </div>
-            )}
-
-            {isMultiplayer && ( <span className="bg-emerald-400 text-slate-900 px-2 py-1 rounded-md border-2 border-slate-800 font-black text-xs md:text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)] flex items-center gap-1 whitespace-nowrap">{isHostRef.current ? '👑 主機' : '👤 玩家'} | 代碼: {roomId}</span> )}
+            </React.Fragment>
+          ), ptcSlot)}
+          {frameBody && ReactDOM.createPortal((
+            <React.Fragment>
+              {!PLAT_MODE && (videoOn || Object.keys(remoteVideos).length > 0) && (
+                <div className="px-4 py-2 bg-slate-800 flex gap-3 items-start overflow-x-auto shrink-0 w-full">
+                  <div className="flex flex-col items-center shrink-0">
+                    <div className="w-14 h-14 rounded-full overflow-hidden border-[3px] border-[#4ade80] shadow relative bg-slate-600">
+                      {localStream ? (
+                        <video ref={el => { if (el) el.srcObject = localStream; }} autoPlay playsInline muted className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-white font-black text-lg" style={{ backgroundColor: myColorRef.current === 'rainbow' ? '#a855f7' : (myColorRef.current || '#3b82f6') }}>{(myNameRef.current || '你').slice(0, 1)}</div>
+                      )}
+                    </div>
+                    <span className="text-white text-[10px] font-bold mt-0.5">你{micMuted ? ' 🔇' : ''}</span>
                   </div>
-                  <button onClick={() => setIsHeaderCollapsed(!isHeaderCollapsed)} className="flex px-2 md:px-3 py-1 bg-[#1e293b] text-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_rgba(0,0,0,0.3)] hover:bg-slate-800 items-center gap-1 whitespace-nowrap">{isHeaderCollapsed ? '🔽 展開規則' : '🔼 縮小面板'}</button>
-               </div>
-
-               <div className={"plat-collapse-y w-full" + (isHeaderCollapsed ? "" : " open")}>
-                  <div className="bg-white border-[3px] border-[#1e293b] rounded-xl p-3 text-[#1e293b] shadow-[4px_4px_0px_#1e293b] flex flex-col md:flex-row gap-3">
-                     <div className="flex-1">
-                        <h3 className="text-sm md:text-base font-black mb-1 border-b-[3px] border-[#4ade80] inline-block pb-0.5">📜 遊戲四大規則</h3>
-                        <ol className="list-decimal list-outside ml-4 space-y-1 text-xs md:text-sm leading-relaxed font-bold">
-                           <li>每個圓圈是一座「島」，數字代表需要幾座橋樑。</li>
-                           <li>橋樑必須是垂直或水平方向。</li>
-                           <li>橋樑之間絕對不能交叉或重疊。</li>
-                           <li>兩座島之間最多架設 2 座橋，且完成時所有島嶼必須全部連通。</li>
-                        </ol>
-                     </div>
-                     <div className="md:w-1/3 bg-[#4ade80]/20 p-2 md:p-3 rounded-xl border-[3px] border-dashed border-[#1e293b] flex flex-col justify-center">
-                        <p className="text-[#1e293b] font-black text-xs md:text-sm mb-1 flex items-center gap-1"><span>💡</span> 提示與狀態：</p>
-                        <p className="text-slate-700 text-xs md:text-sm font-bold leading-relaxed">{cLevel.description}</p>
-                     </div>
-                  </div>
-               </div>
-
-               <div className="flex flex-wrap gap-1.5 items-center justify-between w-full">
-                  <button disabled={isDailyMode || inRace || (isMultiplayer && !isHostRef.current)} onClick={() => setShowSettingsModal(true)} title="設定難度" className="px-1 py-1 md:px-2 md:py-1.5 rounded-md border-2 border-[#1e293b] font-bold bg-white text-[#1e293b] text-xs md:text-sm outline-none shadow-[2px_2px_0px_#1e293b] w-auto cursor-pointer max-w-[150px] sm:max-w-none truncate disabled:opacity-60 disabled:cursor-not-allowed">{(currentLevelId === 'daily' || isDailyMode) ? ('📅 每日一題' + (cLevel && cLevel.width ? ' ' + cLevel.width + 'x' + cLevel.height : '')) : (currentLevelId === 'custom' && randomLevelData) ? `⚙️ 自訂 (${randomLevelData.width}x${randomLevelData.height})` : (((LEVELS.find(l => String(l.id) === String(currentLevelId)) || {}).name) || (cLevel && cLevel.width ? cLevel.width + 'x' + cLevel.height : '10x10 標準'))} ▾</button>
-
-                  <div className="flex gap-1 md:gap-2 flex-wrap items-center ml-auto">
-                     {!isWon && hasSolution && !showSolution && !inRace && ( <button onClick={handleShowSolution} className="plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-green-400 text-[#1e293b] border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1" title="解答">💡<span className="hidden sm:inline">解答</span></button> )}
-                     {!isDailyMode && !inRace && ( <button onClick={handleRegenerateRandom} className="plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-blue-500 text-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1" title="新題">🎲<span className="hidden sm:inline">新題</span></button> )}
-                     {!isMultiplayer && ( <button onClick={handleUndo} disabled={history.length === 0 || isWon} className="plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)] disabled:opacity-50 disabled:shadow-none flex items-center gap-1 text-[#1e293b]" title="復原">↩️<span className="hidden sm:inline">復原</span></button> )}
-                     <button onClick={handleReset} className="plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-red-500 text-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1" title="重置">🔄<span className="hidden sm:inline">重置</span></button>
-                     <button onClick={() => setShowSaveModal(true)} className="plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-blue-500 text-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1" title="存檔/讀檔">💾<span className="hidden sm:inline">存檔</span></button>
-                     <button onClick={() => { const m = platAudio().toggleMuted(); setMuted(m); }} className="plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1 text-[#1e293b]" title={muted ? "取消靜音" : "靜音"}>{muted ? '🔇' : '🔊'}</button>
-                     <button onClick={() => { const N = typeof window !== 'undefined' ? window.__PLAT_NET : null; if ((N && N.inMatch === 'hashi') || (typeof window !== 'undefined' && window.__PLAT_TOURN_CAN_FORCEEND && window.__PLAT_TOURN_CAN_FORCEEND())) setShowExitMenu(true); else handleGoHome(); }} className="plat-btn-hard plat-btn-hard-2 bg-white text-[#1e293b] border-2 border-[#1e293b] px-2 py-1 md:px-3 md:py-1.5 rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1" title="回首頁/斷線">{!isMultiplayer ? '🏠' : '🔌'}<span className="hidden sm:inline ml-1">{!isMultiplayer ? '回首頁' : '退出'}</span></button>
-                  </div>
-               </div>
-            </div>
-
+                  {Object.entries(remoteVideos).map(entry => {
+                    const uid = entry[0]; const stream = entry[1];
+                    const pl = playersList.find(p => p.id === uid);
+                    const nm = pl ? pl.name : '對手';
+                    return (
+                      <div key={uid} className="flex flex-col items-center shrink-0">
+                        <div className="w-14 h-14 rounded-full overflow-hidden border-[3px] border-white shadow relative bg-slate-600">
+                          <video ref={el => { if (el) { el.srcObject = stream; try { el.muted = !speakerOnRef.current; } catch (e) {} } }} autoPlay playsInline muted className="remote-video-el w-full h-full object-cover" />
+                        </div>
+                        <span className="text-white text-[10px] font-bold mt-0.5 max-w-[64px] truncate">{nm}{remoteMic[uid] === false ? ' 🎤' : ''}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             {isMultiplayer && !(inRace && raceState !== 'lobby') && (
               <div className="px-4 py-2 bg-[#f6fdf6] border-b-4 border-slate-800 flex flex-wrap gap-2 items-center relative z-[70] shadow-inner shrink-0">
                 <span className="font-black text-slate-800 text-sm">👥 連線玩家：</span>
@@ -4204,7 +4180,7 @@ function platAudio() {
               </div>
             )}
 
-            {!isHeaderCollapsed && (
+            {rulesOpenUi && (
               <div className="h-8 shrink-0 flex items-center justify-center bg-slate-800 text-white border-b-4 border-slate-800 relative z-30 font-bold tracking-wide">
                 <span className="text-xs md:text-sm hidden md:inline">點擊或從島嶼拖曳架橋：一下1座、兩下2座、三下取消；滾輪縮放。</span>
                 <span className="text-xs md:text-sm md:hidden">點擊或拖曳島嶼架橋：一下1座、兩下2座、三下取消。</span>
@@ -4647,20 +4623,6 @@ function platAudio() {
                 <button onClick={() => { resultsDismissRef.current = null; setResultsDismissedUi(false); }} className="plat-btn-hard plat-btn-hard-3 fixed bottom-24 right-3 z-[56] bg-white border-[3px] border-slate-800 rounded-full px-4 py-2 font-black shadow-[3px_3px_0px_#1e293b]">🏆 結果</button>
               )}
 
-              {showExitMenu && (
-                <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-900/60 backdrop-blur-[2px] p-4" onClick={() => setShowExitMenu(false)}>
-                  <div className="bg-white border-4 border-[#1e293b] rounded-2xl shadow-[10px_10px_0px_#1e293b] p-6 w-full max-w-xs text-center animate-popUpCenter" onClick={e => e.stopPropagation()}>
-                    <div className="font-black text-xl text-[#1e293b] mb-4">要離開對局嗎？</div>
-                    {(typeof window !== 'undefined' && window.__PLAT_TOURN_CAN_FORCEEND && window.__PLAT_TOURN_CAN_FORCEEND()) && (
-                      <button onClick={() => { setShowExitMenu(false); if (window.__PLAT_TOURN_FORCEEND) window.__PLAT_TOURN_FORCEEND(); }} className="plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 bg-rose-500 text-white border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_#1e293b]">⏹️ 結束本局（錦標賽）</button>
-                    )}
-                    <button onClick={() => { setShowExitMenu(false); requestLobby(); }} className="plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 bg-white text-slate-800 border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_#1e293b]">🏁 回等待室</button>
-                    <button onClick={() => { setShowExitMenu(false); handleGoHome('leave'); }} className="plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 bg-white text-slate-800 border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_#1e293b]">🚪 退出（回大廳）</button>
-                    <button onClick={() => setShowExitMenu(false)} className="w-full py-2 text-slate-400 font-bold hover:text-slate-700">取消</button>
-                  </div>
-                </div>
-              )}
-
               {roomOpen && platHub && platTournLock ? (
                 <div className="absolute inset-0 z-[60] overflow-y-auto bg-slate-900/60 backdrop-blur-[2px] p-4 flex">
                   <div className="bg-[#fffaf0] border-4 border-[#1e293b] rounded-2xl shadow-[10px_10px_0px_#1e293b] p-6 max-w-md w-full my-auto mx-auto">
@@ -4798,7 +4760,8 @@ function platAudio() {
                 </div>
               )}
             </div>
-          </div>
+          </React.Fragment>
+          ), frameBody)}
 
           {/* 存檔彈窗 */}
           {showSaveModal && (
@@ -4822,59 +4785,6 @@ function platAudio() {
           )}
 
           {/* 設定難度彈窗（v1.43 Q2：比照數獨設定 modal 的入口形式） */}
-          {showSettingsModal && (
-            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4" onClick={closeSettingsModal}>
-              <div className="bg-[#f6fdf6] border-[4px] border-[#1e293b] rounded-2xl p-6 shadow-[10px_10px_0px_rgba(30,41,59,1)] w-full max-w-md animate-popUp" onClick={e => e.stopPropagation()}>
-                <h2 className="text-2xl font-black text-slate-800 mb-2 border-b-4 border-[#4ade80] inline-block pb-1">⚙️ 設定難度</h2>
-                <p className="text-sm font-bold text-slate-600 mb-4">{soloPick ? '選一個難度，開始一局新的挑戰。' : '選一個難度，立刻換一題新的。'}</p>
-                <div className="flex flex-col gap-2 mb-4">
-                  {LEVELS.map(level => (
-                    <button key={level.id} onClick={() => { setShowSettingsModal(false); if (soloPick && level.id !== 'custom') { platSave().setStr('hashi_solo_level', String(level.id)); setSoloPick(false); } handleLevelChange(level.id === 'custom' ? 'custom' : level.id); }} className={"plat-btn-hard plat-btn-hard-3 w-full text-left px-4 py-3 border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_rgba(30,41,59,1)]" + (String(currentLevelId) === String(level.id) ? " bg-[#4ade80] text-slate-900" : " bg-white text-slate-800")}>
-                      {level.name}
-                      <span className="block text-xs font-bold opacity-70 mt-0.5">{level.description}</span>
-                    </button>
-                  ))}
-                </div>
-                <button onClick={closeSettingsModal} className="plat-btn-hard w-full py-3 bg-white border-4 border-slate-800 rounded-xl font-black text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)]">取消</button>
-              </div>
-            </div>
-          )}
-
-          {/* 自訂地圖彈窗 */}
-          {showCustomModal && (
-            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-center justify-center p-4">
-              <div className="bg-[#f6fdf6] border-[4px] border-[#1e293b] rounded-2xl p-6 shadow-[10px_10px_0px_rgba(30,41,59,1)] w-full max-w-sm animate-popUpCenter">
-                <div className="flex justify-between items-center mb-4 border-b-4 border-slate-800 pb-2">
-                  <h2 className="text-xl font-black text-slate-800">⚙️ 自訂地圖尺寸</h2>
-                  <button onClick={() => {
-                      setShowCustomModal(false);
-                      setCurrentLevelId(stateRef.current.levelId);
-                      if (soloPick) { setSoloPick(false); setScreen('home'); }
-                  }} className="text-slate-400 hover:text-slate-800 text-2xl font-black">✕</button>
-                </div>
-                <p className="text-xs font-semibold text-slate-500 mb-4">輸入專屬長寬（5 ~ 100），生成超大型合作地圖：</p>
-                <div className="flex flex-col gap-4 mb-6">
-                  <div>
-                    <label className="block text-sm font-bold text-slate-800 mb-1">寬度 (橫向島嶼數):</label>
-                    <input type="number" min="5" max="100" value={tempWidth} onChange={(e) => setTempWidth(parseInt(e.target.value) || 5)} className="w-full border-2 border-slate-800 rounded-md p-2 font-bold focus:ring-2 ring-[#4ade80] outline-none" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-slate-800 mb-1">長度 (直向島嶼數):</label>
-                    <input type="number" min="5" max="100" value={tempHeight} onChange={(e) => setTempHeight(parseInt(e.target.value) || 5)} className="w-full border-2 border-slate-800 rounded-md p-2 font-bold focus:ring-2 ring-[#4ade80] outline-none" />
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <button onClick={() => {
-                      setShowCustomModal(false);
-                      setCurrentLevelId(stateRef.current.levelId);
-                      if (soloPick) { setSoloPick(false); setScreen('home'); }
-                  }} className="plat-btn-hard plat-btn-hard-2 flex-1 py-2 bg-slate-200 border-2 border-slate-800 rounded-xl font-black text-slate-800 shadow-[2px_2px_0px_rgba(30,41,59,1)] hover:bg-slate-300">取消</button>
-                  <button onClick={handleCustomGenerate} className="plat-btn-hard plat-btn-hard-2 flex-1 py-2 bg-[#4ade80] border-2 border-slate-800 rounded-xl font-black text-slate-900 shadow-[2px_2px_0px_rgba(30,41,59,1)] hover:bg-[#e6b800]">產生</button>
-                </div>
-              </div>
-            </div>
-          )}
-
           {toastMsg && <div className="fixed top-10 left-1/2 transform -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full font-bold shadow-[0_4px_10px_rgba(0,0,0,0.3)] z-[100] border-[3px] border-white animate-slideUpFade">{toastMsg}</div>}
           {speakPrompt && !speakerOn && (
             <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[96] bg-slate-800 text-white pl-4 pr-2 py-2 rounded-full font-bold shadow-[0_4px_10px_rgba(0,0,0,0.35)] border-[3px] border-white flex items-center gap-2 whitespace-nowrap max-w-[calc(100%-16px)]">
@@ -4924,7 +4834,6 @@ function platAudio() {
             </div>
           )}
 
-          {tutorialOverlay}
         </div>
       );
     }

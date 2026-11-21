@@ -38,7 +38,8 @@ const rosterOf = (pg, game) => pg.D.querySelector('#view-' + game + ' [data-pr-r
   const hRos = await waitFor(() => rosterOf(host, 'sudoku'), 90000, 'host auto-enter sudoku room');
   check('建房後直達數獨等待室（跳過多人連線選單）', !!hRos);
   check('直達時不在大廳畫面', host.D.body.getAttribute('data-view') === 'sudoku', host.D.body.getAttribute('data-view'));
-  const code = (host.D.querySelector('#lob-room-code') || { textContent: '' }).textContent.trim();
+  await waitFor(() => host.w.__PLAT_NET && host.w.__PLAT_NET.code, 60000, 'host room code'); // 2026-11-21 修：#lob-room-code 已退役，房號改讀 __PLAT_NET.code
+  const code = host.w.__PLAT_NET.code;
   check('房號取得', code.length === 4, code);
   const hTabs = host.D.querySelector('#view-sudoku [data-pr-region="tabs"]');
   check('等待室有分頁列（三個分頁）', !!hTabs && hTabs.querySelectorAll('[data-rtab]').length === 3);

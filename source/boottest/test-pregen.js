@@ -66,10 +66,10 @@ async function shellReady(p) { return waitFor(() => (typeof p.window.PLAT_show =
     // 等預生成完成（result 落格）：以「開始後 hits」間接驗太慢——改等 9x9 medium 生成完（輪詢：把 genCalls 歸零後開局，若命中則不再呼叫）
     await sleep(4000);
     clickEl(p, byText(p, p.document.querySelector('#view-sudoku'), '單機挑戰'));
-    await sleep(600);
+    await waitFor(() => p.document.querySelector('#plat-setup [data-pse-card]'), 20000, 'PlatSetup B'); // F3：單機入口改殼 PlatSetup
     const callsBeforeStart = genCalls;
     const t0 = Date.now();
-    clickEl(p, byText(p, p.document.querySelector('#view-sudoku'), '開始挑戰'));
+    clickEl(p, p.document.querySelector('#plat-setup [data-pse="start"]'));
     const board = await waitFor(() => p.document.querySelectorAll('#view-sudoku g[id^="cell-"]').length === 81 ? 1 : null, 30000, 'sudoku board');
     const dt = Date.now() - t0;
     check('B2 命中開局不再呼叫產生器', !!board && genCalls === callsBeforeStart, 'genCalls ' + callsBeforeStart + '->' + genCalls);
@@ -89,8 +89,8 @@ async function shellReady(p) { return waitFor(() => (typeof p.window.PLAT_show =
     let lastSteps = -1, stableSince = Date.now();
     await waitFor(() => { const st = p.window.__HASHI_PREGEN_STATS; if (st.steps !== lastSteps) { lastSteps = st.steps; stableSince = Date.now(); return null; } return (Date.now() - stableSince > 800) ? 1 : null; }, 60000, 'pregen settled');
     clickEl(p, byText(p, p.document.querySelector('#view-hashi'), '單機挑戰'));
-    const lvlBtns = await waitFor(() => { const bs = [...p.document.querySelectorAll('#view-hashi button')].filter(b => (b.textContent || '').includes('10x10 標準')); return bs.length >= 2 ? bs : null; }, 20000, 'level modal');
-    clickEl(p, lvlBtns && lvlBtns[lvlBtns.length - 1]);
+    const lvlBtn = await waitFor(() => p.document.querySelector('#plat-setup [data-pse-opt="2"]'), 20000, 'PlatSetup C'); // F3：難度選擇改殼 PlatSetup（10x10 標準＝LEVELS id 2）
+    clickEl(p, lvlBtn);
     const board = await waitFor(() => (p.window.__HASHI_PREGEN_STATS.hits >= 1 && p.document.querySelectorAll('#view-hashi circle').length > 30) ? 1 : null, 30000, 'hashi board+hit');
     check('C2 數橋命中開局（hits ≥ 1）', !!board && p.window.__HASHI_PREGEN_STATS.hits >= 1, 'hits=' + (p.window.__HASHI_PREGEN_STATS || {}).hits);
     const stepsInGame0 = p.window.__HASHI_PREGEN_STATS.steps, jobsInGame0 = p.window.__HASHI_PREGEN_STATS.jobs;
@@ -109,8 +109,8 @@ async function shellReady(p) { return waitFor(() => (typeof p.window.PLAT_show =
     const origGenD = p.window.generateSudokuAsync;
     p.window.generateSudokuAsync = function () { return new Promise(res => setTimeout(() => res(realPuzzle), 6500)); }; // 假慢產生器：保證逾 5 秒（D2 規格的假慢驗收法）
     clickEl(p, byText(p, p.document.querySelector('#view-sudoku'), '單機挑戰'));
-    await sleep(600);
-    clickEl(p, byText(p, p.document.querySelector('#view-sudoku'), '開始挑戰'));
+    await waitFor(() => p.document.querySelector('#plat-setup [data-pse-card]'), 20000, 'PlatSetup D'); // F3
+    clickEl(p, p.document.querySelector('#plat-setup [data-pse="start"]'));
     const chip = await waitFor(() => (p.window.PlatGenerating && p.window.PlatGenerating._visible()) ? 1 : null, 30000, 'chip visible');
     check('D1 生成逾 300ms → PlatGenerating 晶片顯示', !!chip);
     const secShown = await waitFor(() => { const el = p.document.querySelector('#plat-generating'); return el && /\ds/.test(el.textContent) ? el.textContent : null; }, 5000, 'seconds ticking');
@@ -133,10 +133,10 @@ async function shellReady(p) { return waitFor(() => (typeof p.window.PLAT_show =
     const ready = await waitFor(() => { const sl = p.window.__SUDOKU_PREGEN_SLOT && p.window.__SUDOKU_PREGEN_SLOT(); return sl && sl.key === '9xmedium' && sl.hasResult ? 1 : null; }, 60000, 'medium pregen ready');
     check('E1 9x普通預生成就緒', !!ready);
     clickEl(p, byText(p, p.document.querySelector('#view-sudoku'), '單機挑戰'));
-    await sleep(600);
-    clickEl(p, [...p.document.querySelectorAll('#view-sudoku [data-seg="sudoku-diff"] button')].find(b => (b.textContent || '').includes('困難')));
+    await waitFor(() => p.document.querySelector('#plat-setup [data-pse-card]'), 20000, 'PlatSetup E'); // F3：難度 seg 改殼 PlatSetup groups
+    clickEl(p, [...p.document.querySelectorAll('#plat-setup [data-pse-group="diff"] [data-pse-gopt]')].find(b => (b.textContent || '').includes('困難')));
     await sleep(200);
-    clickEl(p, byText(p, p.document.querySelector('#view-sudoku'), '開始挑戰'));
+    clickEl(p, p.document.querySelector('#plat-setup [data-pse="start"]'));
     const board = await waitFor(() => p.window.__PLAT_HOOKS_sudoku && p.document.querySelectorAll('#view-sudoku g[id^="cell-"]').length === 81 ? 1 : null, 60000, 'hard board');
     let givens = -1;
     if (board) givens = [...p.document.querySelectorAll('#view-sudoku g[id^="cell-"]')].filter(g => (g.textContent || '').trim()).length;

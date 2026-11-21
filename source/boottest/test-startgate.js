@@ -32,8 +32,8 @@ function setInput(w, el, val) {
   return true;
 }
 const HTML = '/home/hatch/workspace/platform/platform-v1-test.html';
-const startBtn = (pg) => pg.D.querySelector('#view-sudoku [data-pr="start"]');
-const inSudokuRoom = (pg) => !!pg.D.querySelector('#view-sudoku [data-pr-region="roster"]');
+const startBtn = (pg) => pg.D.querySelector('[data-pr="start"]'); // 2026-11-21 修：PlatRoom 是 body 層 overlay，data-pr 元素不在 #view-sudoku 內（舊 scope 使 R1 全部讀空、斷言 vacuous）
+const inSudokuRoom = (pg) => !!pg.D.querySelector('[data-pr-region="roster"]'); // 同上：roster 在殼房間頁 overlay
 function exitToLobby(pg) {
   try { pg.w.__PLAT_HOOKS_sudoku.exit(); } catch (e) {}
   pg.w.PLAT_show('home');
@@ -45,8 +45,8 @@ function exitToLobby(pg) {
   await waitFor(() => host.D.querySelector('#lob-step-nick').style.display === 'block', 60000, 'host nick step');
   setInput(host.w, host.D.querySelector('#lob-name'), '阿主');
   click(host.w, host.D.querySelector('#lob-confirm'));
-  await waitFor(() => (host.D.querySelector('#lob-room-code') || { textContent: '' }).textContent.trim().length === 4, 60000, 'host room code');
-  const code = host.D.querySelector('#lob-room-code').textContent.trim();
+  await waitFor(() => host.w.__PLAT_NET && host.w.__PLAT_NET.code, 60000, 'host room code'); // 2026-11-21 修：#lob-room-code 已隨舊大廳退役，房號改讀 __PLAT_NET.code
+  const code = host.w.__PLAT_NET.code;
   const guest = loadPageShared(HTML);
   await waitFor(() => typeof guest.w.PLAT_show === 'function' && guest.w.PlatDock, 600000, 'guest shell');
   click(guest.w, guest.D.querySelector('#lob-go-join'));
@@ -57,17 +57,17 @@ function exitToLobby(pg) {
   await waitFor(() => (guest.D.querySelector('#lob-roster') || { textContent: '' }).textContent.includes('阿主'), 60000, 'guest sees host');
 
   // ===== 第一輪（新進房）=====
-  click(host.w, host.D.querySelector('[data-launch="sudoku-coop"]'));
+  click(host.w, host.D.querySelector('#lob-step-room [data-rtab="sudoku"]')); // 2026-11-21 修：data-launch 已不存在；房間頁即等待室，數獨分頁預設 coop
   await waitFor(() => inSudokuRoom(host), 180000, 'host sudoku room R1');
   await waitFor(() => inSudokuRoom(guest), 180000, 'guest sudoku room R1');
   check('R1 來賓沒有開始按鈕', !startBtn(guest));
   const hb1 = startBtn(host);
   check('R1 房主有開始按鈕', !!hb1);
   check('R1 未全員準備→房主開始鈕 disabled', !!hb1 && hb1.disabled === true);
-  click(host.w, host.D.querySelector('#view-sudoku [data-pr="ready"]'));
+  click(host.w, host.D.querySelector('[data-pr="ready"]'));
   await sleep(1500);
   check('R1 只有房主準備→仍 disabled', startBtn(host) && startBtn(host).disabled === true);
-  click(guest.w, guest.D.querySelector('#view-sudoku [data-pr="ready"]'));
+  click(guest.w, guest.D.querySelector('[data-pr="ready"]'));
   const en = await waitFor(() => { const b = startBtn(host); return b && !b.disabled; }, 30000, 'host start enabled after all ready');
   check('R1 全員準備→房主開始鈕亮起', !!en);
   click(host.w, startBtn(host));
@@ -80,7 +80,7 @@ function exitToLobby(pg) {
 
   // ===== 第二輪（重入——原 bug 在這裡讓來賓看到開始鈕）=====
   host.w.PLAT_START_WAIT_MS = 3000; // 測試用短閾值（產品預設 60000）
-  click(host.w, host.D.querySelector('[data-launch="sudoku-coop"]'));
+  click(host.w, host.D.querySelector('#lob-step-room [data-rtab="sudoku"]')); // 2026-11-21 修：data-launch 已不存在；房間頁即等待室，數獨分頁預設 coop
   await waitFor(() => inSudokuRoom(host), 180000, 'host sudoku room R2');
   await waitFor(() => inSudokuRoom(guest), 180000, 'guest sudoku room R2');
   await sleep(1500);

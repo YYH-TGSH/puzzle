@@ -48,7 +48,7 @@ const cs = (p, el, prop) => el ? p.window.getComputedStyle(el)[prop] : '(none)';
   const M = loadPage('M');
   await waitFor(() => typeof M.window.PLAT_show === 'function' && M.window.PlatDock, 300000, 'M shell');
   M.window.PLAT_show('sudoku');
-  const mCard = await waitFor(() => { const c = [...M.document.querySelectorAll('#sudoku-root div')].find(el => (el.className || '').includes('bg-[#fffaf0]') && (el.className || '').includes('-rotate-1')); return c || null; }, 120000, 'sudoku home card');
+  const mCard = await waitFor(() => M.document.querySelector('#sudoku-root [data-phome-card]'), 120000, 'sudoku home card'); // F3：數獨主畫面改殼 PlatHome
   check('對照：數獨主畫面紙卡存在', !!mCard);
   if (aCard && mCard) {
     const props = ['backgroundColor', 'borderTopWidth', 'borderTopColor', 'borderRadius', 'boxShadow'];
@@ -63,9 +63,9 @@ const cs = (p, el, prop) => el ? p.window.getComputedStyle(el)[prop] : '(none)';
   S.window.PLAT_show('sudoku');
   await waitFor(() => S.document.querySelector('#sudoku-root h1'), 120000, 'sudoku home S');
   clickEl(S, [...S.document.querySelectorAll('#sudoku-root button')].find(b => (b.textContent || '').includes('單機挑戰')));
-  const sStart = await waitFor(() => [...S.document.querySelectorAll('#sudoku-root button')].find(b => (b.textContent || '').includes('開始挑戰')) || null, 30000, 'sudoku start btn');
-  clickEl(S, sStart);
-  const sFrame = await waitFor(() => { const f = [...S.document.querySelectorAll('#sudoku-root div')].find(el => (el.className || '').includes('max-w-[1200px]') && (el.className || '').includes('border-4')); return f || null; }, 90000, 'sudoku frame');
+  await waitFor(() => S.document.querySelector('#plat-setup [data-pse-card]'), 30000, 'sudoku setup'); // F3：單機入口改殼 PlatSetup（seg 選版型/難度→開始）
+  clickEl(S, S.document.querySelector('#plat-setup [data-pse="start"]'));
+  const sFrame = await waitFor(() => S.document.querySelector('#sudoku-root [data-pframe]'), 90000, 'sudoku frame');
   check('對照：數獨對局外框存在', !!sFrame);
   const sBarWrap = findBarWrap(S, '#sudoku-root');
   check('對照：數獨 PlatBar fixed 容器（left/right/bottom=0）', !!sBarWrap && cs(S, sBarWrap, 'left') === '0px' && cs(S, sBarWrap, 'right') === '0px' && cs(S, sBarWrap, 'bottom') === '0px', sBarWrap && (cs(S, sBarWrap, 'left') + '/' + cs(S, sBarWrap, 'right') + '/' + cs(S, sBarWrap, 'bottom')));
@@ -100,6 +100,17 @@ const cs = (p, el, prop) => el ? p.window.getComputedStyle(el)[prop] : '(none)';
   check('PlatBar：內容寬 100%＋justify-between（左中右分布）', !!aBarDiv && (aBarDiv.className || '').includes('justify-between'));
   const slotOk = await waitFor(() => { const b2 = A.document.querySelector('#akari-root [data-ptc-band]'); return b2 && b2.querySelector('[data-ptc-slot]') && (b2.querySelector('[data-ptc-slot]').textContent || '').includes('進度') ? 1 : null; }, 15000, 'ptc slot content');
   check('頂欄：遊戲槽有進度條（portal 內容）', !!slotOk);
+  // ===== PlatCount 滾字（v1.72.0 追補：框架頂欄 stat 接滾輪＋槽內 PlatPct/plat-pbar） =====
+  const slotEl = A.document.querySelector('#akari-root [data-ptc-slot]');
+  check('滾字：槽內進度條掛 .plat-pbar', !!slotEl && !!slotEl.querySelector('.plat-pbar'));
+  check('滾字：槽內進度 % 為 PlatCount 滾輪（.plat-count）', !!slotEl && !!slotEl.querySelector('.plat-count'));
+  const akDbg = () => A.window.__PLAT_HOOKS_akari && A.window.__PLAT_HOOKS_akari.debug && A.window.__PLAT_HOOKS_akari.debug();
+  const sol0 = akDbg() && akDbg().puzzle && akDbg().puzzle.solution && akDbg().puzzle.solution[0];
+  const cellBtn = sol0 != null ? A.document.querySelector('#akari-root button[data-cell="' + sol0 + '"]') : null;
+  clickEl(A, cellBtn); await sleep(400);
+  const statPc = await waitFor(() => A.document.querySelector('#akari-root [data-ptc-band] [data-pc="1"]'), 10000, 'stat data-pc');
+  check('滾字：放燈後頂欄計數器 [data-pc="1"] 出現（PlatTopCard statText 接 PlatCount）', !!statPc);
+  check('滾字：計數器滾輪結構（.pc-digit）已掛', !!statPc && !!statPc.querySelector('.pc-digit'));
   check('頂欄：規則 Collapse 預設收合', !!band && !band.querySelector('[data-ptc-region="ruleswrap"]').classList.contains('open'));
   clickEl(A, band.querySelector('[data-ptc="rules"]'));
   await sleep(200);
@@ -124,7 +135,7 @@ const cs = (p, el, prop) => el ? p.window.getComputedStyle(el)[prop] : '(none)';
   check('教學：步進區 h-[400px] token（與數獨同）＋頁點 3', !!stepEl && (stepEl.className || '').includes('h-[400px]') && tutCard.querySelectorAll('.rounded-full').length >= 3, stepEl && stepEl.className);
   // 教學卡底色與數獨教學卡 computed 一致（同走 TW 管線、比字串值）
   clickEl(M, [...M.document.querySelectorAll('#sudoku-root button')].find(b => (b.textContent || '').includes('玩法教學')));
-  const sTutCard = await waitFor(() => [...M.document.querySelectorAll('#sudoku-root div')].find(el => (el.className || '').includes('bg-[#fffaf0]') && (el.className || '').includes('max-w-lg')) || null, 30000, 'sudoku tutorial card');
+  const sTutCard = await waitFor(() => M.document.querySelector('#plat-tutorial [data-ptu-card]'), 30000, 'sudoku tutorial card'); // F3：數獨教學改殼 PlatTutorial
   check('教學：卡底色 computed 與數獨教學卡一致', !!tutCard && !!sTutCard && cs(A, tutCard, 'backgroundColor') === cs(M, sTutCard, 'backgroundColor'), 'akari=' + (tutCard && cs(A, tutCard, 'backgroundColor')) + ' sudoku=' + (sTutCard && cs(M, sTutCard, 'backgroundColor')));
   clickEl(A, tutCard && [...tutCard.querySelectorAll('button')].find(b => (b.textContent || '').includes('跳過')));
   await sleep(300);
@@ -167,6 +178,7 @@ const cs = (p, el, prop) => el ? p.window.getComputedStyle(el)[prop] : '(none)';
   check('底紙：多人畫面 view 點陣仍在', !!viewH && cs(H, viewH, 'backgroundImage').includes('radial-gradient'));
   const chipsH = H.document.querySelector('#akari-root [data-ptc-region="chips"]');
   check('頂欄多人：PlatTopCard band＋晶片列含雙人名', !!bandH && !!chipsH && (chipsH.textContent || '').includes('阿主') && (chipsH.textContent || '').includes('阿客'), chipsH && (chipsH.textContent || '').slice(0, 60));
+  check('滾字：多人晶片 % 為 PlatCount 滾輪結構（[data-pc]）', !!chipsH && !!chipsH.querySelector('[data-pc]'));
   check('頂欄多人：模式晶片「競速對戰」', !!bandH && (bandH.textContent || '').includes('競速對戰'));
   // 離開選單 MP 文案（非錦標賽：無結束本局）
   clickEl(H, bandH.querySelector('[data-ptc="leave"]'));

@@ -71,34 +71,37 @@ async function fillBoard(pg, tag) {
   const host = loadPageShared(HTML), guest = loadPageShared(HTML);
   await waitFor(() => typeof host.w.PLAT_show === 'function' && host.w.PlatDock, 600000, 'host shell');
   await waitFor(() => typeof guest.w.PLAT_show === 'function' && guest.w.PlatDock, 600000, 'guest shell');
-  for (const pg of [host, guest]) { pg.w.PLAT_show('sudoku'); await waitFor(() => !!pg.w.__PLAT_HOOKS_sudoku, 300000, 'preboot sudoku'); pg.w.PLAT_show('lobby'); }
+  // 現行開局（v1.11+ 殼房間頁；舊版 [data-launch]＋遊戲內等待室已刪——2026-11-21 改寫，抄 test-autogod makeRoom）
   click(host.w, host.D.querySelector('#lob-go-create'));
   await waitFor(() => host.D.querySelector('#lob-step-nick').style.display === 'block', 60000, 'host nick');
   setInput(host.w, host.D.querySelector('#lob-name'), '阿主');
   click(host.w, host.D.querySelector('#lob-confirm'));
-  await waitFor(() => (host.D.querySelector('#lob-room-code') || { textContent: '' }).textContent.trim().length === 4, 60000, 'host room');
-  const code = host.D.querySelector('#lob-room-code').textContent.trim();
+  await waitFor(() => { const rm = host.D.querySelector('#lob-step-room'); return rm && rm.style.display === 'block' && host.w.__PLAT_NET && host.w.__PLAT_NET.code; }, 150000, 'host room');
+  const code = host.w.__PLAT_NET.code;
   click(guest.w, guest.D.querySelector('#lob-go-join'));
   await waitFor(() => guest.D.querySelector('#lob-step-nick').style.display === 'block', 60000, 'guest nick');
   setInput(guest.w, guest.D.querySelector('#lob-name'), '阿客');
   setInput(guest.w, guest.D.querySelector('#lob-code'), code);
   click(guest.w, guest.D.querySelector('#lob-confirm'));
-  await waitFor(() => (guest.D.querySelector('#lob-room-code') || { textContent: '' }).textContent.trim().length === 4, 60000, 'guest room');
-  click(host.w, host.D.querySelector('[data-launch="sudoku-brawl"]'));
-  await waitFor(() => host.D.querySelector('#view-sudoku [data-pr-region="roster"]') && guest.D.querySelector('#view-sudoku [data-pr-region="roster"]'), 120000, 'rooms');
-  await sleep(1500);
-  const sels = host.D.querySelectorAll('#view-sudoku [data-pr-slot="settings"] select');
+  await waitFor(() => { const r = guest.D.querySelector('#view-lobby [data-pr-region="roster"]'); return r && (r.textContent || '').includes('阿主'); }, 90000, 'guest in room');
+  for (const pg of [host, guest]) { pg.w.PLAT_show('sudoku'); await waitFor(() => !!pg.w.__PLAT_HOOKS_sudoku, 300000, 'preboot sudoku'); pg.w.PLAT_show('lobby'); }
+  click(host.w, host.D.querySelector('#lob-step-room [data-rtab="sudoku"]'));
+  await waitFor(() => guest.w.__PLAT_NET && guest.w.__PLAT_NET.armed && guest.w.__PLAT_NET.armed.game === 'sudoku', 30000, 'guest armed');
+  click(host.w, host.D.querySelector('#lob-step-room [data-hub-mode="brawl"][data-hub-game="sudoku"]'));
+  await sleep(600);
+  const sels = host.D.querySelectorAll('#lob-step-room [data-pr-slot="settings"] select');
   const setSel = (s, v) => { const setter = Object.getOwnPropertyDescriptor(host.w.HTMLSelectElement.prototype, 'value').set; setter.call(s, v); s.dispatchEvent(new host.w.Event('change', { bubbles: true })); };
   for (const s of sels) { const vals = [...s.options].map(o => o.value); if (vals.includes('4')) setSel(s, '4'); if (vals.includes('easy')) setSel(s, 'easy'); }
   await sleep(1200);
   const presVisible = (pg) => { const el = pg.D.querySelector('#plat-results'); return !!el && el.style.display === 'flex'; };
   const presText = (pg) => { const el = pg.D.querySelector('#plat-results'); return el ? el.textContent : ''; };
-  click(host.w, host.D.querySelector('#view-sudoku [data-pr="ready"]'));
+  click(host.w, host.D.querySelector('#lob-step-room [data-pr="ready"]'));
   await sleep(600);
-  click(guest.w, guest.D.querySelector('#view-sudoku [data-pr="ready"]'));
-  const startEnabled = await waitFor(() => { const sb = host.D.querySelector('#view-sudoku [data-pr="start"]'); return sb && !sb.disabled; }, 90000, 'start enabled');
-  if (startEnabled) click(host.w, host.D.querySelector('#view-sudoku [data-pr="start"]'));
-  const started = await waitFor(() => !host.D.querySelector('#view-sudoku [data-pr-region="roster"]') && !guest.D.querySelector('#view-sudoku [data-pr-region="roster"]') && host.D.querySelectorAll('g[id^="cell-"]').length > 0, 90000, 'rooms gone');
+  click(guest.w, guest.D.querySelector('#lob-step-room [data-pr="ready"]'));
+  const startEnabled = await waitFor(() => { const sb = host.D.querySelector('#lob-step-room [data-pr="start"]'); return sb && !sb.disabled; }, 90000, 'start enabled');
+  if (startEnabled) click(host.w, host.D.querySelector('#lob-step-room [data-pr="start"]'));
+  await waitFor(() => host.w.__PLAT_NET.inMatch === 'sudoku' && guest.w.__PLAT_NET.inMatch === 'sudoku', 120000, 'inMatch');
+  const started = await waitFor(() => host.D.querySelectorAll('#view-sudoku g[id^="cell-"]').length > 0 && guest.D.querySelectorAll('#view-sudoku g[id^="cell-"]').length > 0, 90000, 'boards');
   check('比賽開始、雙邊盤面出現', !!started);
   await sleep(1000);
   // ★ 來賓先完賽

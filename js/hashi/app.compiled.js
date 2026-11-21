@@ -2,9 +2,9 @@
 
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
-
 var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
+
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
 
 function _asyncToGenerator(fn) { return function () { var gen = fn.apply(this, arguments); return new Promise(function (resolve, reject) { function step(key, arg) { try { var info = gen[key](arg); var value = info.value; } catch (error) { reject(error); return; } if (info.done) { resolve(value); } else { return Promise.resolve(value).then(function (value) { step("next", value); }, function (err) { step("throw", err); }); } } return step("next"); }); }; }
 
@@ -86,37 +86,6 @@ function computeStars(timeSec, islandCount, usedSolution) {
   if (timeSec <= islandCount * 6) return 3;
   if (timeSec <= islandCount * 15) return 2;
   return 1;
-}
-
-function GameTimer(_ref) {
-  var startTime = _ref.startTime,
-      endTime = _ref.endTime,
-      isRunning = _ref.isRunning;
-
-  var _useState = useState(Date.now()),
-      _useState2 = _slicedToArray(_useState, 2),
-      now = _useState2[0],
-      setNow = _useState2[1];
-
-  useEffect(function () {
-    if (!isRunning) return;
-    setNow(Date.now());
-    var t = setInterval(function () {
-      return setNow(Date.now());
-    }, 1000);
-    return function () {
-      return clearInterval(t);
-    };
-  }, [isRunning, startTime]);
-
-  var timeToUse = endTime ? endTime : now;
-  var secs = Math.max(0, Math.floor((timeToUse - startTime) / 1000));
-  return React.createElement(
-    'span',
-    null,
-    '\u23F1 ',
-    formatTime(secs)
-  );
 }
 
 // ==========================================
@@ -616,188 +585,174 @@ function HashiGame() {
     initialDataRef.current = HASHI_PUZZLE.generateUniqueHashi(LEVELS[1]);
   }
 
-  var _useState3 = useState('home'),
+  var _useState = useState('home'),
+      _useState2 = _slicedToArray(_useState, 2),
+      screen = _useState2[0],
+      setScreen = _useState2[1];
+
+  var _useState3 = useState('none'),
       _useState4 = _slicedToArray(_useState3, 2),
-      screen = _useState4[0],
-      setScreen = _useState4[1];
+      engine = _useState4[0],
+      setEngine = _useState4[1];
 
-  var _useState5 = useState('none'),
+  var _useState5 = useState(2),
       _useState6 = _slicedToArray(_useState5, 2),
-      engine = _useState6[0],
-      setEngine = _useState6[1];
+      currentLevelId = _useState6[0],
+      setCurrentLevelId = _useState6[1];
 
-  var _useState7 = useState(2),
+  var _useState7 = useState(initialDataRef.current),
       _useState8 = _slicedToArray(_useState7, 2),
-      currentLevelId = _useState8[0],
-      setCurrentLevelId = _useState8[1];
+      randomLevelData = _useState8[0],
+      setRandomLevelData = _useState8[1];
 
-  var _useState9 = useState(initialDataRef.current),
-      _useState10 = _slicedToArray(_useState9, 2),
-      randomLevelData = _useState10[0],
-      setRandomLevelData = _useState10[1];
-
-  var _useState11 = useState(function () {
+  var _useState9 = useState(function () {
     return HASHI_PUZZLE.generateEmptyBridges(initialDataRef.current);
   }),
+      _useState10 = _slicedToArray(_useState9, 2),
+      bridges = _useState10[0],
+      setBridges = _useState10[1];
+
+  var _useState11 = useState([]),
       _useState12 = _slicedToArray(_useState11, 2),
-      bridges = _useState12[0],
-      setBridges = _useState12[1];
+      strokes = _useState12[0],
+      setStrokes = _useState12[1];
 
   var _useState13 = useState([]),
       _useState14 = _slicedToArray(_useState13, 2),
-      strokes = _useState14[0],
-      setStrokes = _useState14[1];
+      history = _useState14[0],
+      setHistory = _useState14[1];
 
-  var _useState15 = useState([]),
+  var _useState15 = useState(false),
       _useState16 = _slicedToArray(_useState15, 2),
-      history = _useState16[0],
-      setHistory = _useState16[1];
-
-  var _useState17 = useState(false),
-      _useState18 = _slicedToArray(_useState17, 2),
-      isWon = _useState18[0],
-      setIsWon = _useState18[1];
+      isWon = _useState16[0],
+      setIsWon = _useState16[1];
 
   var isWonRef = useRef(false);
   useEffect(function () {
     isWonRef.current = isWon;
   }, [isWon]);
 
-  var _useState19 = useState(false),
+  var _useState17 = useState(false),
+      _useState18 = _slicedToArray(_useState17, 2),
+      hideVictoryModal = _useState18[0],
+      setHideVictoryModal = _useState18[1];
+
+  var _useState19 = useState(""),
       _useState20 = _slicedToArray(_useState19, 2),
-      hideVictoryModal = _useState20[0],
-      setHideVictoryModal = _useState20[1];
+      toastMsg = _useState20[0],
+      setToastMsg = _useState20[1];
 
-  var _useState21 = useState(""),
+  var _useState21 = useState(Date.now()),
       _useState22 = _slicedToArray(_useState21, 2),
-      toastMsg = _useState22[0],
-      setToastMsg = _useState22[1];
+      startTime = _useState22[0],
+      setStartTime = _useState22[1];
 
-  var _useState23 = useState(Date.now()),
+  var _useState23 = useState(null),
       _useState24 = _slicedToArray(_useState23, 2),
-      startTime = _useState24[0],
-      setStartTime = _useState24[1];
+      endTime = _useState24[0],
+      setEndTime = _useState24[1];
 
-  var _useState25 = useState(null),
+  var _useState25 = useState(1),
       _useState26 = _slicedToArray(_useState25, 2),
-      endTime = _useState26[0],
-      setEndTime = _useState26[1];
+      zoomLevel = _useState26[0],
+      setZoomLevel = _useState26[1];
 
-  var _useState27 = useState(1),
+  var _useState27 = useState(false),
       _useState28 = _slicedToArray(_useState27, 2),
-      zoomLevel = _useState28[0],
-      setZoomLevel = _useState28[1];
+      showSolution = _useState28[0],
+      setShowSolution = _useState28[1];
 
   var _useState29 = useState(false),
       _useState30 = _slicedToArray(_useState29, 2),
-      showSolution = _useState30[0],
-      setShowSolution = _useState30[1];
+      showSaveModal = _useState30[0],
+      setShowSaveModal = _useState30[1];
 
-  var _useState31 = useState(true),
+  var _useState31 = useState(false),
       _useState32 = _slicedToArray(_useState31, 2),
-      isHeaderCollapsed = _useState32[0],
-      setIsHeaderCollapsed = _useState32[1];
+      soloPick = _useState32[0],
+      setSoloPick = _useState32[1]; // 單機入口先選難度（v1.58.0 使用者要求，比照數獨設定畫面／地雷 setup）：由主畫面「單機挑戰」開 modal 時為 true，取消＝回主畫面、選定才開局
 
-  var _useState33 = useState(false),
+
+  var soloPickRef = useRef(false); // soloPick 的 ref 鏡像：startSinglePlayer 同步 setState 後立刻 openHashiSetup，cfg 閉包讀 state 會拿到舊值（F3 施工抓到：副標/存檔/取消回主畫面全失效），故 cfg 一律讀 ref
+
+  var _useState33 = useState(""),
       _useState34 = _slicedToArray(_useState33, 2),
-      showSaveModal = _useState34[0],
-      setShowSaveModal = _useState34[1];
+      saveCode = _useState34[0],
+      setSaveCode = _useState34[1];
 
-  var _useState35 = useState(false),
+  var _useState35 = useState(30),
       _useState36 = _slicedToArray(_useState35, 2),
-      showSettingsModal = _useState36[0],
-      setShowSettingsModal = _useState36[1]; // 設定難度 modal（v1.43 Q2：設定入口三款統一 modal 式，廢標頭 select）
+      tempWidth = _useState36[0],
+      setTempWidth = _useState36[1];
 
-
-  var _useState37 = useState(false),
+  var _useState37 = useState(30),
       _useState38 = _slicedToArray(_useState37, 2),
-      soloPick = _useState38[0],
-      setSoloPick = _useState38[1]; // 單機入口先選難度（v1.58.0 使用者要求，比照數獨設定畫面／地雷 setup）：由主畫面「單機挑戰」開 modal 時為 true，取消＝回主畫面、選定才開局
+      tempHeight = _useState38[0],
+      setTempHeight = _useState38[1];
 
-
-  var _useState39 = useState(""),
+  var _useState39 = useState(0),
       _useState40 = _slicedToArray(_useState39, 2),
-      saveCode = _useState40[0],
-      setSaveCode = _useState40[1];
+      interactionMode = _useState40[0],
+      setInteractionMode = _useState40[1];
 
-  var _useState41 = useState(false),
+  var _useState41 = useState('pen'),
       _useState42 = _slicedToArray(_useState41, 2),
-      showCustomModal = _useState42[0],
-      setShowCustomModal = _useState42[1];
-
-  var _useState43 = useState(30),
-      _useState44 = _slicedToArray(_useState43, 2),
-      tempWidth = _useState44[0],
-      setTempWidth = _useState44[1];
-
-  var _useState45 = useState(30),
-      _useState46 = _slicedToArray(_useState45, 2),
-      tempHeight = _useState46[0],
-      setTempHeight = _useState46[1];
-
-  var _useState47 = useState(0),
-      _useState48 = _slicedToArray(_useState47, 2),
-      interactionMode = _useState48[0],
-      setInteractionMode = _useState48[1];
-
-  var _useState49 = useState('pen'),
-      _useState50 = _slicedToArray(_useState49, 2),
-      drawSubMode = _useState50[0],
-      setDrawSubMode = _useState50[1];
+      drawSubMode = _useState42[0],
+      setDrawSubMode = _useState42[1];
 
   var modeIcons = ['🖋️', '✏️', '🖌️'];
   var modeTitles = ['實線模式', '草稿模式', '繪圖作記號'];
 
-  var _useState51 = useState(0),
+  var _useState43 = useState(0),
+      _useState44 = _slicedToArray(_useState43, 2),
+      zoomModeIdx = _useState44[0],
+      setZoomModeIdx = _useState44[1];
+
+  var _useState45 = useState(false),
+      _useState46 = _slicedToArray(_useState45, 2),
+      isClosingModal = _useState46[0],
+      setIsClosingModal = _useState46[1];
+
+  var _useState47 = useState(false),
+      _useState48 = _slicedToArray(_useState47, 2),
+      isGenerating = _useState48[0],
+      setIsGenerating = _useState48[1];
+
+  var _useState49 = useState(0),
+      _useState50 = _slicedToArray(_useState49, 2),
+      boardFadeKey = _useState50[0],
+      setBoardFadeKey = _useState50[1]; // 新題目時棋盤淡入
+
+  var _useState51 = useState(null),
       _useState52 = _slicedToArray(_useState51, 2),
-      zoomModeIdx = _useState52[0],
-      setZoomModeIdx = _useState52[1];
+      hoveredBridgeId = _useState52[0],
+      setHoveredBridgeId = _useState52[1];
 
-  var _useState53 = useState(false),
+  var _useState53 = useState(null),
       _useState54 = _slicedToArray(_useState53, 2),
-      isClosingModal = _useState54[0],
-      setIsClosingModal = _useState54[1];
+      hoveredIslandId = _useState54[0],
+      setHoveredIslandId = _useState54[1];
 
-  var _useState55 = useState(false),
+  var _useState55 = useState(null),
       _useState56 = _slicedToArray(_useState55, 2),
-      isGenerating = _useState56[0],
-      setIsGenerating = _useState56[1];
+      colorPickerTarget = _useState56[0],
+      setColorPickerTarget = _useState56[1];
 
-  var _useState57 = useState(0),
+  var _useState57 = useState([]),
       _useState58 = _slicedToArray(_useState57, 2),
-      boardFadeKey = _useState58[0],
-      setBoardFadeKey = _useState58[1]; // 新題目時棋盤淡入
+      colorSeq = _useState58[0],
+      setColorSeq = _useState58[1];
 
   var _useState59 = useState(null),
       _useState60 = _slicedToArray(_useState59, 2),
-      hoveredBridgeId = _useState60[0],
-      setHoveredBridgeId = _useState60[1];
+      editTarget = _useState60[0],
+      setEditTarget = _useState60[1]; // 個人設定 modal（改名/改色，比照數獨進度條）：點自己（或房主點任何人）的選手晶片開啟
 
-  var _useState61 = useState(null),
+
+  var _useState61 = useState(''),
       _useState62 = _slicedToArray(_useState61, 2),
-      hoveredIslandId = _useState62[0],
-      setHoveredIslandId = _useState62[1];
-
-  var _useState63 = useState(null),
-      _useState64 = _slicedToArray(_useState63, 2),
-      colorPickerTarget = _useState64[0],
-      setColorPickerTarget = _useState64[1];
-
-  var _useState65 = useState([]),
-      _useState66 = _slicedToArray(_useState65, 2),
-      colorSeq = _useState66[0],
-      setColorSeq = _useState66[1];
-
-  var _useState67 = useState(null),
-      _useState68 = _slicedToArray(_useState67, 2),
-      editTarget = _useState68[0],
-      setEditTarget = _useState68[1]; // 個人設定 modal（改名/改色，比照數獨進度條）：點自己（或房主點任何人）的選手晶片開啟
-
-
-  var _useState69 = useState(''),
-      _useState70 = _slicedToArray(_useState69, 2),
-      editName = _useState70[0],
-      setEditName = _useState70[1];
+      editName = _useState62[0],
+      setEditName = _useState62[1];
 
   // 💾 記住暱稱與房號（同一裝置下次免重打；房主代碼固定不變）
 
@@ -824,52 +779,52 @@ function HashiGame() {
     return platSave().remove('hashi_host_room');
   };
 
-  var _useState71 = useState(""),
-      _useState72 = _slicedToArray(_useState71, 2),
-      roomId = _useState72[0],
-      setRoomId = _useState72[1];
+  var _useState63 = useState(""),
+      _useState64 = _slicedToArray(_useState63, 2),
+      roomId = _useState64[0],
+      setRoomId = _useState64[1];
 
-  var _useState73 = useState(false),
-      _useState74 = _slicedToArray(_useState73, 2),
-      isHost = _useState74[0],
-      setIsHost = _useState74[1];
+  var _useState65 = useState(false),
+      _useState66 = _slicedToArray(_useState65, 2),
+      isHost = _useState66[0],
+      setIsHost = _useState66[1];
 
-  var _useState75 = useState(function () {
+  var _useState67 = useState(function () {
     return loadLastRoom();
   }),
-      _useState76 = _slicedToArray(_useState75, 2),
-      tempRoomId = _useState76[0],
-      setTempRoomId = _useState76[1];
+      _useState68 = _slicedToArray(_useState67, 2),
+      tempRoomId = _useState68[0],
+      setTempRoomId = _useState68[1];
 
-  var _useState77 = useState(""),
-      _useState78 = _slicedToArray(_useState77, 2),
-      tempPlayerName = _useState78[0],
-      setTempPlayerName = _useState78[1];
+  var _useState69 = useState(""),
+      _useState70 = _slicedToArray(_useState69, 2),
+      tempPlayerName = _useState70[0],
+      setTempPlayerName = _useState70[1];
 
-  var _useState79 = useState(function () {
+  var _useState71 = useState(function () {
     return ANIMAL_NAMES[Math.random() * ANIMAL_NAMES.length | 0];
   }),
-      _useState80 = _slicedToArray(_useState79, 1),
-      namePlaceholderAnimal = _useState80[0];
+      _useState72 = _slicedToArray(_useState71, 1),
+      namePlaceholderAnimal = _useState72[0];
 
   var nameInputRef = useRef(null);
 
-  var _useState81 = useState('choose'),
-      _useState82 = _slicedToArray(_useState81, 2),
-      joinStep = _useState82[0],
-      setJoinStep = _useState82[1]; // 'choose' | 'hostSetup' | 'guestSetup' | 'connecting' | 'nick'
+  var _useState73 = useState('choose'),
+      _useState74 = _slicedToArray(_useState73, 2),
+      joinStep = _useState74[0],
+      setJoinStep = _useState74[1]; // 'choose' | 'hostSetup' | 'guestSetup' | 'connecting' | 'nick'
 
 
-  var _useState83 = useState([]),
-      _useState84 = _slicedToArray(_useState83, 2),
-      takenNames = _useState84[0],
-      setTakenNames = _useState84[1]; // 來賓：房主回傳的已用名單快照
+  var _useState75 = useState([]),
+      _useState76 = _slicedToArray(_useState75, 2),
+      takenNames = _useState76[0],
+      setTakenNames = _useState76[1]; // 來賓：房主回傳的已用名單快照
 
 
-  var _useState85 = useState(""),
-      _useState86 = _slicedToArray(_useState85, 2),
-      nickError = _useState86[0],
-      setNickError = _useState86[1]; // nick 步輸入框下方 inline 錯誤
+  var _useState77 = useState(""),
+      _useState78 = _slicedToArray(_useState77, 2),
+      nickError = _useState78[0],
+      setNickError = _useState78[1]; // nick 步輸入框下方 inline 錯誤
 
 
   var joinRoleRef = useRef(null); // 'host' | 'guest'
@@ -881,45 +836,45 @@ function HashiGame() {
   var hostRoomRetryRef = useRef(false); // 房主固定代碼衝突時只自動重試一次
   // 🎰 暱稱拉霸機
 
+  var _useState79 = useState(false),
+      _useState80 = _slicedToArray(_useState79, 2),
+      showSlotMachine = _useState80[0],
+      setShowSlotMachine = _useState80[1];
+
+  var _useState81 = useState('host'),
+      _useState82 = _slicedToArray(_useState81, 2),
+      slotMode = _useState82[0],
+      setSlotMode = _useState82[1];
+
+  var _useState83 = useState(ANIMAL_NAMES),
+      _useState84 = _slicedToArray(_useState83, 2),
+      slotPool = _useState84[0],
+      setSlotPool = _useState84[1];
+
+  var _useState85 = useState(""),
+      _useState86 = _slicedToArray(_useState85, 2),
+      slotName = _useState86[0],
+      setSlotName = _useState86[1];
+
   var _useState87 = useState(false),
       _useState88 = _slicedToArray(_useState87, 2),
-      showSlotMachine = _useState88[0],
-      setShowSlotMachine = _useState88[1];
+      slotSpinning = _useState88[0],
+      setSlotSpinning = _useState88[1];
 
-  var _useState89 = useState('host'),
+  var _useState89 = useState(""),
       _useState90 = _slicedToArray(_useState89, 2),
-      slotMode = _useState90[0],
-      setSlotMode = _useState90[1];
+      slotFinalName = _useState90[0],
+      setSlotFinalName = _useState90[1];
 
-  var _useState91 = useState(ANIMAL_NAMES),
+  var _useState91 = useState(false),
       _useState92 = _slicedToArray(_useState91, 2),
-      slotPool = _useState92[0],
-      setSlotPool = _useState92[1];
+      slotWaiting = _useState92[0],
+      setSlotWaiting = _useState92[1];
 
-  var _useState93 = useState(""),
+  var _useState93 = useState(0),
       _useState94 = _slicedToArray(_useState93, 2),
-      slotName = _useState94[0],
-      setSlotName = _useState94[1];
-
-  var _useState95 = useState(false),
-      _useState96 = _slicedToArray(_useState95, 2),
-      slotSpinning = _useState96[0],
-      setSlotSpinning = _useState96[1];
-
-  var _useState97 = useState(""),
-      _useState98 = _slicedToArray(_useState97, 2),
-      slotFinalName = _useState98[0],
-      setSlotFinalName = _useState98[1];
-
-  var _useState99 = useState(false),
-      _useState100 = _slicedToArray(_useState99, 2),
-      slotWaiting = _useState100[0],
-      setSlotWaiting = _useState100[1];
-
-  var _useState101 = useState(0),
-      _useState102 = _slicedToArray(_useState101, 2),
-      slotRound = _useState102[0],
-      setSlotRound = _useState102[1];
+      slotRound = _useState94[0],
+      setSlotRound = _useState94[1];
 
   var slotPoolRef = useRef(ANIMAL_NAMES);
   var slotFinalNameRef = useRef("");
@@ -929,62 +884,62 @@ function HashiGame() {
   var guestNamesResolvedRef = useRef(false);
   var guestNamesTimeoutRef = useRef(null);
 
+  var _useState95 = useState([]),
+      _useState96 = _slicedToArray(_useState95, 2),
+      playersList = _useState96[0],
+      setPlayersList = _useState96[1];
+
+  var _useState97 = useState(false),
+      _useState98 = _slicedToArray(_useState97, 2),
+      isConnecting = _useState98[0],
+      setIsConnecting = _useState98[1];
+
+  var _useState99 = useState(true),
+      _useState100 = _slicedToArray(_useState99, 2),
+      showOtherCursors = _useState100[0],
+      setShowOtherCursors = _useState100[1];
+
+  var _useState101 = useState({}),
+      _useState102 = _slicedToArray(_useState101, 2),
+      cursors = _useState102[0],
+      setCursors = _useState102[1];
+
   var _useState103 = useState([]),
       _useState104 = _slicedToArray(_useState103, 2),
-      playersList = _useState104[0],
-      setPlayersList = _useState104[1];
-
-  var _useState105 = useState(false),
-      _useState106 = _slicedToArray(_useState105, 2),
-      isConnecting = _useState106[0],
-      setIsConnecting = _useState106[1];
-
-  var _useState107 = useState(true),
-      _useState108 = _slicedToArray(_useState107, 2),
-      showOtherCursors = _useState108[0],
-      setShowOtherCursors = _useState108[1];
-
-  var _useState109 = useState({}),
-      _useState110 = _slicedToArray(_useState109, 2),
-      cursors = _useState110[0],
-      setCursors = _useState110[1];
-
-  var _useState111 = useState([]),
-      _useState112 = _slicedToArray(_useState111, 2),
-      ripples = _useState112[0],
-      setRipples = _useState112[1];
+      ripples = _useState104[0],
+      setRipples = _useState104[1];
 
   // 💬 聊天室
 
 
-  var _useState113 = useState([]),
-      _useState114 = _slicedToArray(_useState113, 2),
-      chatMsgs = _useState114[0],
-      setChatMsgs = _useState114[1]; // {id, uid, name, color, text, ts, mine}
+  var _useState105 = useState([]),
+      _useState106 = _slicedToArray(_useState105, 2),
+      chatMsgs = _useState106[0],
+      setChatMsgs = _useState106[1]; // {id, uid, name, color, text, ts, mine}
 
 
-  var _useState115 = useState(false),
-      _useState116 = _slicedToArray(_useState115, 2),
-      chatOpen = _useState116[0],
-      setChatOpen = _useState116[1];
+  var _useState107 = useState(false),
+      _useState108 = _slicedToArray(_useState107, 2),
+      chatOpen = _useState108[0],
+      setChatOpen = _useState108[1];
 
-  var _useState117 = useState(''),
-      _useState118 = _slicedToArray(_useState117, 2),
-      chatInput = _useState118[0],
-      setChatInput = _useState118[1];
+  var _useState109 = useState(''),
+      _useState110 = _slicedToArray(_useState109, 2),
+      chatInput = _useState110[0],
+      setChatInput = _useState110[1];
 
-  var _useState119 = useState(0),
-      _useState120 = _slicedToArray(_useState119, 2),
-      unreadChat = _useState120[0],
-      setUnreadChat = _useState120[1];
+  var _useState111 = useState(0),
+      _useState112 = _slicedToArray(_useState111, 2),
+      unreadChat = _useState112[0],
+      setUnreadChat = _useState112[1];
 
   var chatOpenRef = useRef(false);
   var chatListRef = useRef(null);
 
-  var _useState121 = useState(false),
-      _useState122 = _slicedToArray(_useState121, 2),
-      chatMin = _useState122[0],
-      setChatMin = _useState122[1]; // 💬 聊天室收合
+  var _useState113 = useState(false),
+      _useState114 = _slicedToArray(_useState113, 2),
+      chatMin = _useState114[0],
+      setChatMin = _useState114[1]; // 💬 聊天室收合
 
   // 💬 聊天室邏輯
 
@@ -1025,25 +980,25 @@ function HashiGame() {
 
   // 📹 圓形視訊（PeerJS MediaConnection，走 WebRTC 不經伺服器）
 
-  var _useState123 = useState(false),
-      _useState124 = _slicedToArray(_useState123, 2),
-      videoOn = _useState124[0],
-      setVideoOn = _useState124[1];
+  var _useState115 = useState(false),
+      _useState116 = _slicedToArray(_useState115, 2),
+      videoOn = _useState116[0],
+      setVideoOn = _useState116[1];
 
-  var _useState125 = useState(false),
-      _useState126 = _slicedToArray(_useState125, 2),
-      micMuted = _useState126[0],
-      setMicMuted = _useState126[1];
+  var _useState117 = useState(false),
+      _useState118 = _slicedToArray(_useState117, 2),
+      micMuted = _useState118[0],
+      setMicMuted = _useState118[1];
 
-  var _useState127 = useState(null),
-      _useState128 = _slicedToArray(_useState127, 2),
-      localStream = _useState128[0],
-      setLocalStream = _useState128[1];
+  var _useState119 = useState(null),
+      _useState120 = _slicedToArray(_useState119, 2),
+      localStream = _useState120[0],
+      setLocalStream = _useState120[1];
 
-  var _useState129 = useState({}),
-      _useState130 = _slicedToArray(_useState129, 2),
-      remoteVideos = _useState130[0],
-      setRemoteVideos = _useState130[1]; // uid -> MediaStream
+  var _useState121 = useState({}),
+      _useState122 = _slicedToArray(_useState121, 2),
+      remoteVideos = _useState122[0],
+      setRemoteVideos = _useState122[1]; // uid -> MediaStream
 
 
   var localStreamRef = useRef(null);
@@ -1054,21 +1009,21 @@ function HashiGame() {
   }, [videoOn]);
   // 🔊 喇叭預設關閉；有人開麥發言時提示是否開音效
 
-  var _useState131 = useState(false),
-      _useState132 = _slicedToArray(_useState131, 2),
-      speakerOn = _useState132[0],
-      setSpeakerOn = _useState132[1];
+  var _useState123 = useState(false),
+      _useState124 = _slicedToArray(_useState123, 2),
+      speakerOn = _useState124[0],
+      setSpeakerOn = _useState124[1];
 
-  var _useState133 = useState({}),
-      _useState134 = _slicedToArray(_useState133, 2),
-      remoteMic = _useState134[0],
-      setRemoteMic = _useState134[1]; // uid -> muted(bool)
+  var _useState125 = useState({}),
+      _useState126 = _slicedToArray(_useState125, 2),
+      remoteMic = _useState126[0],
+      setRemoteMic = _useState126[1]; // uid -> muted(bool)
 
 
-  var _useState135 = useState(null),
-      _useState136 = _slicedToArray(_useState135, 2),
-      speakPrompt = _useState136[0],
-      setSpeakPrompt = _useState136[1]; // {uid, name}
+  var _useState127 = useState(null),
+      _useState128 = _slicedToArray(_useState127, 2),
+      speakPrompt = _useState128[0],
+      setSpeakPrompt = _useState128[1]; // {uid, name}
 
 
   var speakerOnRef = useRef(false);
@@ -1184,7 +1139,7 @@ function HashiGame() {
     setRemoteMic({});setSpeakPrompt(null);speakPromptedRef.current = {};
   };
   var toggleVideo = function () {
-    var _ref2 = _asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee() {
+    var _ref = _asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee() {
       var stream;
       return regeneratorRuntime.wrap(function _callee$(_context) {
         while (1) {
@@ -1249,7 +1204,7 @@ function HashiGame() {
     }));
 
     return function toggleVideo() {
-      return _ref2.apply(this, arguments);
+      return _ref.apply(this, arguments);
     };
   }();
   var toggleMic = function toggleMic() {
@@ -1268,52 +1223,41 @@ function HashiGame() {
 
   // 首次教學導覽
 
-  var _useState137 = useState(false),
-      _useState138 = _slicedToArray(_useState137, 2),
-      showTutorial = _useState138[0],
-      setShowTutorial = _useState138[1];
-
-  var _useState139 = useState(0),
-      _useState140 = _slicedToArray(_useState139, 2),
-      tutorialStep = _useState140[0],
-      setTutorialStep = _useState140[1];
-
   // 靜音偏好（與全域音效引擎同步）
 
-
-  var _useState141 = useState(function () {
+  var _useState129 = useState(function () {
     return platAudio().isMuted();
   }),
-      _useState142 = _slicedToArray(_useState141, 2),
-      muted = _useState142[0],
-      setMuted = _useState142[1]; // 靜音統一殼級 plat_muted（PlatAudio，v1.64.0）
+      _useState130 = _slicedToArray(_useState129, 2),
+      muted = _useState130[0],
+      setMuted = _useState130[1]; // 靜音統一殼級 plat_muted（PlatAudio，v1.64.0）
 
   // 🏁 競速模式
 
 
-  var _useState143 = useState('coop'),
-      _useState144 = _slicedToArray(_useState143, 2),
-      mpMode = _useState144[0],
-      setMpMode = _useState144[1]; // 'coop' | 'race'
+  var _useState131 = useState('coop'),
+      _useState132 = _slicedToArray(_useState131, 2),
+      mpMode = _useState132[0],
+      setMpMode = _useState132[1]; // 'coop' | 'race'
 
 
-  var _useState145 = useState('idle'),
-      _useState146 = _slicedToArray(_useState145, 2),
-      raceState = _useState146[0],
-      setRaceState = _useState146[1]; // idle | lobby | countdown | racing | finished
+  var _useState133 = useState('idle'),
+      _useState134 = _slicedToArray(_useState133, 2),
+      raceState = _useState134[0],
+      setRaceState = _useState134[1]; // idle | lobby | countdown | racing | finished
 
 
-  var _useState147 = useState({}),
-      _useState148 = _slicedToArray(_useState147, 2),
-      raceProgress = _useState148[0],
-      setRaceProgress = _useState148[1];
+  var _useState135 = useState({}),
+      _useState136 = _slicedToArray(_useState135, 2),
+      raceProgress = _useState136[0],
+      setRaceProgress = _useState136[1];
   // ⚔️ 大亂鬥擴充：盤面快照（上帝視角）+ 道具 + 特效
 
 
-  var _useState149 = useState({}),
-      _useState150 = _slicedToArray(_useState149, 2),
-      brawlBoards = _useState150[0],
-      setBrawlBoards = _useState150[1];
+  var _useState137 = useState({}),
+      _useState138 = _slicedToArray(_useState137, 2),
+      brawlBoards = _useState138[0],
+      setBrawlBoards = _useState138[1];
 
   var brawlBoardsRef = useRef({});
   useEffect(function () {
@@ -1321,57 +1265,57 @@ function HashiGame() {
   }, [brawlBoards]);
   // 🎮 統一多人框架：等待室 + 大亂鬥設定 + 本局選手名單
 
-  var _useState151 = useState(false),
+  var _useState139 = useState(false),
+      _useState140 = _slicedToArray(_useState139, 2),
+      roomOpen = _useState140[0],
+      setRoomOpen = _useState140[1];
+
+  var _useState141 = useState({ sizeId: 2, itemsEnabled: true, godNumbers: true }),
+      _useState142 = _slicedToArray(_useState141, 2),
+      brawlSettings = _useState142[0],
+      setBrawlSettings = _useState142[1];
+
+  var _useState143 = useState([]),
+      _useState144 = _slicedToArray(_useState143, 2),
+      raceRacers = _useState144[0],
+      setRaceRacers = _useState144[1];
+
+  var _useState145 = useState(null),
+      _useState146 = _slicedToArray(_useState145, 2),
+      godViewUid = _useState146[0],
+      setGodViewUid = _useState146[1];
+
+  var _useState147 = useState([]),
+      _useState148 = _slicedToArray(_useState147, 2),
+      myItems = _useState148[0],
+      setMyItems = _useState148[1];
+
+  var _useState149 = useState({}),
+      _useState150 = _slicedToArray(_useState149, 2),
+      fxFog = _useState150[0],
+      setFxFog = _useState150[1];
+
+  var _useState151 = useState([]),
       _useState152 = _slicedToArray(_useState151, 2),
-      roomOpen = _useState152[0],
-      setRoomOpen = _useState152[1];
+      fxFogBoxes = _useState152[0],
+      setFxFogBoxes = _useState152[1]; // 雲霧：[{id,minX,minY,maxX,maxY,until,cx,cy,R,puffs}]（命中島嶼外接矩形＋命中時算好的雲團幾何）
 
-  var _useState153 = useState({ sizeId: 2, itemsEnabled: true, godNumbers: true }),
+
+  var _useState153 = useState([]),
       _useState154 = _slicedToArray(_useState153, 2),
-      brawlSettings = _useState154[0],
-      setBrawlSettings = _useState154[1];
+      fxMarks = _useState154[0],
+      setFxMarks = _useState154[1]; // 短暫特效標記：[{id,gx,gy,icon,until}]（💥炸橋／✨禮物補橋，格坐標中心）
 
-  var _useState155 = useState([]),
+
+  var _useState155 = useState(Date.now()),
       _useState156 = _slicedToArray(_useState155, 2),
-      raceRacers = _useState156[0],
-      setRaceRacers = _useState156[1];
+      fxNow = _useState156[0],
+      setFxNow = _useState156[1];
 
   var _useState157 = useState(null),
       _useState158 = _slicedToArray(_useState157, 2),
-      godViewUid = _useState158[0],
-      setGodViewUid = _useState158[1];
-
-  var _useState159 = useState([]),
-      _useState160 = _slicedToArray(_useState159, 2),
-      myItems = _useState160[0],
-      setMyItems = _useState160[1];
-
-  var _useState161 = useState({}),
-      _useState162 = _slicedToArray(_useState161, 2),
-      fxFog = _useState162[0],
-      setFxFog = _useState162[1];
-
-  var _useState163 = useState([]),
-      _useState164 = _slicedToArray(_useState163, 2),
-      fxFogBoxes = _useState164[0],
-      setFxFogBoxes = _useState164[1]; // 雲霧：[{id,minX,minY,maxX,maxY,until,cx,cy,R,puffs}]（命中島嶼外接矩形＋命中時算好的雲團幾何）
-
-
-  var _useState165 = useState([]),
-      _useState166 = _slicedToArray(_useState165, 2),
-      fxMarks = _useState166[0],
-      setFxMarks = _useState166[1]; // 短暫特效標記：[{id,gx,gy,icon,until}]（💥炸橋／✨禮物補橋，格坐標中心）
-
-
-  var _useState167 = useState(Date.now()),
-      _useState168 = _slicedToArray(_useState167, 2),
-      fxNow = _useState168[0],
-      setFxNow = _useState168[1];
-
-  var _useState169 = useState(null),
-      _useState170 = _slicedToArray(_useState169, 2),
-      raceResult = _useState170[0],
-      setRaceResult = _useState170[1];
+      raceResult = _useState158[0],
+      setRaceResult = _useState158[1];
 
   useEffect(function () {
     if (raceResult && raceResult.winnerUid && raceResult.winnerUid === myId) {
@@ -1381,97 +1325,91 @@ function HashiGame() {
     }
   }, [raceResult]); // 奪冠（競速/大亂鬥冠軍是我）＝win（PlatAudio，v1.64.0）
 
-  var _useState171 = useState(false),
-      _useState172 = _slicedToArray(_useState171, 2),
-      raceWaiting = _useState172[0],
-      setRaceWaiting = _useState172[1];
+  var _useState159 = useState(false),
+      _useState160 = _slicedToArray(_useState159, 2),
+      raceWaiting = _useState160[0],
+      setRaceWaiting = _useState160[1];
 
   var resultsDismissRef = useRef(null); // PlatResults 關閉標記（記 raceState：同 state 內關了不再彈，state 變了——如結算——再彈）
 
-  var _useState173 = useState(false),
-      _useState174 = _slicedToArray(_useState173, 2),
-      resultsDismissedUi = _useState174[0],
-      setResultsDismissedUi = _useState174[1]; // 結果卡被「看盤面」關掉後，畫面留一顆🏆結果鈕可隨時叫回
+  var _useState161 = useState(false),
+      _useState162 = _slicedToArray(_useState161, 2),
+      resultsDismissedUi = _useState162[0],
+      setResultsDismissedUi = _useState162[1]; // 結果卡被「看盤面」關掉後，畫面留一顆🏆結果鈕可隨時叫回
 
 
-  var _useState175 = useState(false),
-      _useState176 = _slicedToArray(_useState175, 2),
-      leaveArm = _useState176[0],
-      setLeaveArm = _useState176[1]; // 結果卡「離開」兩段確認（防誤按就拆連線退場、結果再也叫不回）
+  var _useState163 = useState(false),
+      _useState164 = _slicedToArray(_useState163, 2),
+      leaveArm = _useState164[0],
+      setLeaveArm = _useState164[1]; // 結果卡「離開」兩段確認（防誤按就拆連線退場、結果再也叫不回）
 
 
   var leaveArmTimerRef = useRef(null);
 
-  var _useState177 = useState(false),
-      _useState178 = _slicedToArray(_useState177, 2),
-      showExitMenu = _useState178[0],
-      setShowExitMenu = _useState178[1]; // 標頭「退出」選單（錦標賽房主進行中按退出才開，內含「結束本局」防誤觸）
-
-
-  var _useState179 = useState(null),
-      _useState180 = _slicedToArray(_useState179, 2),
-      raceCountdown = _useState180[0],
-      setRaceCountdown = _useState180[1];
+  var _useState165 = useState(null),
+      _useState166 = _slicedToArray(_useState165, 2),
+      raceCountdown = _useState166[0],
+      setRaceCountdown = _useState166[1];
 
   // ⭐ 星級評分
 
 
-  var _useState181 = useState(0),
-      _useState182 = _slicedToArray(_useState181, 2),
-      stars = _useState182[0],
-      setStars = _useState182[1];
+  var _useState167 = useState(0),
+      _useState168 = _slicedToArray(_useState167, 2),
+      stars = _useState168[0],
+      setStars = _useState168[1];
 
-  var _useState183 = useState(false),
-      _useState184 = _slicedToArray(_useState183, 2),
-      isNewBest = _useState184[0],
-      setIsNewBest = _useState184[1];
+  var _useState169 = useState(false),
+      _useState170 = _slicedToArray(_useState169, 2),
+      isNewBest = _useState170[0],
+      setIsNewBest = _useState170[1];
 
   // ✨ 爽感：粒子與撒花
 
 
-  var _useState185 = useState([]),
-      _useState186 = _slicedToArray(_useState185, 2),
-      bursts = _useState186[0],
-      setBursts = _useState186[1];
+  var _useState171 = useState([]),
+      _useState172 = _slicedToArray(_useState171, 2),
+      bursts = _useState172[0],
+      setBursts = _useState172[1];
 
-  var _useState187 = useState([]),
-      _useState188 = _slicedToArray(_useState187, 2),
-      confetti = _useState188[0],
-      setConfetti = _useState188[1];
+  var _useState173 = useState([]),
+      _useState174 = _slicedToArray(_useState173, 2),
+      confetti = _useState174[0],
+      setConfetti = _useState174[1];
 
   // 每日一題
 
 
-  var _useState189 = useState(false),
-      _useState190 = _slicedToArray(_useState189, 2),
-      isDailyMode = _useState190[0],
-      setIsDailyMode = _useState190[1];
+  var _useState175 = useState(false),
+      _useState176 = _slicedToArray(_useState175, 2),
+      isDailyMode = _useState176[0],
+      setIsDailyMode = _useState176[1];
 
-  var _useState191 = useState(""),
-      _useState192 = _slicedToArray(_useState191, 2),
-      dailyDateStr = _useState192[0],
-      setDailyDateStr = _useState192[1];
+  var _useState177 = useState(""),
+      _useState178 = _slicedToArray(_useState177, 2),
+      dailyDateStr = _useState178[0],
+      setDailyDateStr = _useState178[1];
 
-  var _useState193 = useState(0),
-      _useState194 = _slicedToArray(_useState193, 2),
-      dailyStreak = _useState194[0],
-      setDailyStreak = _useState194[1];
+  var _useState179 = useState(0),
+      _useState180 = _slicedToArray(_useState179, 2),
+      dailyStreak = _useState180[0],
+      setDailyStreak = _useState180[1];
 
-  var _useState195 = useState(null),
-      _useState196 = _slicedToArray(_useState195, 2),
-      dailyDone = _useState196[0],
-      setDailyDone = _useState196[1];
+  var _useState181 = useState(null),
+      _useState182 = _slicedToArray(_useState181, 2),
+      dailyDone = _useState182[0],
+      setDailyDone = _useState182[1];
 
   var isDailyModeRef = useRef(false);
   var dailyDateStrRef = useRef("");
   // 主選單選擇的每日題目日期（預設今天，可往前選以前的題目）
 
-  var _useState197 = useState(function () {
+  var _useState183 = useState(function () {
     return HASHI_PUZZLE.getDailyDateStr();
   }),
-      _useState198 = _slicedToArray(_useState197, 2),
-      dailyMenuDate = _useState198[0],
-      setDailyMenuDate = _useState198[1];
+      _useState184 = _slicedToArray(_useState183, 2),
+      dailyMenuDate = _useState184[0],
+      setDailyMenuDate = _useState184[1];
 
   var dailyStatus = useMemo(function () {
     if (screen !== 'home') return null;
@@ -1504,22 +1442,22 @@ function HashiGame() {
   var peerRef = useRef(null);
   var PLAT_MODE = typeof window !== 'undefined' && !!window.__PLAT_PLATFORM;
 
-  var _useState199 = useState(false),
-      _useState200 = _slicedToArray(_useState199, 2),
-      zoomOpen = _useState200[0],
-      setZoomOpen = _useState200[1];
+  var _useState185 = useState(false),
+      _useState186 = _slicedToArray(_useState185, 2),
+      zoomOpen = _useState186[0],
+      setZoomOpen = _useState186[1];
 
-  var _useState201 = useState(false),
-      _useState202 = _slicedToArray(_useState201, 2),
-      drawSubOpen = _useState202[0],
-      setDrawSubOpen = _useState202[1];
+  var _useState187 = useState(false),
+      _useState188 = _slicedToArray(_useState187, 2),
+      drawSubOpen = _useState188[0],
+      setDrawSubOpen = _useState188[1];
   // 平台 dock 按鈕（💬/🎥/🎤/🔈）：平台模式＋連線中時畫進自己的底部列，與遊戲按鈕同排同款
 
 
-  var _useState203 = useState(0),
-      _useState204 = _slicedToArray(_useState203, 2),
-      dockTick = _useState204[0],
-      setDockTick = _useState204[1];
+  var _useState189 = useState(0),
+      _useState190 = _slicedToArray(_useState189, 2),
+      dockTick = _useState190[0],
+      setDockTick = _useState190[1];
 
   useEffect(function () {
     if (window.PlatDock) return window.PlatDock.subscribe(function () {
@@ -1689,14 +1627,11 @@ function HashiGame() {
     zoomModeIdxRef.current = zoomModeIdx;
   }, [zoomModeIdx]);
 
-  // 首次進入遊戲時顯示教學導覽（localStorage 記錄）
+  // 首次進入遊戲時顯示教學導覽（localStorage 記錄；F3 改開殼 PlatTutorial，關閉時由 openHashiTutorial 的 onClose 寫 seen）
   useEffect(function () {
     var seen = false;
     seen = platSave().getStr('hashi_tutorial_seen', '') === '1';
-    if (!seen) {
-      setTutorialStep(0);
-      setShowTutorial(true);
-    }
+    if (!seen) openHashiTutorial();
   }, []);
 
   useEffect(function () {
@@ -1745,8 +1680,8 @@ function HashiGame() {
         lastPinchDist.current = dist;
       } else if (e.touches.length === 1 && touchStartY !== null) {
         var dy = e.touches[0].clientY - touchStartY;
-        if (Math.abs(dy) > 30 && !isHeaderCollapsed) {
-          setIsHeaderCollapsed(true);
+        if (Math.abs(dy) > 30 && rulesOpenNow()) {
+          collapseRules();
         }
       }
     };
@@ -1759,8 +1694,8 @@ function HashiGame() {
     };
     var handleWheel = function handleWheel(e) {
       if (interactionMode >= 2) return;
-      if (Math.abs(e.deltaY) > 10 && !isHeaderCollapsed) {
-        setIsHeaderCollapsed(true);
+      if (Math.abs(e.deltaY) > 10 && rulesOpenNow()) {
+        collapseRules();
       }
       if (e.ctrlKey && zoomModeIdxRef.current !== 0) {
         setZoomModeIdx(0);
@@ -1781,7 +1716,7 @@ function HashiGame() {
       el.removeEventListener('touchcancel', handleTouchEnd);
       el.removeEventListener('wheel', handleWheel);
     };
-  }, [screen, isHeaderCollapsed, interactionMode, svgW, svgH, zoomLevel]);
+  }, [screen, interactionMode, svgW, svgH, zoomLevel]); // F3：規則開合改殼 PlatTopCard 持有、handler 即時讀 _debug
 
   useEffect(function () {
     if (screen !== 'game') return;
@@ -3365,6 +3300,203 @@ function HashiGame() {
     window.PlatBar.update(st);
   });
 
+  // ===== 框架層 F3（v1.72.0）：主畫面/頂欄/外框改掛殼 PlatHome/PlatTopCard/PlatFrame（單一實作） =====
+  // 規則開合改殼 PlatTopCard 持有（數橋各入口一律收合開始）；讀寫走 setRulesOpen/_debug
+  var rulesOpenNow = function rulesOpenNow() {
+    try {
+      return !!(window.PlatTopCard && window.PlatTopCard._debug().rulesOpen);
+    } catch (e) {
+      return false;
+    }
+  };
+  var collapseRules = function collapseRules() {
+    if (typeof window !== 'undefined' && window.PlatTopCard) window.PlatTopCard.setRulesOpen(false);
+  };
+  var platHomeRef = useRef(null);
+
+  var _useState191 = useState(false),
+      _useState192 = _slicedToArray(_useState191, 2),
+      platHomeMounted = _useState192[0],
+      setPlatHomeMounted = _useState192[1];
+
+  var _useState193 = useState(false),
+      _useState194 = _slicedToArray(_useState193, 2),
+      rulesOpenUi = _useState194[0],
+      setRulesOpenUi = _useState194[1]; // 規則開合 React 鏡像（供對局說明列；真值在殼、PTC update effect 同步）
+
+
+  var platFrameRef = useRef(null);
+
+  var _useState195 = useState(null),
+      _useState196 = _slicedToArray(_useState195, 2),
+      frameBody = _useState196[0],
+      setFrameBody = _useState196[1];
+
+  var _useState197 = useState(null),
+      _useState198 = _slicedToArray(_useState197, 2),
+      ptcSlot = _useState198[0],
+      setPtcSlot = _useState198[1];
+
+  var _useState199 = useState(0),
+      _useState200 = _slicedToArray(_useState199, 2),
+      ptcTick = _useState200[0],
+      setPtcTick = _useState200[1];
+
+  useEffect(function () {
+    if (screen !== 'game') return;var t = setInterval(function () {
+      return setPtcTick(function (x) {
+        return x + 1;
+      });
+    }, 1000);return function () {
+      return clearInterval(t);
+    };
+  }, [screen]);
+  var platHomeCfgStable = useRef(null);
+  if (!platHomeCfgStable.current) platHomeCfgStable.current = {
+    accent: '#4ade80', titleChars: ['數', '橋'], enName: 'Hashi Puzzle', dailyLabel: '每日一題',
+    onAction: function onAction(name) {
+      if (name === 'solo') startSinglePlayer();else if (name === 'daily') startDailyMode(dailyMenuDate);else if (name === 'prev') setDailyMenuDate(function (d) {
+        return clampDailyDate(HASHI_PUZZLE.shiftDateStr(d, -1));
+      });else if (name === 'next') setDailyMenuDate(function (d) {
+        return clampDailyDate(HASHI_PUZZLE.shiftDateStr(d, 1));
+      });else if (name === 'cal') openDailyCal(); // PlatHome 日期鈕的 action 名是 'cal'（F1/F2 既定契約、地雷/美術燈同款）；F3 初版誤寫 'date' → 主畫面點日期鈕沒反應、月曆打不開（test-daily-cal 抓到）
+      else if (name === 'tutorial') openHashiTutorial();else if (name === 'lobby') {
+          if (window.PLAT_show) window.PLAT_show('home');
+        }
+    }
+  };
+  useEffect(function () {
+    if (typeof window === 'undefined' || typeof window.PlatHome === 'undefined') return;
+    var el = platHomeRef.current;
+    if (screen === 'home') {
+      if (el) {
+        if (window.PlatHome._el() !== el || !window.PlatHome._elConnected()) window.PlatHome.attach(el, platHomeCfgStable.current);
+        if (!platHomeMounted) setPlatHomeMounted(true);
+      }
+    } else if (window.PlatHome.isAttached() && !window.PlatHome._elConnected()) {
+      window.PlatHome.detach(window.PlatHome._el()); // 只清「已斷線的殘留持有者」；detach() 無參數會清掉目前持有者——他款正顯示的主畫面會被本款在對局中的每秒 render 誤殺（F3 回歸實測，改 mines/akari 同款守衛）
+    }
+  });
+  useEffect(function () {
+    if (typeof window === 'undefined' || typeof window.PlatHome === 'undefined' || !window.PlatHome.isAttached()) return;
+    window.PlatHome.update({
+      dailyDate: dailyMenuDate, dailyIsToday: dailyMenuDate === HASHI_PUZZLE.getDailyDateStr(), dailyDone: !!(dailyStatus && dailyStatus.done),
+      canPrev: dailyMenuDate > MIN_DAILY_DATE, canNext: dailyMenuDate < HASHI_PUZZLE.getDailyDateStr(),
+      streak: dailyStatus ? dailyStatus.streak || 0 : 0, bestText: dailyStatus && dailyStatus.done ? formatTime(dailyStatus.done.time) : null,
+      inPlatform: !!PLAT_MODE
+    });
+  });
+
+  var openHashiSetup = function openHashiSetup(selOverride, custOverride) {
+    // selOverride/custOverride：startSinglePlayer 同步還原上次難度時傳入（setState 尚未生效，讀 closure 會拿到舊值）
+    if (typeof window === 'undefined' || typeof window.PlatSetup === 'undefined') return;
+    window.PlatSetup.show({
+      accent: '#4ade80', title: '⚙️ 設定難度',
+      subtitle: soloPickRef.current ? '選一個難度，開始一局新的挑戰。' : '選一個難度，立刻換一題新的。',
+      mode: 'list', instant: true,
+      options: LEVELS.filter(function (l) {
+        return l.id !== 'custom';
+      }).map(function (l) {
+        return { id: l.id, label: l.name, sub: l.description };
+      }),
+      selectedId: selOverride != null ? selOverride : currentLevelId,
+      custom: { label: '⚙️ 自訂尺寸', fields: [{ key: 'w', label: '寬度（橫向島嶼數）', min: 5, max: 100 }, { key: 'h', label: '長度（直向島嶼數）', min: 5, max: 100 }], values: custOverride || { w: tempWidth, h: tempHeight },
+        validate: function validate(vals) {
+          var w = Math.max(5, Math.min(100, parseInt(vals.w) || 5));var h = Math.max(5, Math.min(100, parseInt(vals.h) || 5));return { values: { w: w, h: h }, note: '輸入專屬長寬（5 ~ 100），生成超大型地圖', startText: '產生（' + w + 'x' + h + '）' };
+        } },
+      onStart: function onStart(id, vals) {
+        if (id === 'custom') {
+          handleCustomGenerate(vals && vals.w, vals && vals.h);return;
+        }
+        if (soloPickRef.current) {
+          platSave().setStr('hashi_solo_level', String(id));soloPickRef.current = false;setSoloPick(false);
+        }
+        setScreen('game');if (window.PlatTopCard) window.PlatTopCard.setRulesOpen(false);
+        handleLevelChange(id);
+      },
+      onCancel: function onCancel() {
+        if (soloPickRef.current) {
+          soloPickRef.current = false;setSoloPick(false);setScreen('home');
+        }
+      }
+    });
+  };
+
+  var HASHI_TUT_DEMOS = {
+    bridge: '<div class="bdemo mb-4" aria-hidden="true"><div class="bdemo-section bdemo-sec1">拖曳</div><div class="bdemo-section bdemo-sec2">點擊</div><div class="bdemo-label bdemo-l1">👆 按住拖曳，放開架橋</div><div class="bdemo-label bdemo-l2">點一下：1 座橋</div><div class="bdemo-label bdemo-l3">點兩下：2 座橋</div><div class="bdemo-label bdemo-l4">點三下：取消</div><div class="bdemo-scene"><div class="bdemo-island" style="left:30px">3</div><div class="bdemo-island" style="left:210px">2</div><div class="bdemo-preview"></div><div class="bdemo-bridge bdemo-b1"></div><div class="bdemo-bridge bdemo-bd1"></div><div class="bdemo-bridge bdemo-bd2"></div><div class="bdemo-finger">👆</div><div class="bdemo-ripple"></div></div></div>',
+    draft: '<div class="bdemo mb-4" aria-hidden="true"><div class="bdemo-label ddemo-l1">✏️ 草稿：拖曳畫出虛線</div><div class="bdemo-label ddemo-l2">👆 點擊：點兩下 2 條虛線</div><div class="bdemo-label ddemo-l3">切回畫筆模式 ✎</div><div class="bdemo-label ddemo-l4">點一下：虛線直接變實線！</div><div class="bdemo-scene"><div class="ddemo-mode"><span class="ddemo-m ddemo-m-draft">✏️ 草稿</span><span class="ddemo-m ddemo-m-pen">✎ 畫筆</span></div><div class="bdemo-island" style="left:30px">3</div><div class="bdemo-island" style="left:210px">2</div><div class="bdemo-preview ddemo-preview"></div><div class="ddemo-dash ddemo-db1"></div><div class="ddemo-dash ddemo-dbA"></div><div class="ddemo-dash ddemo-dbB"></div><div class="bdemo-bridge ddemo-sbA"></div><div class="bdemo-bridge ddemo-sbB"></div><div class="bdemo-finger ddemo-finger">👆</div><div class="bdemo-ripple ddemo-ripple"></div></div></div>',
+    connect: '<div class="conn-demo mb-4" aria-hidden="true"><div class="conn-phone conn-host"><div class="conn-ptitle">🏠 房主</div><div class="conn-btn">建立房間</div><div class="conn-code"><span>1</span><span>2</span><span>3</span><span>4</span></div></div><div class="conn-wire"><div class="conn-chip">1234</div></div><div class="conn-phone conn-guest"><div class="conn-ptitle">🚪 朋友</div><div class="conn-input"><span>1</span><span>2</span><span>3</span><span>4</span></div><div class="conn-btn">加入房間</div></div><div class="conn-success">✅ 連線成功！</div></div>'
+  };
+  var openHashiTutorial = function openHashiTutorial() {
+    if (typeof window === 'undefined' || typeof window.PlatTutorial === 'undefined') return;
+    window.PlatTutorial.show({ accent: '#4ade80', title: '❓ 玩法教學', onClose: function onClose() {
+        platSave().setStr('hashi_tutorial_seen', '1');
+      }, steps: TUTORIAL_STEPS.map(function (s) {
+        return {
+          html: (s.demo ? HASHI_TUT_DEMOS[s.demo] || '' : '<div class="text-7xl text-center">' + s.icon + '</div>') + '<h3 class="text-lg font-black text-slate-800 text-center mt-1">' + s.title + '</h3><p class="text-[13px] font-bold text-slate-600 leading-relaxed text-center mt-1">' + s.body + '</p>'
+        };
+      }) });
+  };
+
+  var hashiRulesHtml = function hashiRulesHtml() {
+    return '<div class="bg-white border-[3px] border-[#1e293b] rounded-xl p-3 text-[#1e293b] shadow-[4px_4px_0px_#1e293b] flex flex-col md:flex-row gap-3"><div class="flex-1"><h3 class="text-sm md:text-base font-black mb-1 border-b-[3px] border-[#4ade80] inline-block pb-0.5">📜 遊戲四大規則</h3><ol class="list-decimal list-outside ml-4 space-y-1 text-xs md:text-sm leading-relaxed font-bold"><li>每個圓圈是一座「島」，數字代表需要幾座橋樑。</li><li>橋樑必須是垂直或水平方向。</li><li>橋樑之間絕對不能交叉或重疊。</li><li>兩座島之間最多架設 2 座橋，且完成時所有島嶼必須全部連通。</li></ol></div><div class="md:w-1/3 bg-[#4ade80]/20 p-2 md:p-3 rounded-xl border-[3px] border-dashed border-[#1e293b] flex flex-col justify-center"><p class="text-[#1e293b] font-black text-xs md:text-sm mb-1">💡 提示與狀態：</p><p class="text-slate-700 text-xs md:text-sm font-bold leading-relaxed">' + (cLevel && cLevel.description || '') + '</p></div></div>';
+  };
+  var platFrameCfgStable = useRef(null);
+  if (!platFrameCfgStable.current) platFrameCfgStable.current = { paper: '#f6fdf6', bodyCls: 'flex-1 w-full flex flex-col min-h-0' };
+  var platTopCfgStable = useRef(null);
+  if (!platTopCfgStable.current) platTopCfgStable.current = {
+    accent: '#4ade80', logo: '🌉', name: '數橋 - HASHI', frame: false, rulesRaw: true, rulesHtml: '',
+    onAction: function onAction(name) {
+      if (name === 'mute') {
+        var m = platAudio().toggleMuted();setMuted(m);
+      } else if (name === 'spec') openHashiSetup();else if (name === 'leave-home') handleGoHome();else if (name === 'leave-lobby') requestLobby();else if (name === 'leave-leave') handleGoHome('leave');else if (name === 'leave-forceend') {
+        if (window.__PLAT_TOURN_FORCEEND) window.__PLAT_TOURN_FORCEEND();
+      }
+    }
+  };
+  useEffect(function () {
+    // PlatFrame 自我修復掛載（先於 PlatTopCard）
+    if (typeof window === 'undefined' || typeof window.PlatFrame === 'undefined') return;
+    var el = platFrameRef.current;
+    if (el) {
+      if (window.PlatFrame._el() !== el || !window.PlatFrame._elConnected()) {
+        window.PlatFrame.attach(el, platFrameCfgStable.current);setFrameBody(window.PlatFrame.getBody());
+      } else if (frameBody !== window.PlatFrame.getBody()) setFrameBody(window.PlatFrame.getBody());
+    }
+  });
+  useEffect(function () {
+    // PlatTopCard 自我修復掛載（掛進外框框頂）
+    if (typeof window === 'undefined' || typeof window.PlatTopCard === 'undefined') return;
+    if (typeof window.PlatFrame === 'undefined' || !window.PlatFrame.isAttached()) return;
+    var el = window.PlatFrame.getTop();
+    if (el) {
+      if (window.PlatTopCard._el() !== el || !window.PlatTopCard._elConnected()) window.PlatTopCard.attach(el, platTopCfgStable.current);
+      var slot = window.PlatTopCard.getSlot();
+      if (slot !== ptcSlot) setPtcSlot(slot);
+    }
+  });
+  useEffect(function () {
+    if (typeof window === 'undefined' || typeof window.PlatTopCard === 'undefined' || !window.PlatTopCard.isAttached()) return;
+    if (screen !== 'game') return;
+    var ro = window.PlatTopCard._debug().rulesOpen;if (ro !== rulesOpenUi) setRulesOpenUi(ro);
+    var secs = startTime ? Math.max(0, Math.floor(((endTime || Date.now()) - startTime) / 1000)) : 0;
+    window.PlatTopCard.update({
+      leaveIcon: isMultiplayer ? '🔌' : '🏠', leaveLabel: isMultiplayer ? '退出' : '回首頁',
+      modeChip: isMultiplayer ? inRace ? '⚔️ 競速對戰' : '🌐 合作模式' : null,
+      dailyChip: null,
+      specLabel: currentLevelId === 'daily' || isDailyMode ? '📅 每日一題' + (cLevel && cLevel.width ? ' ' + cLevel.width + 'x' + cLevel.height : '') : currentLevelId === 'custom' && randomLevelData ? '⚙️ 自訂 (' + randomLevelData.width + 'x' + randomLevelData.height + ')' : (LEVELS.find(function (l) {
+        return String(l.id) === String(currentLevelId);
+      }) || {}).name || (cLevel && cLevel.width ? cLevel.width + 'x' + cLevel.height : '10x10 標準'),
+      specClickable: !(isDailyMode || inRace || isMultiplayer && !isHostRef.current),
+      statText: null,
+      timerText: formatTime(secs),
+      muted: muted,
+      players: null,
+      rulesHtml: hashiRulesHtml(),
+      leaveMenu: { mode: isMultiplayer ? 'mp' : 'solo', canForceEnd: !!(typeof window !== 'undefined' && window.__PLAT_TOURN_CAN_FORCEEND && window.__PLAT_TOURN_CAN_FORCEEND()) }
+    });
+  });
+
   useEffect(function () {
     if (typeof window === 'undefined' || !window.PlatCountdown) return;
     if (window.__PLAT_NET && window.__PLAT_NET.inMatch !== 'hashi') return; // 平台：背景遊戲不許碰殼的共用 overlay（會把前景那款的倒數/結算弄閃）
@@ -3561,7 +3693,7 @@ function HashiGame() {
     return function () {
       return clearTimeout(t);
     };
-  }, [screen, currentLevelId, showSettingsModal]);
+  }, [screen, currentLevelId]); // F3：設定改殼 overlay（非 React state），modal 開關不再觸發本 effect（回主畫面由 screen 變化覆蓋）
   // 分片跑完一個 job（單機 miss／房主開局共用）：片長 ≤40ms、PlatGenerating 逾 300ms 顯示、放棄以 token 作廢待套用
   var genRunRef = useRef(0);
   var runJobToCompletion = function runJobToCompletion(job, key, onDone, onAbort) {
@@ -3596,7 +3728,7 @@ function HashiGame() {
     if (engineRef.current !== 'none' && !isHostRef.current) return;
 
     if (newLevelId === 'custom') {
-      setShowCustomModal(true);
+      openHashiSetup(); // F3：自訂改殼 PlatSetup 自訂區塊（原自訂 modal 已刪）
       return;
     }
 
@@ -3637,15 +3769,15 @@ function HashiGame() {
     }, 100);
   };
 
-  var handleCustomGenerate = function handleCustomGenerate() {
-    var w = Math.max(5, Math.min(100, tempWidth));
-    var h = Math.max(5, Math.min(100, tempHeight));
-    if (soloPick) {
-      platSave().setStr('hashi_solo_level', 'custom');platSave().write('hashi_solo_custom', { w: w, h: h });setSoloPick(false);
+  var handleCustomGenerate = function handleCustomGenerate(cw, ch) {
+    // F3：PlatSetup 自訂區塊直接傳已 clamp 的值（state 尚未生效時不讀舊值）
+    var w = Math.max(5, Math.min(100, cw != null ? cw : tempWidth));
+    var h = Math.max(5, Math.min(100, ch != null ? ch : tempHeight));
+    if (soloPickRef.current) {
+      platSave().setStr('hashi_solo_level', 'custom');platSave().write('hashi_solo_custom', { w: w, h: h });soloPickRef.current = false;setSoloPick(false);
     }
     setTempWidth(w);
     setTempHeight(h);
-    setShowCustomModal(false);
 
     setIsGenerating(true);
     setTimeout(function () {
@@ -3703,31 +3835,29 @@ function HashiGame() {
     resetWinMeta();
     switchToOffline();
     // v1.58.0：單機入口先選難度（不要直接開局）——還原上次單機選的難度供 modal 反綠，再開設定 modal；
-    // 選定才生成題目（handleLevelChange/handleCustomGenerate），取消則回主畫面（closeSettingsModal 處理）
+    // 選定才生成題目（handleLevelChange/handleCustomGenerate），取消則留主畫面（PlatSetup onCancel 處理）
+    var restoredSel = null,
+        restoredCust = null;
     try {
       var lastSolo = platSave().getStr('hashi_solo_level', '');
       if (lastSolo === 'custom') {
         var cd = platSave().read('hashi_solo_custom', { fallback: null });
         if (cd && cd.w && cd.h) {
-          setTempWidth(cd.w);setTempHeight(cd.h);
+          setTempWidth(cd.w);setTempHeight(cd.h);restoredCust = { w: cd.w, h: cd.h };
         }
-        setCurrentLevelId('custom');
+        setCurrentLevelId('custom');restoredSel = 'custom';
       } else if (lastSolo && LEVELS.some(function (l) {
         return String(l.id) === String(lastSolo);
-      })) setCurrentLevelId(Number(lastSolo));else if (!LEVELS.some(function (l) {
+      })) {
+        var nid = Number(lastSolo);setCurrentLevelId(nid);restoredSel = nid;
+      } else if (!LEVELS.some(function (l) {
         return String(l.id) === String(currentLevelId);
-      })) setCurrentLevelId(2); // 'daily' 等偽難度不可沿用
+      })) {
+        setCurrentLevelId(2);restoredSel = 2;
+      } // 'daily' 等偽難度不可沿用
     } catch (e) {}
-    setSoloPick(true);
-    setScreen('game');setIsHeaderCollapsed(true);
-    setShowSettingsModal(true);
-  };
-  // 設定 modal 的關閉：單機選難度途中取消＝回主畫面（局還沒開）；局內開啟則只關 modal
-  var closeSettingsModal = function closeSettingsModal() {
-    setShowSettingsModal(false);
-    if (soloPick) {
-      setSoloPick(false);setScreen('home');
-    }
+    soloPickRef.current = true;setSoloPick(true);
+    openHashiSetup(restoredSel, restoredCust); // F3：先選難度改殼 PlatSetup（疊主畫面）；還原值直接傳入（state 尚未生效）；選定才進對局畫面開局、取消留主畫面（onCancel 處理 soloPick）
   };
 
   // 每日一題：紀錄過關（只在每日模式呼叫）
@@ -3781,7 +3911,7 @@ function HashiGame() {
     setInteractionMode(0);
     switchToOffline();
     setScreen('game');
-    setIsHeaderCollapsed(true);
+    if (window.PlatTopCard) window.PlatTopCard.setRulesOpen(false);
   };
 
   // ===== 📅 每日一題月曆（亮燈=已完成、未來反灰不可選；點日期直接開那天的題目） =====
@@ -3996,7 +4126,7 @@ function HashiGame() {
     saveNickname(name);
     joinActiveRef.current = false;
     setIsConnecting(false);
-    setScreen('game');setIsHeaderCollapsed(true);
+    setScreen('game');if (window.PlatTopCard) window.PlatTopCard.setRulesOpen(false);
     if (mpModeRef.current === 'race') {
       setRaceState('lobby');raceStateRef.current = 'lobby';
     }
@@ -4022,7 +4152,7 @@ function HashiGame() {
         myColorRef.current = hcJoin;joinMsg.color = hcJoin;
       } // hub 模式：render 會用名單覆寫 myColorRef，故在送出點補釘並把殼的代表色帶進 JOIN（房主以 m.color 為準）；非 hub 不帶色、維持原行為
       connRef.current.send(joinMsg);
-      setScreen('game');setIsHeaderCollapsed(true);setIsConnecting(false);
+      setScreen('game');if (window.PlatTopCard) window.PlatTopCard.setRulesOpen(false);setIsConnecting(false);
     } else {
       setIsConnecting(false);
       showToast("⚠️ 連線已中斷，請重試");
@@ -4092,31 +4222,31 @@ function HashiGame() {
     });
   }, [playersList]);
 
-  var _useState205 = useState(false),
-      _useState206 = _slicedToArray(_useState205, 2),
-      platTournLock = _useState206[0],
-      setPlatTournLock = _useState206[1];
+  var _useState201 = useState(false),
+      _useState202 = _slicedToArray(_useState201, 2),
+      platTournLock = _useState202[0],
+      setPlatTournLock = _useState202[1];
 
-  var _useState207 = useState(false),
-      _useState208 = _slicedToArray(_useState207, 2),
-      platHub = _useState208[0],
-      setPlatHub = _useState208[1]; // v1.11.0：本局由殼房間框架啟動（等待室改在殼端，本遊戲不顯示自己的等待室）
+  var _useState203 = useState(false),
+      _useState204 = _slicedToArray(_useState203, 2),
+      platHub = _useState204[0],
+      setPlatHub = _useState204[1]; // v1.11.0：本局由殼房間框架啟動（等待室改在殼端，本遊戲不顯示自己的等待室）
 
 
   var platHubRef = useRef(false);
   var hubStartTimerRef = useRef(null);
 
-  var _useState209 = useState(null),
-      _useState210 = _slicedToArray(_useState209, 2),
-      tournRoundInfo = _useState210[0],
-      setTournRoundInfo = _useState210[1]; // 錦標賽本局資訊（第幾局/共幾局/加賽/應到人數），每局等待卡顯示與門檻用
+  var _useState205 = useState(null),
+      _useState206 = _slicedToArray(_useState205, 2),
+      tournRoundInfo = _useState206[0],
+      setTournRoundInfo = _useState206[1]; // 錦標賽本局資訊（第幾局/共幾局/加賽/應到人數），每局等待卡顯示與門檻用
 
 
   var tournWaitSinceRef = useRef(null); // 本局等待起點（等滿 1 分鐘房主可強制開始）
 
-  var _useState211 = useState(0),
-      _useState212 = _slicedToArray(_useState211, 2),
-      setTournTick = _useState212[1];
+  var _useState207 = useState(0),
+      _useState208 = _slicedToArray(_useState207, 2),
+      setTournTick = _useState208[1];
 
   useEffect(function () {
     if (!(platHub && platTournLock)) return;
@@ -5340,7 +5470,7 @@ function HashiGame() {
   };
 
   var handleQuickPaste = function () {
-    var _ref3 = _asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee2() {
+    var _ref2 = _asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee2() {
       var text, ta;
       return regeneratorRuntime.wrap(function _callee2$(_context2) {
         while (1) {
@@ -5384,7 +5514,7 @@ function HashiGame() {
     }));
 
     return function handleQuickPaste() {
-      return _ref3.apply(this, arguments);
+      return _ref2.apply(this, arguments);
     };
   }();
 
@@ -5592,451 +5722,136 @@ function HashiGame() {
     }
   };
 
-  // === 首次教學導覽 overlay（可在任何畫面開啟） ===
-  var closeTutorial = function closeTutorial() {
-    platSave().setStr('hashi_tutorial_seen', '1');
-    setShowTutorial(false);
-  };
+  // === 首次教學導覽：改掛殼 PlatTutorial（F3）；動畫改 HTML 字串（HASHI_TUT_DEMOS，CSS 動畫類別不變） ===
   // ===== 👆 架橋教學動畫（兩幕：拖曳 → 點擊三連拍） =====
-  var BridgeDemo = function BridgeDemo() {
-    return React.createElement(
-      'div',
-      { className: 'bdemo mb-4', 'aria-hidden': 'true' },
-      React.createElement(
-        'div',
-        { className: 'bdemo-section bdemo-sec1' },
-        '\u62D6\u66F3'
-      ),
-      React.createElement(
-        'div',
-        { className: 'bdemo-section bdemo-sec2' },
-        '\u9EDE\u64CA'
-      ),
-      React.createElement(
-        'div',
-        { className: 'bdemo-label bdemo-l1' },
-        '\uD83D\uDC46 \u6309\u4F4F\u62D6\u66F3\uFF0C\u653E\u958B\u67B6\u6A4B'
-      ),
-      React.createElement(
-        'div',
-        { className: 'bdemo-label bdemo-l2' },
-        '\u9EDE\u4E00\u4E0B\uFF1A1 \u5EA7\u6A4B'
-      ),
-      React.createElement(
-        'div',
-        { className: 'bdemo-label bdemo-l3' },
-        '\u9EDE\u5169\u4E0B\uFF1A2 \u5EA7\u6A4B'
-      ),
-      React.createElement(
-        'div',
-        { className: 'bdemo-label bdemo-l4' },
-        '\u9EDE\u4E09\u4E0B\uFF1A\u53D6\u6D88'
-      ),
-      React.createElement(
-        'div',
-        { className: 'bdemo-scene' },
-        React.createElement(
-          'div',
-          { className: 'bdemo-island', style: { left: '30px' } },
-          '3'
-        ),
-        React.createElement(
-          'div',
-          { className: 'bdemo-island', style: { left: '210px' } },
-          '2'
-        ),
-        React.createElement('div', { className: 'bdemo-preview' }),
-        React.createElement('div', { className: 'bdemo-bridge bdemo-b1' }),
-        React.createElement('div', { className: 'bdemo-bridge bdemo-bd1' }),
-        React.createElement('div', { className: 'bdemo-bridge bdemo-bd2' }),
-        React.createElement(
-          'div',
-          { className: 'bdemo-finger' },
-          '\uD83D\uDC46'
-        ),
-        React.createElement('div', { className: 'bdemo-ripple' })
-      )
-    );
-  };
 
   // ===== ✏️ 草稿教學動畫：虛線兩法 → 切畫筆一點變實線 =====
-  var DraftDemo = function DraftDemo() {
-    return React.createElement(
-      'div',
-      { className: 'bdemo mb-4', 'aria-hidden': 'true' },
-      React.createElement(
-        'div',
-        { className: 'bdemo-label ddemo-l1' },
-        '\u270F\uFE0F \u8349\u7A3F\uFF1A\u62D6\u66F3\u756B\u51FA\u865B\u7DDA'
-      ),
-      React.createElement(
-        'div',
-        { className: 'bdemo-label ddemo-l2' },
-        '\uD83D\uDC46 \u9EDE\u64CA\uFF1A\u9EDE\u5169\u4E0B 2 \u689D\u865B\u7DDA'
-      ),
-      React.createElement(
-        'div',
-        { className: 'bdemo-label ddemo-l3' },
-        '\u5207\u56DE\u756B\u7B46\u6A21\u5F0F \u270E'
-      ),
-      React.createElement(
-        'div',
-        { className: 'bdemo-label ddemo-l4' },
-        '\u9EDE\u4E00\u4E0B\uFF1A\u865B\u7DDA\u76F4\u63A5\u8B8A\u5BE6\u7DDA\uFF01'
-      ),
-      React.createElement(
-        'div',
-        { className: 'bdemo-scene' },
-        React.createElement(
-          'div',
-          { className: 'ddemo-mode' },
-          React.createElement(
-            'span',
-            { className: 'ddemo-m ddemo-m-draft' },
-            '\u270F\uFE0F \u8349\u7A3F'
-          ),
-          React.createElement(
-            'span',
-            { className: 'ddemo-m ddemo-m-pen' },
-            '\u270E \u756B\u7B46'
-          )
-        ),
-        React.createElement(
-          'div',
-          { className: 'bdemo-island', style: { left: '30px' } },
-          '3'
-        ),
-        React.createElement(
-          'div',
-          { className: 'bdemo-island', style: { left: '210px' } },
-          '2'
-        ),
-        React.createElement('div', { className: 'bdemo-preview ddemo-preview' }),
-        React.createElement('div', { className: 'ddemo-dash ddemo-db1' }),
-        React.createElement('div', { className: 'ddemo-dash ddemo-dbA' }),
-        React.createElement('div', { className: 'ddemo-dash ddemo-dbB' }),
-        React.createElement('div', { className: 'bdemo-bridge ddemo-sbA' }),
-        React.createElement('div', { className: 'bdemo-bridge ddemo-sbB' }),
-        React.createElement(
-          'div',
-          { className: 'bdemo-finger ddemo-finger' },
-          '\uD83D\uDC46'
-        ),
-        React.createElement('div', { className: 'bdemo-ripple ddemo-ripple' })
-      )
-    );
-  };
 
   // ===== 🔌 連線教學動畫：房主建房拿代碼 → 代碼飛給朋友 → 朋友輸入加入 → 成功 =====
-  var ConnectDemo = function ConnectDemo() {
-    return React.createElement(
-      'div',
-      { className: 'conn-demo mb-4', 'aria-hidden': 'true' },
-      React.createElement(
-        'div',
-        { className: 'conn-phone conn-host' },
-        React.createElement(
-          'div',
-          { className: 'conn-ptitle' },
-          '\uD83C\uDFE0 \u623F\u4E3B'
-        ),
-        React.createElement(
-          'div',
-          { className: 'conn-btn' },
-          '\u5EFA\u7ACB\u623F\u9593'
-        ),
-        React.createElement(
-          'div',
-          { className: 'conn-code' },
-          React.createElement(
-            'span',
-            null,
-            '1'
-          ),
-          React.createElement(
-            'span',
-            null,
-            '2'
-          ),
-          React.createElement(
-            'span',
-            null,
-            '3'
-          ),
-          React.createElement(
-            'span',
-            null,
-            '4'
-          )
-        )
-      ),
-      React.createElement(
-        'div',
-        { className: 'conn-wire' },
-        React.createElement(
-          'div',
-          { className: 'conn-chip' },
-          '1234'
-        )
-      ),
-      React.createElement(
-        'div',
-        { className: 'conn-phone conn-guest' },
-        React.createElement(
-          'div',
-          { className: 'conn-ptitle' },
-          '\uD83D\uDEAA \u670B\u53CB'
-        ),
-        React.createElement(
-          'div',
-          { className: 'conn-input' },
-          React.createElement(
-            'span',
-            null,
-            '1'
-          ),
-          React.createElement(
-            'span',
-            null,
-            '2'
-          ),
-          React.createElement(
-            'span',
-            null,
-            '3'
-          ),
-          React.createElement(
-            'span',
-            null,
-            '4'
-          )
-        ),
-        React.createElement(
-          'div',
-          { className: 'conn-btn' },
-          '\u52A0\u5165\u623F\u9593'
-        )
-      ),
-      React.createElement(
-        'div',
-        { className: 'conn-success' },
-        '\u2705 \u9023\u7DDA\u6210\u529F\uFF01'
-      )
-    );
-  };
 
-  var openTutorial = function openTutorial() {
-    setTutorialStep(0);
-    setShowTutorial(true);
-  };
-
-  var tutorialOverlay = showTutorial ? React.createElement(
-    'div',
-    { className: 'fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4', onClick: closeTutorial },
-    React.createElement(
-      'div',
-      { className: 'bg-[#fffaf0] border-4 border-slate-800 rounded-2xl shadow-[10px_10px_0px_rgba(30,41,59,1)] max-w-lg w-full max-h-[92vh] overflow-y-auto p-6 relative', onClick: function onClick(e) {
-          return e.stopPropagation();
-        } },
-      React.createElement(
-        'button',
-        { onClick: closeTutorial, className: 'absolute top-3 right-3 w-11 h-11 rounded-full bg-white border-4 border-slate-800 text-xl font-black text-slate-800 shadow-[3px_3px_0px_rgba(30,41,59,1)] z-20 flex items-center justify-center' },
-        '\u2715'
-      ),
-      React.createElement(
-        'h2',
-        { className: 'text-3xl font-black text-slate-800 border-b-8 border-[#4ade80] pb-2 inline-block mb-5 relative z-10' },
-        '\u2753 \u73A9\u6CD5\u6559\u5B78'
-      ),
-      React.createElement(
-        'div',
-        { className: 'bg-white border-[3px] border-slate-800 rounded-xl p-4 mb-4 shadow-[4px_4px_0px_rgba(30,41,59,1)] h-[400px] flex flex-col' },
-        React.createElement(
-          'div',
-          { className: 'h-[196px] shrink-0 flex items-center justify-center overflow-hidden w-full' },
-          TUTORIAL_STEPS[tutorialStep].demo === 'connect' && React.createElement(
-            'div',
-            { className: 'w-full' },
-            React.createElement(ConnectDemo, null)
-          ),
-          TUTORIAL_STEPS[tutorialStep].demo === 'bridge' && React.createElement(
-            'div',
-            { className: 'w-full' },
-            React.createElement(BridgeDemo, null)
-          ),
-          TUTORIAL_STEPS[tutorialStep].demo === 'draft' && React.createElement(
-            'div',
-            { className: 'w-full' },
-            React.createElement(DraftDemo, null)
-          ),
-          !TUTORIAL_STEPS[tutorialStep].demo && React.createElement(
-            'div',
-            { className: 'text-7xl' },
-            TUTORIAL_STEPS[tutorialStep].icon
-          )
-        ),
-        React.createElement(
-          'h3',
-          { className: 'text-lg font-black text-slate-800 text-center mt-1' },
-          TUTORIAL_STEPS[tutorialStep].title
-        ),
-        React.createElement(
-          'p',
-          { className: 'text-[13px] font-bold text-slate-600 leading-relaxed text-center mt-1' },
-          TUTORIAL_STEPS[tutorialStep].body
-        )
-      ),
-      React.createElement(
-        'div',
-        { className: 'flex justify-center gap-2 mb-5' },
-        TUTORIAL_STEPS.map(function (_, idx) {
-          return React.createElement('div', { key: idx, className: 'w-3.5 h-3.5 rounded-full border-2 border-slate-800 ' + (idx === tutorialStep ? 'bg-[#4ade80]' : 'bg-white') });
-        })
-      ),
-      React.createElement(
-        'div',
-        { className: 'flex gap-3' },
-        tutorialStep > 0 ? React.createElement(
-          'button',
-          { onClick: function onClick() {
-              setTutorialStep(tutorialStep - 1);
-            }, className: 'flex-1 py-4 bg-white border-4 border-slate-800 rounded-xl font-black text-xl text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)]' },
-          '\u4E0A\u4E00\u6B65'
-        ) : React.createElement('div', { className: 'flex-1' }),
-        React.createElement(
-          'button',
-          { onClick: closeTutorial, className: 'flex-1 py-4 bg-white border-4 border-slate-800 rounded-xl font-black text-xl text-slate-400 shadow-[4px_4px_0px_rgba(30,41,59,1)]' },
-          '\u8DF3\u904E'
-        ),
-        tutorialStep < TUTORIAL_STEPS.length - 1 ? React.createElement(
-          'button',
-          { onClick: function onClick() {
-              setTutorialStep(tutorialStep + 1);
-            }, className: 'flex-1 py-4 bg-[#4ade80] border-4 border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[4px_4px_0px_rgba(30,41,59,1)]' },
-          '\u4E0B\u4E00\u6B65'
-        ) : React.createElement(
-          'button',
-          { onClick: closeTutorial, className: 'flex-1 py-4 bg-[#34d399] border-4 border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[4px_4px_0px_rgba(30,41,59,1)]' },
-          '\u958B\u59CB\u904A\u6232 \uD83C\uDFAE'
-        )
-      )
-    )
-  ) : null;
 
   if (screen === 'home') {
     return React.createElement(
       'div',
-      { className: 'h-screen w-screen flex flex-col items-center justify-center p-4 relative overflow-hidden animate-fadeIn' },
-      React.createElement(
-        'div',
-        { className: 'flex-1 flex flex-col justify-center w-full max-w-md items-center' },
+      { key: 'hashi-home', className: 'h-screen w-screen flex flex-col items-center justify-center p-4 relative overflow-hidden animate-fadeIn' },
+      React.createElement('div', { ref: platHomeRef, className: 'contents' }),
+      !platHomeMounted && React.createElement(
+        React.Fragment,
+        null,
         React.createElement(
           'div',
-          { className: 'bg-[#f6fdf6] border-4 border-slate-800 p-10 rounded-xl shadow-[10px_10px_0px_rgba(30,41,59,1)] w-full text-center relative transform -rotate-1 z-10' },
-          React.createElement(
-            'h1',
-            { className: 'text-6xl font-black text-slate-800 mb-6 tracking-widest flex justify-center gap-3' },
-            React.createElement(
-              'span',
-              { className: 'inline-block animate-float-slow bg-[#4ade80] px-4 py-2 border-4 border-slate-800 rounded-xl transform rotate-3 shadow-[4px_4px_0px_rgba(30,41,59,1)]' },
-              '\u6578'
-            ),
-            React.createElement(
-              'span',
-              { className: 'inline-block animate-float-slow animate-float-slow-d bg-[#4ade80] px-4 py-2 border-4 border-slate-800 rounded-xl transform -rotate-2 shadow-[4px_4px_0px_rgba(30,41,59,1)]' },
-              '\u6A4B'
-            )
-          ),
+          { className: 'flex-1 flex flex-col justify-center w-full max-w-md items-center' },
           React.createElement(
             'div',
-            { className: 'inline-block border-[3px] border-dashed border-slate-800 rounded-xl px-6 py-2 mb-8 bg-white shadow-[4px_4px_0px_rgba(30,41,59,1)] transform rotate-2' },
+            { className: 'bg-[#f6fdf6] border-4 border-slate-800 p-10 rounded-xl shadow-[10px_10px_0px_rgba(30,41,59,1)] w-full text-center relative transform -rotate-1 z-10' },
             React.createElement(
-              'p',
-              { className: 'text-slate-800 font-black text-xl tracking-widest uppercase italic' },
-              'Hashi Puzzle'
-            )
-          ),
-          React.createElement(
-            'div',
-            { className: 'flex flex-col gap-5' },
-            React.createElement(
-              'button',
-              { onClick: startSinglePlayer, className: 'plat-btn-hard w-full py-4 bg-white border-4 border-slate-800 rounded-xl font-black text-xl text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)] transform rotate-1' },
-              '\uD83D\uDC64 \u55AE\u6A5F\u6311\u6230'
-            ),
-            React.createElement(
-              'button',
-              { onClick: function onClick() {
-                  return startDailyMode(dailyMenuDate);
-                }, className: 'plat-btn-hard w-full py-4 bg-[#4ade80] border-4 border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[4px_4px_0px_rgba(30,41,59,1)] transform rotate-1' },
-              '\uD83D\uDCC5 \u6BCF\u65E5\u4E00\u984C'
-            ),
-            React.createElement(
-              'div',
-              { className: '-mt-2 flex items-center justify-center gap-1.5' },
+              'h1',
+              { className: 'text-6xl font-black text-slate-800 mb-6 tracking-widest flex justify-center gap-3' },
               React.createElement(
                 'span',
-                { className: 'text-slate-500 font-semibold text-xs whitespace-nowrap' },
-                '\uD83D\uDD58 \u4EE5\u524D\u7684\u984C\u76EE'
+                { className: 'inline-block animate-float-slow bg-[#4ade80] px-4 py-2 border-4 border-slate-800 rounded-xl transform rotate-3 shadow-[4px_4px_0px_rgba(30,41,59,1)]' },
+                '\u6578'
               ),
               React.createElement(
-                'button',
-                { onClick: function onClick() {
-                    return setDailyMenuDate(function (d) {
-                      return clampDailyDate(HASHI_PUZZLE.shiftDateStr(d, -1));
-                    });
-                  }, disabled: dailyMenuDate <= MIN_DAILY_DATE, className: 'plat-btn-hard plat-btn-hard-2 px-2 py-1 bg-white border-2 border-slate-800 rounded-md font-black text-xs text-slate-800 shadow-[2px_2px_0px_rgba(30,41,59,1)] disabled:opacity-30 active:translate-y-0.5' },
-                '\u25C0'
-              ),
-              React.createElement(
-                'button',
-                { onClick: openDailyCal, className: 'plat-btn-hard plat-btn-hard-2 border-2 border-slate-800 rounded-md px-2 py-1 font-bold text-sm bg-white text-slate-800 shadow-[2px_2px_0px_rgba(30,41,59,1)] active:translate-y-0.5' },
-                '\uD83D\uDCC5 ',
-                dailyMenuDate
-              ),
-              React.createElement(
-                'button',
-                { onClick: function onClick() {
-                    return setDailyMenuDate(function (d) {
-                      return clampDailyDate(HASHI_PUZZLE.shiftDateStr(d, 1));
-                    });
-                  }, disabled: dailyMenuDate >= HASHI_PUZZLE.getDailyDateStr(), className: 'plat-btn-hard plat-btn-hard-2 px-2 py-1 bg-white border-2 border-slate-800 rounded-md font-black text-xs text-slate-800 shadow-[2px_2px_0px_rgba(30,41,59,1)] disabled:opacity-30 active:translate-y-0.5' },
-                '\u25B6'
+                'span',
+                { className: 'inline-block animate-float-slow animate-float-slow-d bg-[#4ade80] px-4 py-2 border-4 border-slate-800 rounded-xl transform -rotate-2 shadow-[4px_4px_0px_rgba(30,41,59,1)]' },
+                '\u6A4B'
               )
             ),
-            dailyStatus && React.createElement(
-              'p',
-              { className: 'text-slate-600 font-bold text-sm -mt-2' },
-              dailyStatus.done ? '\u2705 \u5DF2\u5B8C\u6210 ' + formatTime(dailyStatus.done.time) : '\uD83D\uDCC5 ' + dailyStatus.dateStr,
-              dailyStatus.streak > 1 ? '  \uD83D\uDD25 \u9023\u64CA x' + dailyStatus.streak : ''
+            React.createElement(
+              'div',
+              { className: 'inline-block border-[3px] border-dashed border-slate-800 rounded-xl px-6 py-2 mb-8 bg-white shadow-[4px_4px_0px_rgba(30,41,59,1)] transform rotate-2' },
+              React.createElement(
+                'p',
+                { className: 'text-slate-800 font-black text-xl tracking-widest uppercase italic' },
+                'Hashi Puzzle'
+              )
             ),
             React.createElement(
-              'button',
-              { onClick: openTutorial, className: 'plat-btn-hard w-full py-4 bg-white border-4 border-slate-800 rounded-xl font-black text-xl text-slate-600 shadow-[4px_4px_0px_rgba(30,41,59,1)]' },
-              '\u2753 \u73A9\u6CD5\u6559\u5B78'
-            ),
-            PLAT_MODE && React.createElement(
               'div',
-              { className: 'flex items-center gap-2' },
+              { className: 'flex flex-col gap-5' },
+              React.createElement(
+                'button',
+                { onClick: startSinglePlayer, className: 'plat-btn-hard w-full py-4 bg-white border-4 border-slate-800 rounded-xl font-black text-xl text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)] transform rotate-1' },
+                '\uD83D\uDC64 \u55AE\u6A5F\u6311\u6230'
+              ),
               React.createElement(
                 'button',
                 { onClick: function onClick() {
-                    if (window.PLAT_show) window.PLAT_show('home');
-                  }, className: 'plat-btn-hard flex-1 py-3 bg-sky-400 border-4 border-slate-800 rounded-xl font-black text-lg text-slate-900 shadow-[4px_4px_0px_rgba(30,41,59,1)]' },
-                '\uD83C\uDFE0 \u56DE\u5927\u5EF3'
+                    return startDailyMode(dailyMenuDate);
+                  }, className: 'plat-btn-hard w-full py-4 bg-[#4ade80] border-4 border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[4px_4px_0px_rgba(30,41,59,1)] transform rotate-1' },
+                '\uD83D\uDCC5 \u6BCF\u65E5\u4E00\u984C',
+                dailyMenuDate !== HASHI_PUZZLE.getDailyDateStr() ? '（' + dailyMenuDate.slice(5) + '）' : '',
+                dailyStatus && dailyStatus.done ? ' ✓' : ''
               ),
-              renderDockCapsule(false)
+              React.createElement(
+                'div',
+                { className: 'flex items-center justify-center gap-2 flex-wrap' },
+                React.createElement(
+                  'button',
+                  { onClick: function onClick() {
+                      return setDailyMenuDate(function (d) {
+                        return clampDailyDate(HASHI_PUZZLE.shiftDateStr(d, -1));
+                      });
+                    }, disabled: dailyMenuDate <= MIN_DAILY_DATE, className: 'plat-btn-hard plat-btn-hard-2 w-9 h-9 bg-white border-[3px] border-slate-800 rounded-lg font-black shadow-[2px_2px_0px_rgba(30,41,59,1)] disabled:opacity-30' },
+                  '\u25C0'
+                ),
+                React.createElement(
+                  'button',
+                  { onClick: openDailyCal, className: 'plat-btn-hard plat-btn-hard-2 border-[3px] border-slate-800 rounded-lg px-2 py-1.5 font-black bg-white text-sm text-slate-800 shadow-[2px_2px_0px_rgba(30,41,59,1)]' },
+                  '\uD83D\uDCC5 ',
+                  dailyMenuDate
+                ),
+                React.createElement(
+                  'button',
+                  { onClick: function onClick() {
+                      return setDailyMenuDate(function (d) {
+                        return clampDailyDate(HASHI_PUZZLE.shiftDateStr(d, 1));
+                      });
+                    }, disabled: dailyMenuDate >= HASHI_PUZZLE.getDailyDateStr(), className: 'plat-btn-hard plat-btn-hard-2 w-9 h-9 bg-white border-[3px] border-slate-800 rounded-lg font-black shadow-[2px_2px_0px_rgba(30,41,59,1)] disabled:opacity-30' },
+                  '\u25B6'
+                ),
+                React.createElement(
+                  'span',
+                  { className: 'font-black text-sm text-orange-600' },
+                  '\uD83D\uDD25 \u9023\u7E8C ',
+                  React.createElement(PlatNum, { value: dailyStatus ? dailyStatus.streak || 0 : 0 }),
+                  ' \u5929'
+                ),
+                dailyStatus && dailyStatus.done ? React.createElement(
+                  'span',
+                  { className: 'font-black text-sm text-emerald-600' },
+                  '\u6700\u4F73 ',
+                  React.createElement(PlatNum, { value: formatTime(dailyStatus.done.time) })
+                ) : null
+              ),
+              React.createElement(
+                'button',
+                { onClick: openHashiTutorial, className: 'plat-btn-hard w-full py-4 bg-white border-4 border-slate-800 rounded-xl font-black text-xl text-slate-600 shadow-[4px_4px_0px_rgba(30,41,59,1)]' },
+                '\u2753 \u73A9\u6CD5\u6559\u5B78'
+              ),
+              PLAT_MODE && React.createElement(
+                'div',
+                { className: 'flex items-center gap-2' },
+                React.createElement(
+                  'button',
+                  { onClick: function onClick() {
+                      if (window.PLAT_show) window.PLAT_show('home');
+                    }, className: 'plat-btn-hard flex-1 py-3 bg-sky-400 border-4 border-slate-800 rounded-xl font-black text-lg text-slate-900 shadow-[4px_4px_0px_rgba(30,41,59,1)]' },
+                  '\uD83C\uDFE0 \u56DE\u5927\u5EF3'
+                ),
+                renderDockCapsule(false)
+              )
             )
           )
+        ),
+        React.createElement(
+          'div',
+          { className: 'shrink-0 pb-4 text-slate-800 font-black text-sm opacity-60 tracking-wider z-10' },
+          'Copyright \xA9 2026 \u8449\u5927\u5E25. All rights reserved.',
+          ' (v' + (window.PLAT_VERSION || '2.18') + ')'
         )
-      ),
-      React.createElement(
-        'div',
-        { className: 'shrink-0 pb-4 text-slate-800 font-black text-sm opacity-60 tracking-wider z-10' },
-        'Copyright \xA9 2026 \u8449\u5927\u5E25. All rights reserved.',
-        ' (v' + (window.PLAT_VERSION || '2.18') + ')'
-      ),
-      tutorialOverlay
+      )
     );
   }
 
@@ -6065,282 +5880,168 @@ function HashiGame() {
 
   return React.createElement(
     'div',
-    { className: 'h-screen w-screen p-1 md:p-4 flex flex-col items-center font-sans relative', style: { backgroundColor: '#e9f7e9', backgroundImage: 'radial-gradient(#b7ddb7 2px, transparent 2px)', backgroundSize: '12px 12px' } },
-    React.createElement(
-      'div',
-      { className: 'w-full max-w-[1200px] bg-[#f6fdf6] rounded-xl border-4 border-slate-800 shadow-[10px_10px_0px_rgba(30,41,59,1)] flex flex-col h-full relative z-10 overflow-hidden' },
+    { key: 'hashi-game', className: 'h-screen w-screen p-1 md:p-4 flex flex-col items-center font-sans relative' },
+    React.createElement('div', { ref: platFrameRef, className: 'w-full max-w-[1200px] flex-1 min-h-0' }),
+    ptcSlot && ReactDOM.createPortal(React.createElement(
+      React.Fragment,
+      null,
+      isDailyMode && React.createElement(
+        'div',
+        { className: 'flex items-center gap-1.5 flex-wrap' },
+        React.createElement(
+          'span',
+          { className: 'flex items-center gap-0.5 bg-[#4ade80] text-[#1e293b] pl-1 pr-1.5 py-1 rounded-md border-2 border-[#1e293b] font-black text-xs md:text-sm shadow-[2px_2px_0px_rgba(0,0,0,0.3)] whitespace-nowrap' },
+          React.createElement(
+            'button',
+            { onClick: function onClick() {
+                return startDailyMode(HASHI_PUZZLE.shiftDateStr(dailyDateStr, -1));
+              }, disabled: dailyDateStr <= MIN_DAILY_DATE, className: 'disabled:opacity-30 px-1', title: '\u524D\u4E00\u5929\u7684\u984C\u76EE' },
+            '\u25C0'
+          ),
+          React.createElement(
+            'span',
+            null,
+            '\uD83D\uDCC5 ',
+            dailyDateStr
+          ),
+          React.createElement(
+            'button',
+            { onClick: function onClick() {
+                return startDailyMode(HASHI_PUZZLE.shiftDateStr(dailyDateStr, 1));
+              }, disabled: dailyDateStr >= HASHI_PUZZLE.getDailyDateStr(), className: 'disabled:opacity-30 px-1', title: '\u5F8C\u4E00\u5929\u7684\u984C\u76EE' },
+            '\u25B6'
+          )
+        ),
+        dailyStreak > 0 && React.createElement(
+          'span',
+          { className: 'bg-red-500 text-white px-2 py-1 rounded-md border-2 border-[#1e293b] font-black text-xs md:text-sm shadow-[2px_2px_0px_rgba(0,0,0,0.3)] whitespace-nowrap' },
+          '\uD83D\uDD25 x',
+          React.createElement(PlatNum, { value: dailyStreak })
+        )
+      ),
+      isMultiplayer && React.createElement(
+        'span',
+        { className: 'bg-emerald-400 text-slate-900 px-2 py-1 rounded-md border-2 border-slate-800 font-black text-xs md:text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)] flex items-center gap-1 whitespace-nowrap self-start' },
+        isHostRef.current ? '👑 主機' : '👤 玩家',
+        ' | \u4EE3\u78BC: ',
+        roomId
+      ),
       React.createElement(
         'div',
-        { className: 'bg-gradient-to-b from-[#ffd633] to-[#4ade80] border-b-4 border-slate-800 shrink-0 z-50 relative transition-all duration-300 ease-in-out px-2 md:px-4 py-2 flex flex-col gap-2' },
+        { className: 'flex gap-1 md:gap-2 flex-wrap items-center w-full' },
         React.createElement(
           'div',
-          { className: 'flex items-center justify-between gap-1 w-full' },
+          { className: 'flex gap-1 md:gap-2 flex-wrap items-center ml-auto' },
+          !isWon && hasSolution && !showSolution && !inRace && React.createElement(
+            'button',
+            { onClick: handleShowSolution, className: 'plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-green-400 text-[#1e293b] border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1', title: '\u89E3\u7B54' },
+            '\uD83D\uDCA1',
+            React.createElement(
+              'span',
+              { className: 'hidden sm:inline' },
+              '\u89E3\u7B54'
+            )
+          ),
+          !isDailyMode && !inRace && React.createElement(
+            'button',
+            { onClick: handleRegenerateRandom, className: 'plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-blue-500 text-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1', title: '\u65B0\u984C' },
+            '\uD83C\uDFB2',
+            React.createElement(
+              'span',
+              { className: 'hidden sm:inline' },
+              '\u65B0\u984C'
+            )
+          ),
+          !isMultiplayer && React.createElement(
+            'button',
+            { onClick: handleUndo, disabled: history.length === 0 || isWon, className: 'plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)] disabled:opacity-50 disabled:shadow-none flex items-center gap-1 text-[#1e293b]', title: '\u5FA9\u539F' },
+            '\u21A9\uFE0F',
+            React.createElement(
+              'span',
+              { className: 'hidden sm:inline' },
+              '\u5FA9\u539F'
+            )
+          ),
           React.createElement(
-            'div',
-            { className: 'flex items-center gap-2 flex-wrap' },
+            'button',
+            { onClick: handleReset, className: 'plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-red-500 text-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1', title: '\u91CD\u7F6E' },
+            '\uD83D\uDD04',
             React.createElement(
-              'h1',
-              { className: 'font-black tracking-tight uppercase text-lg md:text-2xl text-[#1e293b] flex items-center gap-1' },
-              '\uD83C\uDF09',
-              React.createElement(
-                'span',
-                { className: 'hidden sm:inline' },
-                '\u6578\u6A4B'
-              )
-            ),
-            React.createElement(
-              'div',
-              { className: 'flex items-center gap-1 bg-[#1e293b] text-white px-2 py-1 rounded-md font-mono font-bold shadow-[2px_2px_0px_rgba(0,0,0,0.4)] text-xs md:text-sm whitespace-nowrap' },
-              React.createElement(GameTimer, { startTime: startTime, endTime: endTime, isRunning: !isWon && screen === 'game' })
-            ),
-            isDailyMode && React.createElement(
               'span',
-              { className: 'flex items-center gap-0.5 bg-[#4ade80] text-[#1e293b] pl-1 pr-1.5 py-1 rounded-md border-2 border-[#1e293b] font-black text-xs md:text-sm shadow-[2px_2px_0px_rgba(0,0,0,0.3)] whitespace-nowrap' },
-              React.createElement(
-                'button',
-                { onClick: function onClick() {
-                    return startDailyMode(HASHI_PUZZLE.shiftDateStr(dailyDateStr, -1));
-                  }, disabled: dailyDateStr <= MIN_DAILY_DATE, className: 'disabled:opacity-30 px-1', title: '\u524D\u4E00\u5929\u7684\u984C\u76EE' },
-                '\u25C0'
-              ),
-              React.createElement(
-                'span',
-                null,
-                '\uD83D\uDCC5 ',
-                dailyDateStr
-              ),
-              React.createElement(
-                'button',
-                { onClick: function onClick() {
-                    return startDailyMode(HASHI_PUZZLE.shiftDateStr(dailyDateStr, 1));
-                  }, disabled: dailyDateStr >= HASHI_PUZZLE.getDailyDateStr(), className: 'disabled:opacity-30 px-1', title: '\u5F8C\u4E00\u5929\u7684\u984C\u76EE' },
-                '\u25B6'
-              )
-            ),
-            isDailyMode && dailyStreak > 0 && React.createElement(
-              'span',
-              { className: 'bg-red-500 text-white px-2 py-1 rounded-md border-2 border-[#1e293b] font-black text-xs md:text-sm shadow-[2px_2px_0px_rgba(0,0,0,0.3)] whitespace-nowrap' },
-              '\uD83D\uDD25 x',
-              React.createElement(PlatNum, { value: dailyStreak })
-            ),
-            !PLAT_MODE && (videoOn || Object.keys(remoteVideos).length > 0) && React.createElement(
-              'div',
-              { className: 'px-4 py-2 bg-slate-800 flex gap-3 items-start overflow-x-auto shrink-0' },
-              React.createElement(
-                'div',
-                { className: 'flex flex-col items-center shrink-0' },
-                React.createElement(
-                  'div',
-                  { className: 'w-14 h-14 rounded-full overflow-hidden border-[3px] border-[#4ade80] shadow relative bg-slate-600' },
-                  localStream ? React.createElement('video', { ref: function ref(el) {
-                      if (el) el.srcObject = localStream;
-                    }, autoPlay: true, playsInline: true, muted: true, className: 'w-full h-full object-cover', style: { transform: 'scaleX(-1)' } }) : React.createElement(
-                    'div',
-                    { className: 'w-full h-full flex items-center justify-center text-white font-black text-lg', style: { backgroundColor: myColorRef.current === 'rainbow' ? '#a855f7' : myColorRef.current || '#3b82f6' } },
-                    (myNameRef.current || '你').slice(0, 1)
-                  )
-                ),
-                React.createElement(
-                  'span',
-                  { className: 'text-white text-[10px] font-bold mt-0.5' },
-                  '\u4F60',
-                  micMuted ? ' 🔇' : ''
-                )
-              ),
-              Object.entries(remoteVideos).map(function (entry) {
-                var uid = entry[0];var stream = entry[1];
-                var pl = playersList.find(function (p) {
-                  return p.id === uid;
-                });
-                var nm = pl ? pl.name : '對手';
-                return React.createElement(
-                  'div',
-                  { key: uid, className: 'flex flex-col items-center shrink-0' },
-                  React.createElement(
-                    'div',
-                    { className: 'w-14 h-14 rounded-full overflow-hidden border-[3px] border-white shadow relative bg-slate-600' },
-                    React.createElement('video', { ref: function ref(el) {
-                        if (el) {
-                          el.srcObject = stream;try {
-                            el.muted = !speakerOnRef.current;
-                          } catch (e) {}
-                        }
-                      }, autoPlay: true, playsInline: true, muted: true, className: 'remote-video-el w-full h-full object-cover' })
-                  ),
-                  React.createElement(
-                    'span',
-                    { className: 'text-white text-[10px] font-bold mt-0.5 max-w-[64px] truncate' },
-                    nm,
-                    remoteMic[uid] === false ? ' 🎤' : ''
-                  )
-                );
-              })
-            ),
-            isMultiplayer && React.createElement(
-              'span',
-              { className: 'bg-emerald-400 text-slate-900 px-2 py-1 rounded-md border-2 border-slate-800 font-black text-xs md:text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)] flex items-center gap-1 whitespace-nowrap' },
-              isHostRef.current ? '👑 主機' : '👤 玩家',
-              ' | \u4EE3\u78BC: ',
-              roomId
+              { className: 'hidden sm:inline' },
+              '\u91CD\u7F6E'
             )
           ),
           React.createElement(
             'button',
             { onClick: function onClick() {
-                return setIsHeaderCollapsed(!isHeaderCollapsed);
-              }, className: 'flex px-2 md:px-3 py-1 bg-[#1e293b] text-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_rgba(0,0,0,0.3)] hover:bg-slate-800 items-center gap-1 whitespace-nowrap' },
-            isHeaderCollapsed ? '🔽 展開規則' : '🔼 縮小面板'
-          )
-        ),
-        React.createElement(
-          'div',
-          { className: "plat-collapse-y w-full" + (isHeaderCollapsed ? "" : " open") },
-          React.createElement(
-            'div',
-            { className: 'bg-white border-[3px] border-[#1e293b] rounded-xl p-3 text-[#1e293b] shadow-[4px_4px_0px_#1e293b] flex flex-col md:flex-row gap-3' },
+                return setShowSaveModal(true);
+              }, className: 'plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-blue-500 text-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1', title: '\u5B58\u6A94/\u8B80\u6A94' },
+            '\uD83D\uDCBE',
             React.createElement(
-              'div',
-              { className: 'flex-1' },
-              React.createElement(
-                'h3',
-                { className: 'text-sm md:text-base font-black mb-1 border-b-[3px] border-[#4ade80] inline-block pb-0.5' },
-                '\uD83D\uDCDC \u904A\u6232\u56DB\u5927\u898F\u5247'
-              ),
-              React.createElement(
-                'ol',
-                { className: 'list-decimal list-outside ml-4 space-y-1 text-xs md:text-sm leading-relaxed font-bold' },
-                React.createElement(
-                  'li',
-                  null,
-                  '\u6BCF\u500B\u5713\u5708\u662F\u4E00\u5EA7\u300C\u5CF6\u300D\uFF0C\u6578\u5B57\u4EE3\u8868\u9700\u8981\u5E7E\u5EA7\u6A4B\u6A11\u3002'
-                ),
-                React.createElement(
-                  'li',
-                  null,
-                  '\u6A4B\u6A11\u5FC5\u9808\u662F\u5782\u76F4\u6216\u6C34\u5E73\u65B9\u5411\u3002'
-                ),
-                React.createElement(
-                  'li',
-                  null,
-                  '\u6A4B\u6A11\u4E4B\u9593\u7D55\u5C0D\u4E0D\u80FD\u4EA4\u53C9\u6216\u91CD\u758A\u3002'
-                ),
-                React.createElement(
-                  'li',
-                  null,
-                  '\u5169\u5EA7\u5CF6\u4E4B\u9593\u6700\u591A\u67B6\u8A2D 2 \u5EA7\u6A4B\uFF0C\u4E14\u5B8C\u6210\u6642\u6240\u6709\u5CF6\u5DBC\u5FC5\u9808\u5168\u90E8\u9023\u901A\u3002'
-                )
-              )
-            ),
-            React.createElement(
-              'div',
-              { className: 'md:w-1/3 bg-[#4ade80]/20 p-2 md:p-3 rounded-xl border-[3px] border-dashed border-[#1e293b] flex flex-col justify-center' },
-              React.createElement(
-                'p',
-                { className: 'text-[#1e293b] font-black text-xs md:text-sm mb-1 flex items-center gap-1' },
-                React.createElement(
-                  'span',
-                  null,
-                  '\uD83D\uDCA1'
-                ),
-                ' \u63D0\u793A\u8207\u72C0\u614B\uFF1A'
-              ),
-              React.createElement(
-                'p',
-                { className: 'text-slate-700 text-xs md:text-sm font-bold leading-relaxed' },
-                cLevel.description
-              )
-            )
-          )
-        ),
-        React.createElement(
-          'div',
-          { className: 'flex flex-wrap gap-1.5 items-center justify-between w-full' },
-          React.createElement(
-            'button',
-            { disabled: isDailyMode || inRace || isMultiplayer && !isHostRef.current, onClick: function onClick() {
-                return setShowSettingsModal(true);
-              }, title: '\u8A2D\u5B9A\u96E3\u5EA6', className: 'px-1 py-1 md:px-2 md:py-1.5 rounded-md border-2 border-[#1e293b] font-bold bg-white text-[#1e293b] text-xs md:text-sm outline-none shadow-[2px_2px_0px_#1e293b] w-auto cursor-pointer max-w-[150px] sm:max-w-none truncate disabled:opacity-60 disabled:cursor-not-allowed' },
-            currentLevelId === 'daily' || isDailyMode ? '📅 每日一題' + (cLevel && cLevel.width ? ' ' + cLevel.width + 'x' + cLevel.height : '') : currentLevelId === 'custom' && randomLevelData ? '\u2699\uFE0F \u81EA\u8A02 (' + randomLevelData.width + 'x' + randomLevelData.height + ')' : (LEVELS.find(function (l) {
-              return String(l.id) === String(currentLevelId);
-            }) || {}).name || (cLevel && cLevel.width ? cLevel.width + 'x' + cLevel.height : '10x10 標準'),
-            ' \u25BE'
-          ),
-          React.createElement(
-            'div',
-            { className: 'flex gap-1 md:gap-2 flex-wrap items-center ml-auto' },
-            !isWon && hasSolution && !showSolution && !inRace && React.createElement(
-              'button',
-              { onClick: handleShowSolution, className: 'plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-green-400 text-[#1e293b] border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1', title: '\u89E3\u7B54' },
-              '\uD83D\uDCA1',
-              React.createElement(
-                'span',
-                { className: 'hidden sm:inline' },
-                '\u89E3\u7B54'
-              )
-            ),
-            !isDailyMode && !inRace && React.createElement(
-              'button',
-              { onClick: handleRegenerateRandom, className: 'plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-blue-500 text-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1', title: '\u65B0\u984C' },
-              '\uD83C\uDFB2',
-              React.createElement(
-                'span',
-                { className: 'hidden sm:inline' },
-                '\u65B0\u984C'
-              )
-            ),
-            !isMultiplayer && React.createElement(
-              'button',
-              { onClick: handleUndo, disabled: history.length === 0 || isWon, className: 'plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)] disabled:opacity-50 disabled:shadow-none flex items-center gap-1 text-[#1e293b]', title: '\u5FA9\u539F' },
-              '\u21A9\uFE0F',
-              React.createElement(
-                'span',
-                { className: 'hidden sm:inline' },
-                '\u5FA9\u539F'
-              )
-            ),
-            React.createElement(
-              'button',
-              { onClick: handleReset, className: 'plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-red-500 text-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1', title: '\u91CD\u7F6E' },
-              '\uD83D\uDD04',
-              React.createElement(
-                'span',
-                { className: 'hidden sm:inline' },
-                '\u91CD\u7F6E'
-              )
-            ),
-            React.createElement(
-              'button',
-              { onClick: function onClick() {
-                  return setShowSaveModal(true);
-                }, className: 'plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-blue-500 text-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1', title: '\u5B58\u6A94/\u8B80\u6A94' },
-              '\uD83D\uDCBE',
-              React.createElement(
-                'span',
-                { className: 'hidden sm:inline' },
-                '\u5B58\u6A94'
-              )
-            ),
-            React.createElement(
-              'button',
-              { onClick: function onClick() {
-                  var m = platAudio().toggleMuted();setMuted(m);
-                }, className: 'plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1 text-[#1e293b]', title: muted ? "取消靜音" : "靜音" },
-              muted ? '🔇' : '🔊'
-            ),
-            React.createElement(
-              'button',
-              { onClick: function onClick() {
-                  var N = typeof window !== 'undefined' ? window.__PLAT_NET : null;if (N && N.inMatch === 'hashi' || typeof window !== 'undefined' && window.__PLAT_TOURN_CAN_FORCEEND && window.__PLAT_TOURN_CAN_FORCEEND()) setShowExitMenu(true);else handleGoHome();
-                }, className: 'plat-btn-hard plat-btn-hard-2 bg-white text-[#1e293b] border-2 border-[#1e293b] px-2 py-1 md:px-3 md:py-1.5 rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1', title: '\u56DE\u9996\u9801/\u65B7\u7DDA' },
-              !isMultiplayer ? '🏠' : '🔌',
-              React.createElement(
-                'span',
-                { className: 'hidden sm:inline ml-1' },
-                !isMultiplayer ? '回首頁' : '退出'
-              )
+              'span',
+              { className: 'hidden sm:inline' },
+              '\u5B58\u6A94'
             )
           )
         )
+      )
+    ), ptcSlot),
+    frameBody && ReactDOM.createPortal(React.createElement(
+      React.Fragment,
+      null,
+      !PLAT_MODE && (videoOn || Object.keys(remoteVideos).length > 0) && React.createElement(
+        'div',
+        { className: 'px-4 py-2 bg-slate-800 flex gap-3 items-start overflow-x-auto shrink-0 w-full' },
+        React.createElement(
+          'div',
+          { className: 'flex flex-col items-center shrink-0' },
+          React.createElement(
+            'div',
+            { className: 'w-14 h-14 rounded-full overflow-hidden border-[3px] border-[#4ade80] shadow relative bg-slate-600' },
+            localStream ? React.createElement('video', { ref: function ref(el) {
+                if (el) el.srcObject = localStream;
+              }, autoPlay: true, playsInline: true, muted: true, className: 'w-full h-full object-cover', style: { transform: 'scaleX(-1)' } }) : React.createElement(
+              'div',
+              { className: 'w-full h-full flex items-center justify-center text-white font-black text-lg', style: { backgroundColor: myColorRef.current === 'rainbow' ? '#a855f7' : myColorRef.current || '#3b82f6' } },
+              (myNameRef.current || '你').slice(0, 1)
+            )
+          ),
+          React.createElement(
+            'span',
+            { className: 'text-white text-[10px] font-bold mt-0.5' },
+            '\u4F60',
+            micMuted ? ' 🔇' : ''
+          )
+        ),
+        Object.entries(remoteVideos).map(function (entry) {
+          var uid = entry[0];var stream = entry[1];
+          var pl = playersList.find(function (p) {
+            return p.id === uid;
+          });
+          var nm = pl ? pl.name : '對手';
+          return React.createElement(
+            'div',
+            { key: uid, className: 'flex flex-col items-center shrink-0' },
+            React.createElement(
+              'div',
+              { className: 'w-14 h-14 rounded-full overflow-hidden border-[3px] border-white shadow relative bg-slate-600' },
+              React.createElement('video', { ref: function ref(el) {
+                  if (el) {
+                    el.srcObject = stream;try {
+                      el.muted = !speakerOnRef.current;
+                    } catch (e) {}
+                  }
+                }, autoPlay: true, playsInline: true, muted: true, className: 'remote-video-el w-full h-full object-cover' })
+            ),
+            React.createElement(
+              'span',
+              { className: 'text-white text-[10px] font-bold mt-0.5 max-w-[64px] truncate' },
+              nm,
+              remoteMic[uid] === false ? ' 🎤' : ''
+            )
+          );
+        })
       ),
       isMultiplayer && !(inRace && raceState !== 'lobby') && React.createElement(
         'div',
@@ -6668,7 +6369,7 @@ function HashiGame() {
           )
         )
       ),
-      !isHeaderCollapsed && React.createElement(
+      rulesOpenUi && React.createElement(
         'div',
         { className: 'h-8 shrink-0 flex items-center justify-center bg-slate-800 text-white border-b-4 border-slate-800 relative z-30 font-bold tracking-wide' },
         React.createElement(
@@ -7268,51 +6969,6 @@ function HashiGame() {
             }, className: 'plat-btn-hard plat-btn-hard-3 fixed bottom-24 right-3 z-[56] bg-white border-[3px] border-slate-800 rounded-full px-4 py-2 font-black shadow-[3px_3px_0px_#1e293b]' },
           '\uD83C\uDFC6 \u7D50\u679C'
         ),
-        showExitMenu && React.createElement(
-          'div',
-          { className: 'fixed inset-0 z-[95] flex items-center justify-center bg-slate-900/60 backdrop-blur-[2px] p-4', onClick: function onClick() {
-              return setShowExitMenu(false);
-            } },
-          React.createElement(
-            'div',
-            { className: 'bg-white border-4 border-[#1e293b] rounded-2xl shadow-[10px_10px_0px_#1e293b] p-6 w-full max-w-xs text-center animate-popUpCenter', onClick: function onClick(e) {
-                return e.stopPropagation();
-              } },
-            React.createElement(
-              'div',
-              { className: 'font-black text-xl text-[#1e293b] mb-4' },
-              '\u8981\u96E2\u958B\u5C0D\u5C40\u55CE\uFF1F'
-            ),
-            typeof window !== 'undefined' && window.__PLAT_TOURN_CAN_FORCEEND && window.__PLAT_TOURN_CAN_FORCEEND() && React.createElement(
-              'button',
-              { onClick: function onClick() {
-                  setShowExitMenu(false);if (window.__PLAT_TOURN_FORCEEND) window.__PLAT_TOURN_FORCEEND();
-                }, className: 'plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 bg-rose-500 text-white border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_#1e293b]' },
-              '\u23F9\uFE0F \u7D50\u675F\u672C\u5C40\uFF08\u9326\u6A19\u8CFD\uFF09'
-            ),
-            React.createElement(
-              'button',
-              { onClick: function onClick() {
-                  setShowExitMenu(false);requestLobby();
-                }, className: 'plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 bg-white text-slate-800 border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_#1e293b]' },
-              '\uD83C\uDFC1 \u56DE\u7B49\u5F85\u5BA4'
-            ),
-            React.createElement(
-              'button',
-              { onClick: function onClick() {
-                  setShowExitMenu(false);handleGoHome('leave');
-                }, className: 'plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 bg-white text-slate-800 border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_#1e293b]' },
-              '\uD83D\uDEAA \u9000\u51FA\uFF08\u56DE\u5927\u5EF3\uFF09'
-            ),
-            React.createElement(
-              'button',
-              { onClick: function onClick() {
-                  return setShowExitMenu(false);
-                }, className: 'w-full py-2 text-slate-400 font-bold hover:text-slate-700' },
-              '\u53D6\u6D88'
-            )
-          )
-        ),
         roomOpen && platHub && platTournLock ? React.createElement(
           'div',
           { className: 'absolute inset-0 z-[60] overflow-y-auto bg-slate-900/60 backdrop-blur-[2px] p-4 flex' },
@@ -7635,7 +7291,7 @@ function HashiGame() {
           )
         )
       )
-    ),
+    ), frameBody),
     showSaveModal && React.createElement(
       'div',
       { className: 'fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4' },
@@ -7687,132 +7343,6 @@ function HashiGame() {
             'button',
             { onClick: handleLoadCode, className: 'plat-btn-hard flex-1 py-3 bg-emerald-400 text-slate-900 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)]' },
             '\u8F09\u5165\u4EE3\u78BC'
-          )
-        )
-      )
-    ),
-    showSettingsModal && React.createElement(
-      'div',
-      { className: 'fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4', onClick: closeSettingsModal },
-      React.createElement(
-        'div',
-        { className: 'bg-[#f6fdf6] border-[4px] border-[#1e293b] rounded-2xl p-6 shadow-[10px_10px_0px_rgba(30,41,59,1)] w-full max-w-md animate-popUp', onClick: function onClick(e) {
-            return e.stopPropagation();
-          } },
-        React.createElement(
-          'h2',
-          { className: 'text-2xl font-black text-slate-800 mb-2 border-b-4 border-[#4ade80] inline-block pb-1' },
-          '\u2699\uFE0F \u8A2D\u5B9A\u96E3\u5EA6'
-        ),
-        React.createElement(
-          'p',
-          { className: 'text-sm font-bold text-slate-600 mb-4' },
-          soloPick ? '選一個難度，開始一局新的挑戰。' : '選一個難度，立刻換一題新的。'
-        ),
-        React.createElement(
-          'div',
-          { className: 'flex flex-col gap-2 mb-4' },
-          LEVELS.map(function (level) {
-            return React.createElement(
-              'button',
-              { key: level.id, onClick: function onClick() {
-                  setShowSettingsModal(false);if (soloPick && level.id !== 'custom') {
-                    platSave().setStr('hashi_solo_level', String(level.id));setSoloPick(false);
-                  }handleLevelChange(level.id === 'custom' ? 'custom' : level.id);
-                }, className: "plat-btn-hard plat-btn-hard-3 w-full text-left px-4 py-3 border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_rgba(30,41,59,1)]" + (String(currentLevelId) === String(level.id) ? " bg-[#4ade80] text-slate-900" : " bg-white text-slate-800") },
-              level.name,
-              React.createElement(
-                'span',
-                { className: 'block text-xs font-bold opacity-70 mt-0.5' },
-                level.description
-              )
-            );
-          })
-        ),
-        React.createElement(
-          'button',
-          { onClick: closeSettingsModal, className: 'plat-btn-hard w-full py-3 bg-white border-4 border-slate-800 rounded-xl font-black text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)]' },
-          '\u53D6\u6D88'
-        )
-      )
-    ),
-    showCustomModal && React.createElement(
-      'div',
-      { className: 'fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-center justify-center p-4' },
-      React.createElement(
-        'div',
-        { className: 'bg-[#f6fdf6] border-[4px] border-[#1e293b] rounded-2xl p-6 shadow-[10px_10px_0px_rgba(30,41,59,1)] w-full max-w-sm animate-popUpCenter' },
-        React.createElement(
-          'div',
-          { className: 'flex justify-between items-center mb-4 border-b-4 border-slate-800 pb-2' },
-          React.createElement(
-            'h2',
-            { className: 'text-xl font-black text-slate-800' },
-            '\u2699\uFE0F \u81EA\u8A02\u5730\u5716\u5C3A\u5BF8'
-          ),
-          React.createElement(
-            'button',
-            { onClick: function onClick() {
-                setShowCustomModal(false);
-                setCurrentLevelId(stateRef.current.levelId);
-                if (soloPick) {
-                  setSoloPick(false);setScreen('home');
-                }
-              }, className: 'text-slate-400 hover:text-slate-800 text-2xl font-black' },
-            '\u2715'
-          )
-        ),
-        React.createElement(
-          'p',
-          { className: 'text-xs font-semibold text-slate-500 mb-4' },
-          '\u8F38\u5165\u5C08\u5C6C\u9577\u5BEC\uFF085 ~ 100\uFF09\uFF0C\u751F\u6210\u8D85\u5927\u578B\u5408\u4F5C\u5730\u5716\uFF1A'
-        ),
-        React.createElement(
-          'div',
-          { className: 'flex flex-col gap-4 mb-6' },
-          React.createElement(
-            'div',
-            null,
-            React.createElement(
-              'label',
-              { className: 'block text-sm font-bold text-slate-800 mb-1' },
-              '\u5BEC\u5EA6 (\u6A6B\u5411\u5CF6\u5DBC\u6578):'
-            ),
-            React.createElement('input', { type: 'number', min: '5', max: '100', value: tempWidth, onChange: function onChange(e) {
-                return setTempWidth(parseInt(e.target.value) || 5);
-              }, className: 'w-full border-2 border-slate-800 rounded-md p-2 font-bold focus:ring-2 ring-[#4ade80] outline-none' })
-          ),
-          React.createElement(
-            'div',
-            null,
-            React.createElement(
-              'label',
-              { className: 'block text-sm font-bold text-slate-800 mb-1' },
-              '\u9577\u5EA6 (\u76F4\u5411\u5CF6\u5DBC\u6578):'
-            ),
-            React.createElement('input', { type: 'number', min: '5', max: '100', value: tempHeight, onChange: function onChange(e) {
-                return setTempHeight(parseInt(e.target.value) || 5);
-              }, className: 'w-full border-2 border-slate-800 rounded-md p-2 font-bold focus:ring-2 ring-[#4ade80] outline-none' })
-          )
-        ),
-        React.createElement(
-          'div',
-          { className: 'flex gap-3' },
-          React.createElement(
-            'button',
-            { onClick: function onClick() {
-                setShowCustomModal(false);
-                setCurrentLevelId(stateRef.current.levelId);
-                if (soloPick) {
-                  setSoloPick(false);setScreen('home');
-                }
-              }, className: 'plat-btn-hard plat-btn-hard-2 flex-1 py-2 bg-slate-200 border-2 border-slate-800 rounded-xl font-black text-slate-800 shadow-[2px_2px_0px_rgba(30,41,59,1)] hover:bg-slate-300' },
-            '\u53D6\u6D88'
-          ),
-          React.createElement(
-            'button',
-            { onClick: handleCustomGenerate, className: 'plat-btn-hard plat-btn-hard-2 flex-1 py-2 bg-[#4ade80] border-2 border-slate-800 rounded-xl font-black text-slate-900 shadow-[2px_2px_0px_rgba(30,41,59,1)] hover:bg-[#e6b800]' },
-            '\u7522\u751F'
           )
         )
       )
@@ -7942,8 +7472,7 @@ function HashiGame() {
           )
         )
       )
-    ),
-    tutorialOverlay
+    )
   );
 }
 var root = ReactDOM.createRoot(document.getElementById('hashi-root'));

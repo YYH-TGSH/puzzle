@@ -127,11 +127,16 @@ function solveHashi(islands) {
     const H = loadPage(reg, 'HH'), G = loadPage(reg, 'GH');
     await openRoom(H, G, 'hashi', 'race', true);
     const freshBoard = () => { const s = [...G.document.querySelectorAll('#view-hashi svg')].find(x => [...x.querySelectorAll('text')].some(t => /^[1-8]$/.test((t.textContent || '').trim()))); if (s) { s.createSVGPoint = () => { const pt = { x: 0, y: 0, matrixTransform: () => ({ x: pt.x, y: pt.y }) }; return pt; }; s.getScreenCTM = () => ({ inverse: () => ({}) }); } return s; };
-    const readIslands = () => { const bd = freshBoard(); if (!bd) return []; const out = []; bd.querySelectorAll('g').forEach(g => { const t = [...g.querySelectorAll('text')].find(x => /^[1-8]$/.test((x.textContent || '').trim())); if (!t) return; const cx = parseFloat(t.getAttribute('x')), cy = parseFloat(t.getAttribute('y')) - 2; out.push({ g, cx, cy, gx: Math.round((cx - 85) / 65), gy: Math.round((cy - 85) / 65), req: parseInt(t.textContent, 10) }); }); return out; };
-    const islands = await waitFor(() => { const r = readIslands(); return r.length >= 3 ? r : null; }, 90000, 'hashi islands');
-    check('數橋：開局讀到島嶼', !!islands, 'n=' + (islands || []).length);
-    await sleep(6500); // 等倒數結束
-    const solidLines = () => { const bd = freshBoard(); if (!bd) return 0; return [...bd.querySelectorAll('line')].filter(l => l.getAttribute('stroke') === '#1e293b' && !(l.getAttribute('stroke-dasharray') || '')).length; };
+    const readIslands = () => { const bd = freshBoard(); if (!bd) return []; const raw = []; bd.querySelectorAll('g').forEach(g => { const t = [...g.querySelectorAll('text')].find(x => /^[1-8]$/.test((x.textContent || '').trim())); if (!t) return; raw.push({ g, cx: parseFloat(t.getAttribute('x')), cy: parseFloat(t.getAttribute('y')) - 2, req: parseInt(t.textContent, 10) }); }); const xs = [...new Set(raw.map(r => r.cx))].sort((a, b) => a - b), ys = [...new Set(raw.map(r => r.cy))].sort((a, b) => a - b); return raw.map(r => ({ ...r, gx: xs.indexOf(r.cx), gy: ys.indexOf(r.cy) })); }; // 2026-11-21 修：格座標改由島嶼座標排序推導——舊寫死 (cx-85)/65 只合特定尺寸，房間預設尺寸變了就整張解圖錯位、拖曳全被判無效
+    // F3 後數橋首次進場會自動開殼 PlatTutorial（蓋在盤面上）；先關掉再操作盤面（真機使用者也會先關教學）
+    { const tutClose = G.document.querySelector('#plat-tutorial [data-ptu="close"]'); if (tutClose) { clickEl(G, tutClose); await sleep(500); } const tutCloseH = H.document.querySelector('#plat-tutorial [data-ptu="close"]'); if (tutCloseH) { clickEl(H, tutCloseH); await sleep(300); } }
+    const islands0 = await waitFor(() => { const r = readIslands(); return r.length >= 3 ? r : null; }, 90000, 'hashi islands');
+    check('數橋：開局讀到島嶼', !!islands0, 'n=' + (islands0 || []).length);
+    // 2026-11-21 決定性探針定版（logs/probe-hashi5.log）：來賓盤面開賽時會整盤換題，須等盤面穩定（連續兩讀相同）才解題/拖曳；
+    // 橋的斷言改讀遊戲狀態（localStorage hashi_resume_* 的 bridges count>0），不讀過渡期 DOM 線數——探針證實：拖曳後狀態 count=1、定版盤面 DOM 線數與狀態一致、回座後狀態保留。
+    let islands = readIslands(); let sigPrev = '';
+    for (let i = 0; i < 20; i++) { const cur = readIslands(); const s = JSON.stringify(cur.map(x => [x.cx, x.cy, x.req])); islands = cur; if (s === sigPrev && cur.length >= 3) break; sigPrev = s; await sleep(2000); }
+    const stateBridges = () => { try { for (let i = 0; i < G.window.localStorage.length; i++) { const k = G.window.localStorage.key(i); if (k && k.indexOf('hashi_resume_') === 0) { const v = JSON.parse(G.window.localStorage.getItem(k)); const b = (v && v.data && v.data.bridges) || []; return b.filter(x => x && x.count > 0).map(x => x.from + '-' + x.to + 'x' + x.count).sort().join(','); } } } catch (e) {} return ''; };
     if (islands) {
       const sol = solveHashi(islands);
       check('數橋：解出解法', !!sol);
@@ -150,14 +155,15 @@ function solveHashi(islands) {
         }
       }
     }
-    const linesB = solidLines();
-    check('數橋：離開前已架實線橋', linesB >= 2, 'lines=' + linesB);
+    await sleep(800);
+    const builtB = stateBridges();
+    check('數橋：離開前已架實線橋', builtB.length > 0, 'state=' + builtB);
     await exitAndResume(G, '數橋');
     const backBoard = await waitFor(() => { const r = readIslands(); return r.length >= 3 ? true : null; }, 90000, 'hashi back');
     check('數橋：回到對局（盤面重現）', !!backBoard);
     await sleep(1500);
-    const linesA = solidLines();
-    check('數橋：橋還原（實線數與離開前一致）', linesA === linesB && linesA >= 2, 'lines ' + linesB + '->' + linesA);
+    const builtA = stateBridges();
+    check('數橋：橋還原（狀態橋集合與離開前一致）', builtA === builtB && builtA.length > 0, 'state ' + builtB + '->' + builtA);
     check('數橋場零錯誤', H.errors.length === 0 && G.errors.length === 0, (H.errors[0] || '') + ' | ' + (G.errors[0] || ''));
   }
   // ================= 數獨 =================

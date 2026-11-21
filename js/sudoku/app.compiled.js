@@ -59,37 +59,6 @@ function PlatNum(props) {
     ref: ref
   });
 }
-function GameTimer(_ref) {
-  var startTime = _ref.startTime,
-    endTime = _ref.endTime,
-    isRunning = _ref.isRunning,
-    matchPhase = _ref.matchPhase;
-  var _useState = useState(Date.now()),
-    _useState2 = _slicedToArray(_useState, 2),
-    now = _useState2[0],
-    setNow = _useState2[1];
-  useEffect(function () {
-    if (!isRunning) return;
-    setNow(Date.now());
-    var t = setInterval(function () {
-      return setNow(Date.now());
-    }, 1000);
-    return function () {
-      return clearInterval(t);
-    };
-  }, [isRunning, startTime]);
-  var secs = 0;
-  if (matchPhase === 'playing' || matchPhase === 'finished') {
-    secs = Math.max(0, Math.floor(((endTime || now) - startTime) / 1000));
-  }
-  return /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: matchPhase === 'finished' ? '#ff4444' : 'white',
-      fontWeight: 'bold',
-      fontSize: '1.1em'
-    }
-  }, "\u23F1 ", formatTime(secs));
-}
 function platTimeOffset() {
   try {
     return window.__PLAT_NET && window.__PLAT_NET.timeOffset || 0;
@@ -98,7 +67,6 @@ function platTimeOffset() {
   }
 } // 房主時鐘偏移（稽核 D-05）：殼以 roster 時間戳估計，房主/單機恆 0
 function SudokuGame() {
-  var _SIZES$find, _DIFFICULTIES$find;
   var playerIdRef = useRef(function () {
     try {
       var K = 'plat_uid_sudoku';
@@ -160,52 +128,52 @@ function SudokuGame() {
     cells: []
   };
   var initialDataRef = useRef(emptyLevelData);
-  var _useState3 = useState('home'),
-    _useState4 = _slicedToArray(_useState3, 2),
-    screen = _useState4[0],
-    setScreen = _useState4[1];
+  var _useState = useState('home'),
+    _useState2 = _slicedToArray(_useState, 2),
+    screen = _useState2[0],
+    setScreen = _useState2[1];
   var screenRef = useRef('home');
   useEffect(function () {
     screenRef.current = screen;
   }, [screen]);
-  var _useState5 = useState('none'),
+  var _useState3 = useState('none'),
+    _useState4 = _slicedToArray(_useState3, 2),
+    engine = _useState4[0],
+    setEngine = _useState4[1];
+  var _useState5 = useState(9),
     _useState6 = _slicedToArray(_useState5, 2),
-    engine = _useState6[0],
-    setEngine = _useState6[1];
-  var _useState7 = useState(9),
+    sizeId = _useState6[0],
+    setSizeId = _useState6[1];
+  var _useState7 = useState('medium'),
     _useState8 = _slicedToArray(_useState7, 2),
-    sizeId = _useState8[0],
-    setSizeId = _useState8[1];
-  var _useState9 = useState('medium'),
+    diffId = _useState8[0],
+    setDiffId = _useState8[1];
+  var _useState9 = useState(initialDataRef.current),
     _useState10 = _slicedToArray(_useState9, 2),
-    diffId = _useState10[0],
-    setDiffId = _useState10[1];
-  var _useState11 = useState(initialDataRef.current),
+    levelData = _useState10[0],
+    setLevelData = _useState10[1];
+  var _useState11 = useState(initialDataRef.current.cells),
     _useState12 = _slicedToArray(_useState11, 2),
-    levelData = _useState12[0],
-    setLevelData = _useState12[1];
-  var _useState13 = useState(initialDataRef.current.cells),
+    cells = _useState12[0],
+    setCells = _useState12[1];
+  var _useState13 = useState([]),
     _useState14 = _slicedToArray(_useState13, 2),
-    cells = _useState14[0],
-    setCells = _useState14[1];
-  var _useState15 = useState([]),
-    _useState16 = _slicedToArray(_useState15, 2),
-    localCells = _useState16[0],
-    setLocalCells = _useState16[1];
+    localCells = _useState14[0],
+    setLocalCells = _useState14[1];
   var solutionGridRef = useRef(null);
-  var _useState17 = useState({}),
+  var _useState15 = useState({}),
+    _useState16 = _slicedToArray(_useState15, 2),
+    ghostHints = _useState16[0],
+    setGhostHints = _useState16[1];
+  var _useState17 = useState(false),
     _useState18 = _slicedToArray(_useState17, 2),
-    ghostHints = _useState18[0],
-    setGhostHints = _useState18[1];
-  var _useState19 = useState(false),
+    isBrawlMode = _useState18[0],
+    setIsBrawlMode = _useState18[1];
+  var _useState19 = useState([]),
     _useState20 = _slicedToArray(_useState19, 2),
-    isBrawlMode = _useState20[0],
-    setIsBrawlMode = _useState20[1];
-  var _useState21 = useState([]),
-    _useState22 = _slicedToArray(_useState21, 2),
-    brawlWinners = _useState22[0],
-    setBrawlWinners = _useState22[1];
-  var _useState23 = useState({
+    brawlWinners = _useState20[0],
+    setBrawlWinners = _useState20[1];
+  var _useState21 = useState({
       winnersCount: 3,
       allowQuickFill: false,
       allowTraversal: false,
@@ -217,157 +185,175 @@ function SudokuGame() {
       allowWeapons: true,
       weaponStartTime: 60
     }),
+    _useState22 = _slicedToArray(_useState21, 2),
+    brawlSettings = _useState22[0],
+    setBrawlSettings = _useState22[1];
+  var _useState23 = useState(false),
     _useState24 = _slicedToArray(_useState23, 2),
-    brawlSettings = _useState24[0],
-    setBrawlSettings = _useState24[1];
-  var _useState25 = useState(false),
+    showBrawlSettings = _useState24[0],
+    setShowBrawlSettings = _useState24[1];
+  var _useState25 = useState(null),
     _useState26 = _slicedToArray(_useState25, 2),
-    showBrawlSettings = _useState26[0],
-    setShowBrawlSettings = _useState26[1];
-  var _useState27 = useState(null),
-    _useState28 = _slicedToArray(_useState27, 2),
-    winner = _useState28[0],
-    setWinner = _useState28[1];
+    winner = _useState26[0],
+    setWinner = _useState26[1];
   var isWinnerDeclaredRef = useRef(false);
   var lastWinInfoRef = useRef(null); // 最近一次完賽資訊（GHOST_I_WON 補送用）
   var winResentRef = useRef(0);
-  var _useState29 = useState(false),
+  var _useState27 = useState('playing'),
+    _useState28 = _slicedToArray(_useState27, 2),
+    matchPhase = _useState28[0],
+    setMatchPhase = _useState28[1];
+  var _useState29 = useState(null),
     _useState30 = _slicedToArray(_useState29, 2),
-    showSetupModal = _useState30[0],
-    setShowSetupModal = _useState30[1];
-  var _useState31 = useState(9),
+    countdownTarget = _useState30[0],
+    setCountdownTarget = _useState30[1];
+  var _useState31 = useState(null),
     _useState32 = _slicedToArray(_useState31, 2),
-    tempSizeId = _useState32[0],
-    setTempSizeId = _useState32[1];
-  var _useState33 = useState('medium'),
+    countdownValue = _useState32[0],
+    setCountdownValue = _useState32[1];
+  var _useState33 = useState(false),
     _useState34 = _slicedToArray(_useState33, 2),
-    tempDiffId = _useState34[0],
-    setTempDiffId = _useState34[1];
-  var _useState35 = useState('playing'),
+    isSpectator = _useState34[0],
+    setIsSpectator = _useState34[1];
+  var _useState35 = useState([]),
     _useState36 = _slicedToArray(_useState35, 2),
-    matchPhase = _useState36[0],
-    setMatchPhase = _useState36[1];
-  var _useState37 = useState(null),
+    strokes = _useState36[0],
+    setStrokes = _useState36[1];
+  var _useState37 = useState([]),
     _useState38 = _slicedToArray(_useState37, 2),
-    countdownTarget = _useState38[0],
-    setCountdownTarget = _useState38[1];
-  var _useState39 = useState(null),
+    history = _useState38[0],
+    setHistory = _useState38[1];
+  var _useState39 = useState(false),
     _useState40 = _slicedToArray(_useState39, 2),
-    countdownValue = _useState40[0],
-    setCountdownValue = _useState40[1];
+    isWon = _useState40[0],
+    setIsWon = _useState40[1];
   var _useState41 = useState(false),
     _useState42 = _slicedToArray(_useState41, 2),
-    isSpectator = _useState42[0],
-    setIsSpectator = _useState42[1];
-  var _useState43 = useState([]),
-    _useState44 = _slicedToArray(_useState43, 2),
-    strokes = _useState44[0],
-    setStrokes = _useState44[1];
-  var _useState45 = useState([]),
-    _useState46 = _slicedToArray(_useState45, 2),
-    history = _useState46[0],
-    setHistory = _useState46[1];
-  var _useState47 = useState(false),
-    _useState48 = _slicedToArray(_useState47, 2),
-    isWon = _useState48[0],
-    setIsWon = _useState48[1];
-  var _useState49 = useState(false),
-    _useState50 = _slicedToArray(_useState49, 2),
-    hideVictoryModal = _useState50[0],
-    setHideVictoryModal = _useState50[1];
+    hideVictoryModal = _useState42[0],
+    setHideVictoryModal = _useState42[1];
   var resultsDismissRef = useRef(null); // PlatResults 關閉標記（記 matchPhase：同 phase 內關了不再彈，phase 變了——如結算——再彈）
-  var _useState51 = useState(false),
-    _useState52 = _slicedToArray(_useState51, 2),
-    resultsDismissedUi = _useState52[0],
-    setResultsDismissedUi = _useState52[1]; // 結果卡被「看盤面」關掉後，畫面留一顆🏆結果鈕可隨時叫回
-  var _useState53 = useState(false),
-    _useState54 = _slicedToArray(_useState53, 2),
-    leaveArm = _useState54[0],
-    setLeaveArm = _useState54[1]; // 結果卡「離開」兩段確認（防誤按就拆連線退場、結果再也叫不回）
+  var _useState43 = useState(false),
+    _useState44 = _slicedToArray(_useState43, 2),
+    resultsDismissedUi = _useState44[0],
+    setResultsDismissedUi = _useState44[1]; // 結果卡被「看盤面」關掉後，畫面留一顆🏆結果鈕可隨時叫回
+  var _useState45 = useState(false),
+    _useState46 = _slicedToArray(_useState45, 2),
+    leaveArm = _useState46[0],
+    setLeaveArm = _useState46[1]; // 結果卡「離開」兩段確認（防誤按就拆連線退場、結果再也叫不回）
   var leaveArmTimerRef = useRef(null);
-  var _useState55 = useState(false),
+  var _useState47 = useState(""),
+    _useState48 = _slicedToArray(_useState47, 2),
+    toastMsg = _useState48[0],
+    setToastMsg = _useState48[1];
+  var _useState49 = useState(Date.now()),
+    _useState50 = _slicedToArray(_useState49, 2),
+    startTime = _useState50[0],
+    setStartTime = _useState50[1];
+  var _useState51 = useState(null),
+    _useState52 = _slicedToArray(_useState51, 2),
+    endTime = _useState52[0],
+    setEndTime = _useState52[1];
+  var _useState53 = useState(null),
+    _useState54 = _slicedToArray(_useState53, 2),
+    matchStartTime = _useState54[0],
+    setMatchStartTime = _useState54[1];
+  var _useState55 = useState(1),
     _useState56 = _slicedToArray(_useState55, 2),
-    showExitMenu = _useState56[0],
-    setShowExitMenu = _useState56[1]; // 標頭「退出」選單（錦標賽房主進行中按退出才開，內含「結束本局」防誤觸）
-  var _useState57 = useState(""),
+    zoomLevel = _useState56[0],
+    setZoomLevel = _useState56[1];
+  var _useState57 = useState(false),
     _useState58 = _slicedToArray(_useState57, 2),
-    toastMsg = _useState58[0],
-    setToastMsg = _useState58[1];
-  var _useState59 = useState(Date.now()),
+    showSaveModal = _useState58[0],
+    setShowSaveModal = _useState58[1];
+  var _useState59 = useState(""),
     _useState60 = _slicedToArray(_useState59, 2),
-    startTime = _useState60[0],
-    setStartTime = _useState60[1];
-  var _useState61 = useState(null),
+    saveCode = _useState60[0],
+    setSaveCode = _useState60[1];
+  var _useState61 = useState(0),
     _useState62 = _slicedToArray(_useState61, 2),
-    endTime = _useState62[0],
-    setEndTime = _useState62[1];
-  var _useState63 = useState(null),
+    interactionMode = _useState62[0],
+    setInteractionMode = _useState62[1];
+  var _useState63 = useState('pen'),
     _useState64 = _slicedToArray(_useState63, 2),
-    matchStartTime = _useState64[0],
-    setMatchStartTime = _useState64[1];
-  var _useState65 = useState(1),
+    drawSubMode = _useState64[0],
+    setDrawSubMode = _useState64[1];
+  var _useState65 = useState(null),
     _useState66 = _slicedToArray(_useState65, 2),
-    zoomLevel = _useState66[0],
-    setZoomLevel = _useState66[1];
-  var _useState67 = useState(true),
-    _useState68 = _slicedToArray(_useState67, 2),
-    isHeaderCollapsed = _useState68[0],
-    setIsHeaderCollapsed = _useState68[1];
-  var _useState69 = useState(false),
-    _useState70 = _slicedToArray(_useState69, 2),
-    showSaveModal = _useState70[0],
-    setShowSaveModal = _useState70[1];
-  var _useState71 = useState(""),
-    _useState72 = _slicedToArray(_useState71, 2),
-    saveCode = _useState72[0],
-    setSaveCode = _useState72[1];
-  var _useState73 = useState(0),
-    _useState74 = _slicedToArray(_useState73, 2),
-    interactionMode = _useState74[0],
-    setInteractionMode = _useState74[1];
-  var _useState75 = useState('pen'),
-    _useState76 = _slicedToArray(_useState75, 2),
-    drawSubMode = _useState76[0],
-    setDrawSubMode = _useState76[1];
-  var _useState77 = useState(null),
-    _useState78 = _slicedToArray(_useState77, 2),
-    selectedChar = _useState78[0],
-    setSelectedChar = _useState78[1];
+    selectedChar = _useState66[0],
+    setSelectedChar = _useState66[1];
   // 輸入方式：'num' 數字先行（先點數字再點格子）｜'cell' 格子先行（先點格子再點數字）— 玩家可切換、記住選擇
-  var _useState79 = useState(function () {
+  var _useState67 = useState(function () {
       return platSave().getStr('sudoku_input_mode', '') === 'cell' ? 'cell' : 'num';
     }),
-    _useState80 = _slicedToArray(_useState79, 2),
-    inputMode = _useState80[0],
-    setInputMode = _useState80[1];
-  var _useState81 = useState(null),
-    _useState82 = _slicedToArray(_useState81, 2),
-    selectedCellId = _useState82[0],
-    setSelectedCellId = _useState82[1];
+    _useState68 = _slicedToArray(_useState67, 2),
+    inputMode = _useState68[0],
+    setInputMode = _useState68[1];
+  var _useState69 = useState(null),
+    _useState70 = _slicedToArray(_useState69, 2),
+    selectedCellId = _useState70[0],
+    setSelectedCellId = _useState70[1];
   useEffect(function () {
     platSave().setStr('sudoku_input_mode', inputMode);
   }, [inputMode]);
-  // v1.61.0 K1：單機難度段位滑動指示片（殼 PlatSeg 共用；量測在 effect 內、選取變化才滑）
-  useEffect(function () {
-    if (window.PlatSeg) {
-      var c = document.querySelector('#view-sudoku [data-seg="sudoku-diff"]');
-      var b = c && c.querySelector('[data-seg-on="1"]');
-      if (c && b) window.PlatSeg(c, 'sudoku-diff', b, '#ffcc00');
+  // ===== 框架層 F3（v1.72.0）：主畫面/頂欄/外框改掛殼 PlatHome/PlatTopCard/PlatFrame（單一實作） =====
+  // 難度 seg 滑動指示片改由殼 PlatSetup 內部持有（groups seg 組），本檔不再自呼 PlatSeg。
+  // 規則面板開合改殼 PlatTopCard 持有：讀寫走 setRulesOpen/_debug（捲動自動收合等既有行為改呼叫殼）
+  var rulesOpenNow = function rulesOpenNow() {
+    try {
+      return !!(window.PlatTopCard && window.PlatTopCard._debug().rulesOpen);
+    } catch (e) {
+      return false;
     }
-  }, [diffId, screen]);
+  };
+  var collapseRules = function collapseRules() {
+    if (typeof window !== 'undefined' && window.PlatTopCard) window.PlatTopCard.setRulesOpen(false);
+  };
+  var platHomeRef = useRef(null);
+  var _useState71 = useState(false),
+    _useState72 = _slicedToArray(_useState71, 2),
+    platHomeMounted = _useState72[0],
+    setPlatHomeMounted = _useState72[1];
+  var _useState73 = useState(true),
+    _useState74 = _slicedToArray(_useState73, 2),
+    rulesOpenUi = _useState74[0],
+    setRulesOpenUi = _useState74[1]; // 規則開合的 React 鏡像（僅供對局說明列 {!rulesOpenUi 隱藏} 用；真值在殼 PlatTopCard，PTC update effect 每 render 同步）
+  var platFrameRef = useRef(null);
+  var _useState75 = useState(null),
+    _useState76 = _slicedToArray(_useState75, 2),
+    frameBody = _useState76[0],
+    setFrameBody = _useState76[1];
+  var _useState77 = useState(null),
+    _useState78 = _slicedToArray(_useState77, 2),
+    ptcSlot = _useState78[0],
+    setPtcSlot = _useState78[1];
+  var _useState79 = useState(0),
+    _useState80 = _slicedToArray(_useState79, 2),
+    ptcTick = _useState80[0],
+    setPtcTick = _useState80[1]; // 頂欄計時字 1 秒跳字（取代 GameTimer 元件自帶 interval）
+  useEffect(function () {
+    if (screen !== 'game') return;
+    var t = setInterval(function () {
+      return setPtcTick(function (x) {
+        return x + 1;
+      });
+    }, 1000);
+    return function () {
+      return clearInterval(t);
+    };
+  }, [screen]);
   // 靜音偏好（與全域音效引擎同步，同數橋）
-  var _useState83 = useState(function () {
+  var _useState81 = useState(function () {
       return platAudio().isMuted();
     }),
-    _useState84 = _slicedToArray(_useState83, 2),
-    muted = _useState84[0],
-    setMuted = _useState84[1]; // 靜音統一殼級 plat_muted（PlatAudio，v1.64.0）
+    _useState82 = _slicedToArray(_useState81, 2),
+    muted = _useState82[0],
+    setMuted = _useState82[1]; // 靜音統一殼級 plat_muted（PlatAudio，v1.64.0）
 
   // 平台 dock 按鈕（💬/🎥/🎤/🔈）：平台模式＋連線中時畫進自己的底部列，與遊戲按鈕同排同款
-  var _useState85 = useState(0),
-    _useState86 = _slicedToArray(_useState85, 2),
-    dockTick = _useState86[0],
-    setDockTick = _useState86[1];
+  var _useState83 = useState(0),
+    _useState84 = _slicedToArray(_useState83, 2),
+    dockTick = _useState84[0],
+    setDockTick = _useState84[1];
   useEffect(function () {
     if (window.PlatDock) return window.PlatDock.subscribe(function () {
       return setDockTick(function (t) {
@@ -420,44 +406,44 @@ function SudokuGame() {
   };
 
   // 禮物與反擊機制 (盤面直接覆蓋)
-  var _useState87 = useState({}),
+  var _useState85 = useState({}),
+    _useState86 = _slicedToArray(_useState85, 2),
+    unopenedGifts = _useState86[0],
+    setUnopenedGifts = _useState86[1];
+  var _useState87 = useState(initialDataRef.current.sizeDef.chars),
     _useState88 = _slicedToArray(_useState87, 2),
-    unopenedGifts = _useState88[0],
-    setUnopenedGifts = _useState88[1];
-  var _useState89 = useState(initialDataRef.current.sizeDef.chars),
+    keyMapping = _useState88[0],
+    setKeyMapping = _useState88[1];
+  var _useState89 = useState([]),
     _useState90 = _slicedToArray(_useState89, 2),
-    keyMapping = _useState90[0],
-    setKeyMapping = _useState90[1];
+    flippedKeys = _useState90[0],
+    setFlippedKeys = _useState90[1];
   var _useState91 = useState([]),
     _useState92 = _slicedToArray(_useState91, 2),
-    flippedKeys = _useState92[0],
-    setFlippedKeys = _useState92[1];
-  var _useState93 = useState([]),
-    _useState94 = _slicedToArray(_useState93, 2),
-    flares = _useState94[0],
-    setFlares = _useState94[1];
+    flares = _useState92[0],
+    setFlares = _useState92[1];
 
   // === 道具系統：水球霧化 + 格子清除 ===
-  var _useState95 = useState([]),
+  var _useState93 = useState([]),
+    _useState94 = _slicedToArray(_useState93, 2),
+    myWeapons = _useState94[0],
+    setMyWeapons = _useState94[1]; // ['balloon','eraser',...]
+  var _useState95 = useState({}),
     _useState96 = _slicedToArray(_useState95, 2),
-    myWeapons = _useState96[0],
-    setMyWeapons = _useState96[1]; // ['balloon','eraser',...]
+    foggedBoxes = _useState96[0],
+    setFoggedBoxes = _useState96[1]; // { boxId: expiryTimestamp }
   var _useState97 = useState({}),
     _useState98 = _slicedToArray(_useState97, 2),
-    foggedBoxes = _useState98[0],
-    setFoggedBoxes = _useState98[1]; // { boxId: expiryTimestamp }
-  var _useState99 = useState({}),
+    erasingCells = _useState98[0],
+    setErasingCells = _useState98[1]; // { cellId: { value, timestamp } }
+  var _useState99 = useState('my'),
     _useState100 = _slicedToArray(_useState99, 2),
-    erasingCells = _useState100[0],
-    setErasingCells = _useState100[1]; // { cellId: { value, timestamp } }
-  var _useState101 = useState('my'),
+    finishViewMode = _useState100[0],
+    setFinishViewMode = _useState100[1]; // 'my' | 'god'
+  var _useState101 = useState(null),
     _useState102 = _slicedToArray(_useState101, 2),
-    finishViewMode = _useState102[0],
-    setFinishViewMode = _useState102[1]; // 'my' | 'god'
-  var _useState103 = useState(null),
-    _useState104 = _slicedToArray(_useState103, 2),
-    godUid = _useState104[0],
-    setGodUid = _useState104[1]; // 上帝視角正在看的選手（v1.44 Q5：觀戰改單盤＋選手切換，比照數橋/地雷）
+    godUid = _useState102[0],
+    setGodUid = _useState102[1]; // 上帝視角正在看的選手（v1.44 Q5：觀戰改單盤＋選手切換，比照數橋/地雷）
   var lastMilestoneRef = useRef(0); // 已跨越的 5% 里程碑數量（0~19，逐格補報不跳過）
   var giftCreditRef = useRef(0); // 禮物計量額度：每完成一個行/列/宮/數字 +0.5，湊滿 1 才送出
 
@@ -466,49 +452,49 @@ function SudokuGame() {
   var scrambledCharsRef = useRef(new Set());
   var modeIcons = ['🖋️', '✏️', '🖌️'];
   var modeTitles = ['填答模式', '草稿模式', '畫筆作記號'];
-  var _useState105 = useState(3),
-    _useState106 = _slicedToArray(_useState105, 2),
-    zoomModeIdx = _useState106[0],
-    setZoomModeIdx = _useState106[1];
-  var _useState107 = useState({
+  var _useState103 = useState(3),
+    _useState104 = _slicedToArray(_useState103, 2),
+    zoomModeIdx = _useState104[0],
+    setZoomModeIdx = _useState104[1];
+  var _useState105 = useState({
       value: 1.0,
       visible: false
     }),
-    _useState108 = _slicedToArray(_useState107, 2),
-    zoomIndicator = _useState108[0],
-    setZoomIndicator = _useState108[1];
+    _useState106 = _slicedToArray(_useState105, 2),
+    zoomIndicator = _useState106[0],
+    setZoomIndicator = _useState106[1];
   var zoomIndicatorTimer = useRef(null);
-  var _useState109 = useState(false),
-    _useState110 = _slicedToArray(_useState109, 2),
-    isClosingModal = _useState110[0],
-    setIsClosingModal = _useState110[1];
+  var _useState107 = useState(false),
+    _useState108 = _slicedToArray(_useState107, 2),
+    isClosingModal = _useState108[0],
+    setIsClosingModal = _useState108[1];
 
   // --- 漂浮選單分身術 (Zoom 與 Mode 獨立系統) ---
-  var _useState111 = useState(false),
-    _useState112 = _slicedToArray(_useState111, 2),
-    zoomMenuOpen = _useState112[0],
-    setZoomMenuOpen = _useState112[1];
-  var _useState113 = useState({
+  var _useState109 = useState(false),
+    _useState110 = _slicedToArray(_useState109, 2),
+    zoomMenuOpen = _useState110[0],
+    setZoomMenuOpen = _useState110[1];
+  var _useState111 = useState({
       x: -1,
       y: -1
     }),
+    _useState112 = _slicedToArray(_useState111, 2),
+    zoomMenuPos = _useState112[0],
+    setZoomMenuPos = _useState112[1];
+  var _useState113 = useState(false),
     _useState114 = _slicedToArray(_useState113, 2),
-    zoomMenuPos = _useState114[0],
-    setZoomMenuPos = _useState114[1];
-  var _useState115 = useState(false),
-    _useState116 = _slicedToArray(_useState115, 2),
-    isDraggingZoom = _useState116[0],
-    setIsDraggingZoom = _useState116[1];
+    isDraggingZoom = _useState114[0],
+    setIsDraggingZoom = _useState114[1];
   var wasZoomDragged = useRef(false);
   var zoomDragTimer = useRef(null);
+  var _useState115 = useState(false),
+    _useState116 = _slicedToArray(_useState115, 2),
+    modeSubOpen = _useState116[0],
+    setModeSubOpen = _useState116[1];
   var _useState117 = useState(false),
     _useState118 = _slicedToArray(_useState117, 2),
-    modeSubOpen = _useState118[0],
-    setModeSubOpen = _useState118[1];
-  var _useState119 = useState(false),
-    _useState120 = _slicedToArray(_useState119, 2),
-    zoomOpen = _useState120[0],
-    setZoomOpen = _useState120[1];
+    zoomOpen = _useState118[0],
+    setZoomOpen = _useState118[1];
   var advanceInteractionMode = function advanceInteractionMode() {
     var next = (interactionMode + 1) % 3;
     setInteractionMode(next);
@@ -522,61 +508,61 @@ function SudokuGame() {
     }
     advanceInteractionMode();
   };
-  var _useState121 = useState({
+  var _useState119 = useState({
       x: -1,
       y: -1
     }),
+    _useState120 = _slicedToArray(_useState119, 2),
+    modeMenuPos = _useState120[0],
+    setModeMenuPos = _useState120[1];
+  var _useState121 = useState(false),
     _useState122 = _slicedToArray(_useState121, 2),
-    modeMenuPos = _useState122[0],
-    setModeMenuPos = _useState122[1];
-  var _useState123 = useState(false),
-    _useState124 = _slicedToArray(_useState123, 2),
-    isDraggingMode = _useState124[0],
-    setIsDraggingMode = _useState124[1];
+    isDraggingMode = _useState122[0],
+    setIsDraggingMode = _useState122[1];
   var wasModeDragged = useRef(false);
   var modeDragTimer = useRef(null);
-  var _useState125 = useState(true),
+  var _useState123 = useState(true),
+    _useState124 = _slicedToArray(_useState123, 2),
+    menuVertical = _useState124[0],
+    setMenuVertical = _useState124[1]; // 共用排列方向偏好
+  var _useState125 = useState(false),
     _useState126 = _slicedToArray(_useState125, 2),
-    menuVertical = _useState126[0],
-    setMenuVertical = _useState126[1]; // 共用排列方向偏好
-  var _useState127 = useState(false),
+    isGenerating = _useState126[0],
+    setIsGenerating = _useState126[1];
+  var _useState127 = useState(""),
     _useState128 = _slicedToArray(_useState127, 2),
-    isGenerating = _useState128[0],
-    setIsGenerating = _useState128[1];
-  var _useState129 = useState(""),
-    _useState130 = _slicedToArray(_useState129, 2),
-    genProgress = _useState130[0],
-    setGenProgress = _useState130[1];
+    genProgress = _useState128[0],
+    setGenProgress = _useState128[1];
   var isAutoFillingRef = useRef(false);
-  var _useState131 = useState(null),
+  var _useState129 = useState(null),
+    _useState130 = _slicedToArray(_useState129, 2),
+    colorPickerTarget = _useState130[0],
+    setColorPickerTarget = _useState130[1];
+  var _useState131 = useState([]),
     _useState132 = _slicedToArray(_useState131, 2),
-    colorPickerTarget = _useState132[0],
-    setColorPickerTarget = _useState132[1];
-  var _useState133 = useState([]),
+    colorSeq = _useState132[0],
+    setColorSeq = _useState132[1];
+  var _useState133 = useState(""),
     _useState134 = _slicedToArray(_useState133, 2),
-    colorSeq = _useState134[0],
-    setColorSeq = _useState134[1];
+    editName = _useState134[0],
+    setEditName = _useState134[1];
   var _useState135 = useState(""),
     _useState136 = _slicedToArray(_useState135, 2),
-    editName = _useState136[0],
-    setEditName = _useState136[1];
-  var _useState137 = useState(""),
+    roomId = _useState136[0],
+    setRoomId = _useState136[1];
+  var _useState137 = useState(false),
     _useState138 = _slicedToArray(_useState137, 2),
-    roomId = _useState138[0],
-    setRoomId = _useState138[1];
-  var _useState139 = useState(false),
-    _useState140 = _slicedToArray(_useState139, 2),
-    isHost = _useState140[0],
-    setIsHost = _useState140[1];
+    isHost = _useState138[0],
+    setIsHost = _useState138[1];
   var isHostRef = useRef(false);
+  var _useState139 = useState(""),
+    _useState140 = _slicedToArray(_useState139, 2),
+    tempRoomId = _useState140[0],
+    setTempRoomId = _useState140[1];
   var _useState141 = useState(""),
     _useState142 = _slicedToArray(_useState141, 2),
-    tempRoomId = _useState142[0],
-    setTempRoomId = _useState142[1];
-  var _useState143 = useState(""),
-    _useState144 = _slicedToArray(_useState143, 2),
-    tempPlayerName = _useState144[0],
-    setTempPlayerName = _useState144[1];
+    tempPlayerName = _useState142[0],
+    setTempPlayerName = _useState142[1];
   // ===== 每日一題（比照數橋） =====
   var dailyTodayStr = function dailyTodayStr() {
     var d = new Date();
@@ -587,27 +573,27 @@ function SudokuGame() {
     d.setDate(d.getDate() + delta);
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   };
-  var _useState145 = useState(function () {
+  var _useState143 = useState(function () {
       return dailyTodayStr();
     }),
+    _useState144 = _slicedToArray(_useState143, 2),
+    dailyPickDate = _useState144[0],
+    setDailyPickDate = _useState144[1];
+  var _useState145 = useState(null),
     _useState146 = _slicedToArray(_useState145, 2),
-    dailyPickDate = _useState146[0],
-    setDailyPickDate = _useState146[1];
-  var _useState147 = useState(null),
-    _useState148 = _slicedToArray(_useState147, 2),
-    dailyDate = _useState148[0],
-    setDailyDate = _useState148[1]; // 進行中的每日題日期（null=非每日模式）
+    dailyDate = _useState146[0],
+    setDailyDate = _useState146[1]; // 進行中的每日題日期（null=非每日模式）
   var dailyRef = useRef(null);
   var dailyRecordedRef = useRef(false);
-  var _useState149 = useState(function () {
+  var _useState147 = useState(function () {
       return platSave().read('sudoku_daily_records', {
         fallback: {}
       });
     }),
-    _useState150 = _slicedToArray(_useState149, 2),
-    dailyRecords = _useState150[0],
-    setDailyRecords = _useState150[1];
-  var _useState151 = useState(function () {
+    _useState148 = _slicedToArray(_useState147, 2),
+    dailyRecords = _useState148[0],
+    setDailyRecords = _useState148[1];
+  var _useState149 = useState(function () {
       return platSave().read('sudoku_daily_streak', {
         fallback: {
           count: 0,
@@ -615,27 +601,10 @@ function SudokuGame() {
         }
       });
     }),
-    _useState152 = _slicedToArray(_useState151, 2),
-    dailyStreak = _useState152[0],
-    setDailyStreak = _useState152[1];
-  var _useState153 = useState(false),
-    _useState154 = _slicedToArray(_useState153, 2),
-    showTutorial = _useState154[0],
-    setShowTutorial = _useState154[1];
-  var _useState155 = useState(0),
-    _useState156 = _slicedToArray(_useState155, 2),
-    tutStep = _useState156[0],
-    setTutStep = _useState156[1]; // 玩法教學步進（美學稽核 V-09：三款教學統一為數橋的步進骨架）
-  var _useState157 = useState(null),
-    _useState158 = _slicedToArray(_useState157, 2),
-    tutDemoVal = _useState158[0],
-    setTutDemoVal = _useState158[1]; // 教學互動 demo（v1.46 Q6）：已填入的數字
-  var _useState159 = useState(null),
-    _useState160 = _slicedToArray(_useState159, 2),
-    tutDemoWrong = _useState160[0],
-    setTutDemoWrong = _useState160[1]; // 教學互動 demo：剛填錯的數字
-
-  var _useState161 = useState([{
+    _useState150 = _slicedToArray(_useState149, 2),
+    dailyStreak = _useState150[0],
+    setDailyStreak = _useState150[1];
+  var _useState151 = useState([{
       id: myId,
       name: "單機玩家",
       isHost: true,
@@ -643,41 +612,41 @@ function SudokuGame() {
       isReady: false,
       isSpectator: false
     }]),
+    _useState152 = _slicedToArray(_useState151, 2),
+    playersList = _useState152[0],
+    setPlayersList = _useState152[1];
+  var _useState153 = useState(false),
+    _useState154 = _slicedToArray(_useState153, 2),
+    isConnecting = _useState154[0],
+    setIsConnecting = _useState154[1];
+  var _useState155 = useState(""),
+    _useState156 = _slicedToArray(_useState155, 2),
+    connectionStatus = _useState156[0],
+    setConnectionStatus = _useState156[1];
+  var _useState157 = useState(false),
+    _useState158 = _slicedToArray(_useState157, 2),
+    showCancelButton = _useState158[0],
+    setShowCancelButton = _useState158[1];
+  var _useState159 = useState(true),
+    _useState160 = _slicedToArray(_useState159, 2),
+    showOtherCursors = _useState160[0],
+    setShowOtherCursors = _useState160[1];
+  var _useState161 = useState(true),
     _useState162 = _slicedToArray(_useState161, 2),
-    playersList = _useState162[0],
-    setPlayersList = _useState162[1];
-  var _useState163 = useState(false),
+    showGhostProgress = _useState162[0],
+    setShowGhostProgress = _useState162[1];
+  var _useState163 = useState({}),
     _useState164 = _slicedToArray(_useState163, 2),
-    isConnecting = _useState164[0],
-    setIsConnecting = _useState164[1];
-  var _useState165 = useState(""),
+    cursors = _useState164[0],
+    setCursors = _useState164[1];
+  var _useState165 = useState([]),
     _useState166 = _slicedToArray(_useState165, 2),
-    connectionStatus = _useState166[0],
-    setConnectionStatus = _useState166[1];
-  var _useState167 = useState(false),
+    ripples = _useState166[0],
+    setRipples = _useState166[1];
+  var _useState167 = useState(null),
     _useState168 = _slicedToArray(_useState167, 2),
-    showCancelButton = _useState168[0],
-    setShowCancelButton = _useState168[1];
-  var _useState169 = useState(true),
-    _useState170 = _slicedToArray(_useState169, 2),
-    showOtherCursors = _useState170[0],
-    setShowOtherCursors = _useState170[1];
-  var _useState171 = useState(true),
-    _useState172 = _slicedToArray(_useState171, 2),
-    showGhostProgress = _useState172[0],
-    setShowGhostProgress = _useState172[1];
-  var _useState173 = useState({}),
-    _useState174 = _slicedToArray(_useState173, 2),
-    cursors = _useState174[0],
-    setCursors = _useState174[1];
-  var _useState175 = useState([]),
-    _useState176 = _slicedToArray(_useState175, 2),
-    ripples = _useState176[0],
-    setRipples = _useState176[1];
-  var _useState177 = useState(null),
-    _useState178 = _slicedToArray(_useState177, 2),
-    pressedCellId = _useState178[0],
-    setPressedCellId = _useState178[1]; // C 類按壓回饋（v1.54.0）：純顯示層覆蓋，不碰選格/輸入/長按邏輯
+    pressedCellId = _useState168[0],
+    setPressedCellId = _useState168[1]; // C 類按壓回饋（v1.54.0）：純顯示層覆蓋，不碰選格/輸入/長按邏輯
 
   var isMultiplayer = engine === 'peerjs';
   var svgRef = useRef(null);
@@ -1344,10 +1313,10 @@ function SudokuGame() {
     cells.forEach(function (c) {
       if (!c.isGiven && c.value !== null && c.owner) counts[c.owner] = (counts[c.owner] || 0) + 1;
     });
-    return Object.entries(counts).map(function (_ref2) {
-      var _ref3 = _slicedToArray(_ref2, 2),
-        uid = _ref3[0],
-        count = _ref3[1];
+    return Object.entries(counts).map(function (_ref) {
+      var _ref2 = _slicedToArray(_ref, 2),
+        uid = _ref2[0],
+        count = _ref2[1];
       return {
         uid: uid,
         color: getPlayerColor(uid),
@@ -1684,7 +1653,7 @@ function SudokuGame() {
         }
         lastPinchDist.current = dist;
       } else if (e.touches.length === 1 && touchStartY !== null) {
-        if (Math.abs(e.touches[0].clientY - touchStartY) > 30 && !isHeaderCollapsed) setIsHeaderCollapsed(true);
+        if (Math.abs(e.touches[0].clientY - touchStartY) > 30 && rulesOpenNow()) collapseRules();
       }
     };
     var handleTouchEnd = function handleTouchEnd() {
@@ -1694,7 +1663,7 @@ function SudokuGame() {
     };
     var handleWheel = function handleWheel(e) {
       if (interactionMode >= 2 || isSpectator) return;
-      if (Math.abs(e.deltaY) > 10 && !isHeaderCollapsed) setIsHeaderCollapsed(true);
+      if (Math.abs(e.deltaY) > 10 && rulesOpenNow()) collapseRules();
       if (e.ctrlKey && zoomModeIdxRef.current !== 0) {
         setZoomModeIdx(0);
         zoomModeIdxRef.current = 0;
@@ -1718,7 +1687,7 @@ function SudokuGame() {
       el.removeEventListener('touchcancel', handleTouchEnd);
       el.removeEventListener('wheel', handleWheel);
     };
-  }, [screen, isHeaderCollapsed, interactionMode, svgW, svgH, zoomLevel, isSpectator]);
+  }, [screen, interactionMode, svgW, svgH, zoomLevel, isSpectator]); // F3：規則開合改殼持有、handler 即時讀 _debug，不入 deps
 
   // 觸控筆同點連點防護：不認 touch-action 的舊版 iOS Safari 會把「同位置的快速第二下點按」配對成雙擊縮放手勢、
   // 整下被仲裁吃掉（手指落點較飄移反而不會被配對——使用者實機回報：筆連點四下，第 2、4 下連水波紋都沒有）。
@@ -2167,9 +2136,12 @@ function SudokuGame() {
     if (stateRef.current.brawlWinners.some(function (w) {
       return w.id === myId;
     })) return false;
+    var winnersNow = stateRef.current.brawlWinners;
     var entrants = playersListRef.current.filter(function (p) {
-      return !p.isSpectator;
-    });
+      return !p.isSpectator || winnersNow.some(function (w) {
+        return w.id === p.id;
+      });
+    }); // 已完賽者會被自動轉觀戰（isSpectator）但仍是本局選手，必須計入 entrants；否則 2 人局對手一完賽 entrants 只剩 1、下面的 <2 守衛會把「最後一位」永遠擋死（2026-11-21 test-lastone 抓到）
     if (entrants.length < 2) return false; // 至少 2 位選手才有「最後一位」：房間頁遊戲被預載、名單只有房主一人時 remaining==1 會誤判（2026-11-05 實機回報；數橋 racers<2、地雷 entrants>1 本來就有這道守衛，數獨漏了）
     var remaining = entrants.filter(function (p) {
       return !stateRef.current.brawlWinners.some(function (w) {
@@ -3042,7 +3014,7 @@ function SudokuGame() {
     });
   };
   var autoFillHiddenSingles = /*#__PURE__*/function () {
-    var _ref4 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee2(_char3) {
+    var _ref3 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee2(_char3) {
       var changed, stateChanged, currentCells, isValid, fill, _loop7, y, _loop8, x, _loop9, b;
       return _regeneratorRuntime().wrap(function _callee2$(_context5) {
         while (1) switch (_context5.prev = _context5.next) {
@@ -3087,7 +3059,7 @@ function SudokuGame() {
               return true;
             };
             fill = /*#__PURE__*/function () {
-              var _ref5 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee(cellId) {
+              var _ref4 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee(cellId) {
                 var idx, targetCell, i, c, me, msg;
                 return _regeneratorRuntime().wrap(function _callee$(_context) {
                   while (1) switch (_context.prev = _context.next) {
@@ -3158,7 +3130,7 @@ function SudokuGame() {
                 }, _callee);
               }));
               return function fill(_x2) {
-                return _ref5.apply(this, arguments);
+                return _ref4.apply(this, arguments);
               };
             }();
           case 12:
@@ -3351,11 +3323,11 @@ function SudokuGame() {
       }, _callee2);
     }));
     return function autoFillHiddenSingles(_x) {
-      return _ref4.apply(this, arguments);
+      return _ref3.apply(this, arguments);
     };
   }();
   var autoFillDrafts = /*#__PURE__*/function () {
-    var _ref6 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee3(_char4) {
+    var _ref5 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee3(_char4) {
       var stateChanged, currentCells, isValid, _loop10, y;
       return _regeneratorRuntime().wrap(function _callee3$(_context8) {
         while (1) switch (_context8.prev = _context8.next) {
@@ -3493,11 +3465,11 @@ function SudokuGame() {
       }, _callee3);
     }));
     return function autoFillDrafts(_x3) {
-      return _ref6.apply(this, arguments);
+      return _ref5.apply(this, arguments);
     };
   }();
   var runAutoFillCycle = /*#__PURE__*/function () {
-    var _ref7 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee5(startChar) {
+    var _ref6 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee5(startChar) {
       var changed, stateChanged, currentCells, totalFilled, chars, startIndex, isValid, isCharCompleted, fill, passChanged, _loop12, _ret, i;
       return _regeneratorRuntime().wrap(function _callee5$(_context14) {
         while (1) switch (_context14.prev = _context14.next) {
@@ -3549,7 +3521,7 @@ function SudokuGame() {
               }).length === cSizeDef.size;
             };
             fill = /*#__PURE__*/function () {
-              var _ref8 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee4(cellId, fillChar) {
+              var _ref7 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee4(cellId, fillChar) {
                 var idx, targetCell, i, c, me, msg;
                 return _regeneratorRuntime().wrap(function _callee4$(_context9) {
                   while (1) switch (_context9.prev = _context9.next) {
@@ -3625,7 +3597,7 @@ function SudokuGame() {
                 }, _callee4);
               }));
               return function fill(_x5, _x6) {
-                return _ref8.apply(this, arguments);
+                return _ref7.apply(this, arguments);
               };
             }();
           case 16:
@@ -3898,7 +3870,7 @@ function SudokuGame() {
       }, _callee5);
     }));
     return function runAutoFillCycle(_x4) {
-      return _ref7.apply(this, arguments);
+      return _ref6.apply(this, arguments);
     };
   }();
   var clickTracker = useRef({
@@ -3926,12 +3898,12 @@ function SudokuGame() {
         showToast("⚠️ 這格是題目給的，不能修改");
         return;
       }
-      if (!isHeaderCollapsed) setIsHeaderCollapsed(true);
+      if (rulesOpenNow()) collapseRules();
       applyCharToCell(selectedCellId, c);
       setSelectedChar(c);
       return;
     }
-    if (!isHeaderCollapsed) setIsHeaderCollapsed(true);
+    if (rulesOpenNow()) collapseRules();
     var now = Date.now();
     var tracker = clickTracker.current;
     if (tracker["char"] === c && now - tracker.time < 400) {
@@ -4460,6 +4432,218 @@ function SudokuGame() {
     };
     window.PlatBar.update(st);
   });
+
+  // ===== 框架層 F3：PlatHome / PlatSetup / PlatTutorial / PlatFrame / PlatTopCard 接線 =====
+  var platHomeCfgStable = useRef(null);
+  if (!platHomeCfgStable.current) platHomeCfgStable.current = {
+    accent: '#ffcc00',
+    titleChars: ['數', '獨'],
+    enName: 'Sudoku Master',
+    dailyLabel: '每日一題',
+    onAction: function onAction(name) {
+      if (name === 'solo') openSudokuSetupSolo();else if (name === 'daily') startDailyGame(dailyPickDate);else if (name === 'prev') setDailyPickDate(shiftDateStr(dailyPickDate, -1));else if (name === 'next') setDailyPickDate(shiftDateStr(dailyPickDate, 1));else if (name === 'cal') openDailyCal(); // PlatHome 日期鈕的 action 名是 'cal'（F1/F2 既定契約、地雷/美術燈同款）；F3 初版誤寫 'date' → 主畫面點日期鈕沒反應、月曆打不開（test-daily-cal 抓到）
+      else if (name === 'tutorial') openSudokuTutorial();else if (name === 'lobby') {
+        if (window.PLAT_show) window.PLAT_show('home');
+      }
+    }
+  };
+  useEffect(function () {
+    if (typeof window === 'undefined' || typeof window.PlatHome === 'undefined') return;
+    var el = platHomeRef.current;
+    if (screen === 'home') {
+      if (el) {
+        if (window.PlatHome._el() !== el || !window.PlatHome._elConnected()) window.PlatHome.attach(el, platHomeCfgStable.current);
+        if (!platHomeMounted) setPlatHomeMounted(true);
+      }
+    } else if (window.PlatHome.isAttached() && !window.PlatHome._elConnected()) {
+      window.PlatHome.detach(window.PlatHome._el()); // 只清「已斷線的殘留持有者」；detach() 無參數會清掉目前持有者——他款正顯示的主畫面會被本款在對局中的每秒 render 誤殺（F3 回歸實測，改 mines/akari 同款守衛）
+    }
+  });
+  useEffect(function () {
+    if (typeof window === 'undefined' || typeof window.PlatHome === 'undefined' || !window.PlatHome.isAttached()) return;
+    window.PlatHome.update({
+      dailyDate: dailyPickDate,
+      dailyIsToday: dailyPickDate === dailyTodayStr(),
+      dailyDone: !!dailyRecords[dailyPickDate],
+      canPrev: dailyPickDate > '2026-01-01',
+      canNext: dailyPickDate < dailyTodayStr(),
+      streak: dailyStreak.count || 0,
+      bestText: dailyRecords[dailyPickDate] ? formatTime(dailyRecords[dailyPickDate]) : null,
+      inPlatform: !!window.__PLAT_PLATFORM
+    });
+  });
+  var sudokuSetupGroups = function sudokuSetupGroups() {
+    return [{
+      key: 'size',
+      label: '📐 選擇版型',
+      style: 'seg',
+      options: SIZES.map(function (s) {
+        return {
+          id: s.id,
+          label: s.name
+        };
+      }),
+      value: sizeId
+    }, {
+      key: 'diff',
+      label: '🔥 挑戰難度',
+      style: 'seg',
+      options: DIFFICULTIES.map(function (d) {
+        return {
+          id: d.id,
+          label: d.name
+        };
+      }),
+      value: diffId
+    }];
+  };
+  var openSudokuSetupSolo = function openSudokuSetupSolo() {
+    if (typeof window === 'undefined' || typeof window.PlatSetup === 'undefined') {
+      startSinglePlayer();
+      return;
+    } // 獨立版 fallback：舊局內設定 overlay
+    window.PlatSetup.show({
+      accent: '#ffcc00',
+      title: '🧩 單機挑戰設定',
+      groups: sudokuSetupGroups(),
+      confirmText: '🚀 開始挑戰',
+      onStart: function onStart(vals) {
+        startSinglePlayer();
+        generateAndSync(vals.size, vals.diff);
+        setMatchPhase('playing');
+      }
+    });
+  };
+  var openSudokuSetupGame = function openSudokuSetupGame() {
+    if (typeof window === 'undefined' || typeof window.PlatSetup === 'undefined') return;
+    window.PlatSetup.show({
+      accent: '#ffcc00',
+      title: '⚙️ 設定題型與難度',
+      groups: sudokuSetupGroups(),
+      confirmText: '確認產生',
+      onStart: function onStart(vals) {
+        if (isHostRef.current && (sizeId !== vals.size || diffId !== vals.diff)) generateAndSync(vals.size, vals.diff);
+      }
+    });
+  };
+  var mountSudokuTutDemo = function mountSudokuTutDemo(el, api) {
+    el.innerHTML = '<div class="flex flex-col items-center">' + '<div class="grid grid-cols-3 border-[3px] border-slate-800 rounded-lg overflow-hidden w-40 mb-3">' + ['5', '', '', '', null, '3', '', '', ''].map(function (v, i) {
+      return '<div data-stut-cell="' + i + '" class="relative aspect-square flex items-center justify-center font-black text-xl border border-slate-300 ' + (v === null ? 'bg-amber-50' : 'bg-white text-slate-800') + '">' + (v === null ? '<span data-stut-mid="1" class="text-amber-400">?</span>' : v || '') + '</div>';
+    }).join('') + '</div>' + '<div class="flex justify-center gap-2">' + [7, 8, 9].map(function (n) {
+      return '<button data-stut-num="' + n + '" class="plat-btn-hard plat-btn-hard-3 w-12 h-12 bg-white border-[3px] border-slate-800 rounded-xl font-black text-xl text-slate-800 shadow-[3px_3px_0px_rgba(30,41,59,1)]">' + n + '</button>';
+    }).join('') + '</div>' + '</div>';
+    var mid = el.querySelector('[data-stut-mid]'),
+      cell = el.querySelector('[data-stut-cell="4"]');
+    el.querySelectorAll('[data-stut-num]').forEach(function (btn) {
+      return btn.addEventListener('click', function () {
+        var n = Number(btn.getAttribute('data-stut-num'));
+        if (n === 8) {
+          mid.textContent = '8';
+          mid.className = 'text-emerald-600';
+          cell.className = cell.className.replace('bg-amber-50', 'bg-emerald-50');
+          api.setCaption('✅ 答對了！中間這格就是 8——先點格子、再按數字鍵，就是這樣填的');
+        } else {
+          mid.textContent = String(n);
+          mid.className = 'text-rose-500';
+          cell.className = cell.className.replace('bg-emerald-50', 'bg-rose-50').replace('bg-amber-50', 'bg-rose-50');
+          api.setCaption('❌ ' + n + ' 不對喔，再想想這一格該填多少');
+        }
+      });
+    });
+    api.setCaption('動手試試：中間發亮的格子該填哪個數字？點下面的數字鍵試試');
+  };
+  var openSudokuTutorial = function openSudokuTutorial() {
+    if (typeof window === 'undefined' || typeof window.PlatTutorial === 'undefined') return;
+    window.PlatTutorial.show({
+      accent: '#ffcc00',
+      title: '❓ 玩法教學',
+      steps: [{
+        mount: mountSudokuTutDemo,
+        caption: '動手試試：中間發亮的格子該填哪個數字？點下面的數字鍵試試'
+      }, {
+        html: '<div class="flex justify-center mb-3"><div class="relative w-20 h-20 border-[3px] border-slate-800 rounded-lg bg-white"><span class="tut-draft-a absolute top-1 left-2 font-black text-slate-400 text-lg">2</span><span class="tut-draft-b absolute bottom-1 right-2 font-black text-slate-400 text-lg">7</span><span class="absolute -bottom-3 -right-3 text-2xl">✏️</span></div></div><p class="text-center font-bold text-slate-700">還不確定？先開筆記，把可能的數字記下來</p>'
+      }, {
+        html: '<div class="flex justify-center mb-3"><div class="flex border-[3px] border-slate-800 rounded-lg overflow-hidden">' + [1, 2, 3, 4, 5, 6, 7, 8, 9].map(function (n) {
+          return '<div class="tut-row-cell w-8 h-8 md:w-9 md:h-9 flex items-center justify-center font-black border-r border-slate-300" style="animation-delay:' + n * 0.28 + 's">' + n + '</div>';
+        }).join('') + '</div></div><p class="text-center font-bold text-slate-700">每一行、每一列、每個 3×3 宮，1~9 都不能重複</p>'
+      }, {
+        html: '<div class="flex justify-center gap-2 mb-3 flex-wrap"><span class="px-3 py-2 bg-[#ffcc00] border-[3px] border-slate-800 rounded-xl font-black text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)]">🔢 先點數字 → 再點格子</span><span class="px-3 py-2 bg-sky-300 border-[3px] border-slate-800 rounded-xl font-black text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)]">👆 先點格子 → 再點數字</span></div><p class="text-center font-bold text-slate-700">輸入方式自己選，遊戲中在盤面下方隨時切換</p>'
+      }]
+    });
+  };
+  var platFrameCfgStable = useRef(null);
+  if (!platFrameCfgStable.current) platFrameCfgStable.current = {
+    paper: '#fffaf0',
+    bodyCls: 'flex-1 w-full flex flex-col min-h-0'
+  }; // body 無 padding：玩家列/盤面容器自帶間距（遷移前自有框同形）
+  var platTopCfgStable = useRef(null);
+  if (!platTopCfgStable.current) platTopCfgStable.current = {
+    accent: '#ffcc00',
+    logo: '🔢',
+    name: '數獨 - SUDOKU',
+    frame: false,
+    rulesHtml: '<ol class="list-decimal list-outside ml-4 space-y-1"><li>選擇上方數字點擊方格。若不選上方數字，可直接點擊盤面已有數字來「智慧吸取」高亮。</li><li>輸入方式可在下方切換成「👆 格子先行」：先點格子、再點數字填入，習慣這種順序的玩家適用；切換後會記住你的選擇。</li><li>不可重複：若發生衝突，背景會亮起紅色提示。</li><li>草稿模式：可在方格內標記多個小數字輔助推理。</li><li>長按清除：若填錯數字且上方按鍵已被鎖定（反灰），可長按該格 0.5 秒強制清除。</li></ol>',
+    onAction: function onAction(name) {
+      if (name === 'mute') {
+        var m = platAudio().toggleMuted();
+        setMuted(m);
+      } else if (name === 'spec') openSudokuSetupGame();else if (name === 'leave-home') handleGoHome();else if (name === 'leave-lobby') handleBackToLobby();else if (name === 'leave-leave') handleGoHome('leave');else if (name === 'leave-forceend') {
+        if (window.__PLAT_TOURN_FORCEEND) window.__PLAT_TOURN_FORCEEND();
+      }
+    }
+  };
+  useEffect(function () {
+    // PlatFrame 自我修復掛載（無 deps、每 render 自檢；先於 PlatTopCard）
+    if (typeof window === 'undefined' || typeof window.PlatFrame === 'undefined') return;
+    var el = platFrameRef.current;
+    if (el) {
+      if (window.PlatFrame._el() !== el || !window.PlatFrame._elConnected()) {
+        window.PlatFrame.attach(el, platFrameCfgStable.current);
+        setFrameBody(window.PlatFrame.getBody());
+      } else if (frameBody !== window.PlatFrame.getBody()) setFrameBody(window.PlatFrame.getBody());
+    }
+  });
+  useEffect(function () {
+    // PlatTopCard 自我修復掛載（掛進外框框頂）
+    if (typeof window === 'undefined' || typeof window.PlatTopCard === 'undefined') return;
+    if (typeof window.PlatFrame === 'undefined' || !window.PlatFrame.isAttached()) return;
+    var el = window.PlatFrame.getTop();
+    if (el) {
+      if (window.PlatTopCard._el() !== el || !window.PlatTopCard._elConnected()) window.PlatTopCard.attach(el, platTopCfgStable.current);
+      var slot = window.PlatTopCard.getSlot();
+      if (slot !== ptcSlot) setPtcSlot(slot);
+    }
+  });
+  useEffect(function () {
+    var _SIZES$find, _DIFFICULTIES$find;
+    if (typeof window === 'undefined' || typeof window.PlatTopCard === 'undefined' || !window.PlatTopCard.isAttached()) return;
+    if (screen !== 'game') return;
+    var ro = window.PlatTopCard._debug().rulesOpen;
+    if (ro !== rulesOpenUi) setRulesOpenUi(ro);
+    var endMs = isBrawlMode ? matchPhase === 'finished' ? stateRef.current.matchEndTime || endTime : null : endTime || (winner ? matchStartTime : null);
+    var secs = 0;
+    if ((matchPhase === 'playing' || matchPhase === 'finished') && startTime) secs = Math.max(0, Math.floor(((endMs || Date.now()) - startTime) / 1000));
+    window.PlatTopCard.update({
+      leaveIcon: isMultiplayer ? '🔌' : '🏠',
+      leaveLabel: isMultiplayer ? '退出' : '回首頁',
+      modeChip: isMultiplayer ? isBrawlMode ? '⚔️ 大亂鬥' : '🌐 合作模式' : null,
+      dailyChip: dailyDate ? '每日 ' + dailyDate.slice(5) + (dailyDate !== dailyTodayStr() ? ' 補玩' : '') : null,
+      specLabel: '⚙️ ' + (((_SIZES$find = SIZES.find(function (s) {
+        return s.id === sizeId;
+      })) === null || _SIZES$find === void 0 ? void 0 : _SIZES$find.name.split(' ')[0]) || '') + ' - ' + (((_DIFFICULTIES$find = DIFFICULTIES.find(function (d) {
+        return d.id === diffId;
+      })) === null || _DIFFICULTIES$find === void 0 ? void 0 : _DIFFICULTIES$find.name) || ''),
+      specClickable: !(isMultiplayer && !isHostRef.current),
+      statText: null,
+      timerText: formatTime(secs),
+      muted: muted,
+      players: null,
+      leaveMenu: {
+        mode: isMultiplayer ? 'mp' : 'solo',
+        canForceEnd: !!(typeof window !== 'undefined' && window.__PLAT_TOURN_CAN_FORCEEND && window.__PLAT_TOURN_CAN_FORCEEND())
+      }
+    });
+  });
   var startDailyGame = function startDailyGame(dateStr) {
     switchToOffline();
     dailyRef.current = dateStr;
@@ -4468,7 +4652,7 @@ function SudokuGame() {
     setScreen('game');
     setMatchPhase('playing');
     setIsBrawlMode(false);
-    setIsHeaderCollapsed(false);
+    if (window.PlatTopCard) window.PlatTopCard.setRulesOpen(true);
     setIsGenerating(true);
     setWinner(null);
     isWinnerDeclaredRef.current = false;
@@ -4551,7 +4735,7 @@ function SudokuGame() {
     setMatchPhase('waiting');
     setIsBrawlMode(false);
     setIsBrawlMode(false); // 確保是純單機模式
-    setIsHeaderCollapsed(false);
+    if (window.PlatTopCard) window.PlatTopCard.setRulesOpen(true);
   };
   var handleSaveCode = function handleSaveCode() {
     var targetCells = isBrawlMode ? localCells : cells;
@@ -4617,7 +4801,7 @@ function SudokuGame() {
     }
   };
   var handleQuickPaste = /*#__PURE__*/function () {
-    var _ref9 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee6() {
+    var _ref8 = _asyncToGenerator( /*#__PURE__*/_regeneratorRuntime().mark(function _callee6() {
       var text;
       return _regeneratorRuntime().wrap(function _callee6$(_context15) {
         while (1) switch (_context15.prev = _context15.next) {
@@ -4642,7 +4826,7 @@ function SudokuGame() {
       }, _callee6, null, [[0, 8]]);
     }));
     return function handleQuickPaste() {
-      return _ref9.apply(this, arguments);
+      return _ref8.apply(this, arguments);
     };
   }();
 
@@ -4870,14 +5054,14 @@ function SudokuGame() {
   handleRegenerateRandomRef.current = function () {
     return generateAndSync(sizeId, diffId);
   };
-  var _useState179 = useState(false),
-    _useState180 = _slicedToArray(_useState179, 2),
-    platTournLock = _useState180[0],
-    setPlatTournLock = _useState180[1];
-  var _useState181 = useState(false),
-    _useState182 = _slicedToArray(_useState181, 2),
-    platHub = _useState182[0],
-    setPlatHub = _useState182[1]; // v1.11.0：本局由殼房間框架啟動（等待室改在殼端，本遊戲不顯示自己的等待室）
+  var _useState169 = useState(false),
+    _useState170 = _slicedToArray(_useState169, 2),
+    platTournLock = _useState170[0],
+    setPlatTournLock = _useState170[1];
+  var _useState171 = useState(false),
+    _useState172 = _slicedToArray(_useState171, 2),
+    platHub = _useState172[0],
+    setPlatHub = _useState172[1]; // v1.11.0：本局由殼房間框架啟動（等待室改在殼端，本遊戲不顯示自己的等待室）
   var platHubRef = useRef(false);
   var platSessRef = useRef(null); // 殼 launch 的原始 sess（hub 判斷與代表色 sess.color 的來源；exit 時清空）
   var isShellColor = function isShellColor(c) {
@@ -4885,14 +5069,14 @@ function SudokuGame() {
   }; // 殼代表色合法值：20 色之一或彩虹
   var hubStartTimerRef = useRef(null);
   var joinRetryRef = useRef(null); // 來賓 JOIN 重送計時器：JOIN 只送一次時，訊息一掉就永遠進不了局（2026-10-31 卡死案）
-  var _useState183 = useState(null),
-    _useState184 = _slicedToArray(_useState183, 2),
-    tournRoundInfo = _useState184[0],
-    setTournRoundInfo = _useState184[1]; // 錦標賽本局資訊（第幾局/共幾局/加賽/應到人數），每局等待卡顯示與門檻用
+  var _useState173 = useState(null),
+    _useState174 = _slicedToArray(_useState173, 2),
+    tournRoundInfo = _useState174[0],
+    setTournRoundInfo = _useState174[1]; // 錦標賽本局資訊（第幾局/共幾局/加賽/應到人數），每局等待卡顯示與門檻用
   var tournWaitSinceRef = useRef(null); // 本局等待起點（等滿 1 分鐘房主可強制開始）
-  var _useState185 = useState(0),
-    _useState186 = _slicedToArray(_useState185, 2),
-    setTournTick = _useState186[1];
+  var _useState175 = useState(0),
+    _useState176 = _slicedToArray(_useState175, 2),
+    setTournTick = _useState176[1];
   useEffect(function () {
     if (!(platHub && platTournLock)) return;
     var t = setInterval(function () {
@@ -5250,7 +5434,7 @@ function SudokuGame() {
         setIsSpectator(false);
         setRoomId(rId);
         setScreen('game');
-        setIsHeaderCollapsed(true);
+        if (window.PlatTopCard) window.PlatTopCard.setRulesOpen(false);
         setIsConnecting(false);
         syncState({
           matchPhase: targetPhase
@@ -5640,13 +5824,35 @@ function SudokuGame() {
             setConnectionStatus("同步完成，進入遊戲！");
             setRoomId(rId);
             setScreen('game');
-            setIsHeaderCollapsed(true);
+            if (window.PlatTopCard) window.PlatTopCard.setRulesOpen(false);
             setIsConnecting(false);
-            // 強制立刻儲存一次，避開 syncState 的狀態更新延遲 (v3.8.15)
-            saveLocalProgress(rId, myId, pName, false, m.data.isBrawlMode ? m.data.localCells : m.data.cells);
             syncState(m.data, false, true);
             setPlayersList(adoptHubPlayers(m.players));
             setIsSpectator(m.isSpectator);
+            // 回座還原（v1.33 設計：本地存檔優先）：房主分支在 setup 時有還原、來賓分支漏了——INIT 以題面重設 localCells，
+            // 來賓中途離開回座後進度全失（2026-11-21 test-resume 探針實證：prog 存檔完好、還原從未套用）。
+            // 題面吻合（題面每個 given 在存檔同位同值）才套用，防房號撞號殘檔污染新局；套用後以還原盤面回存，避免存檔被 INIT 資料覆寫。
+            var restoredProg = false;
+            if (savedProg && m.data.isBrawlMode && Array.isArray(savedProg.d) && savedProg.d.length) {
+              var flatP = [];
+              var pushP = function pushP(a) {
+                if (Array.isArray(a)) a.forEach(pushP);else flatP.push(a);
+              };
+              pushP(m.data.levelData && m.data.levelData.cells || []);
+              if (flatP.length === savedProg.d.length && flatP.every(function (pc, i) {
+                var pv = pc && pc.value !== undefined && pc.value !== null ? String(pc.value) : '';
+                if (!pv) return true;
+                var sc = savedProg.d[i];
+                var sv = sc && sc.value !== undefined && sc.value !== null ? String(sc.value) : '';
+                return pv === sv;
+              })) {
+                setLocalCells(savedProg.d);
+                restoredProg = true;
+                showToast("📦 已恢復上次對局進度");
+              }
+            }
+            // 強制立刻儲存一次，避開 syncState 的狀態更新延遲 (v3.8.15)
+            saveLocalProgress(rId, myId, pName, false, restoredProg ? savedProg.d : m.data.isBrawlMode ? m.data.localCells : m.data.cells);
           } else if (m.type === 'SYNC') {
             if (isStaleSync(m.data)) {/* 上一局遲到的 SYNC：丟棄，不覆寫新局盤面（新局開局包不在此列，見 isStaleSync） */} else {
               syncState(m.data, false, true);
@@ -5934,134 +6140,14 @@ function SudokuGame() {
       className: "text-[10px] text-slate-400 font-semibold uppercase tracking-widest"
     }, "Connection ID: ", myId.substring(0, 6)))));
   }
-  var tutorialOverlay = showTutorial ? /*#__PURE__*/React.createElement("div", {
-    className: "fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4",
-    onClick: function onClick() {
-      return setShowTutorial(false);
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-[#fffaf0] border-4 border-slate-800 rounded-2xl shadow-[10px_10px_0px_rgba(30,41,59,1)] max-w-lg w-full max-h-[92vh] overflow-y-auto p-6 relative",
-    onClick: function onClick(e) {
-      return e.stopPropagation();
-    }
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setShowTutorial(false);
-    },
-    className: "plat-btn-hard plat-btn-hard-2 absolute top-3 right-3 w-9 h-9 bg-white border-[3px] border-slate-800 rounded-full font-black shadow-[2px_2px_0px_rgba(30,41,59,1)] z-10"
-  }, "\u2715"), /*#__PURE__*/React.createElement("h3", {
-    className: "text-2xl font-black text-slate-800 border-b-4 border-[#ffcc00] inline-block pb-1 mb-5"
-  }, "\u2753 \u73A9\u6CD5\u6559\u5B78"), /*#__PURE__*/React.createElement("div", {
-    className: "h-[400px] flex flex-col justify-center bg-white border-[3px] border-slate-800 rounded-xl p-4 mb-4 shadow-[4px_4px_0px_rgba(30,41,59,1)]" + (tutStep !== 0 ? " hidden" : "")
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex justify-center mb-3"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "grid grid-cols-3 border-[3px] border-slate-800 rounded-lg overflow-hidden w-40"
-  }, ['5', '', '', '', null, '3', '', '', ''].map(function (v, i) {
-    return /*#__PURE__*/React.createElement("div", {
-      key: i,
-      className: "relative aspect-square flex items-center justify-center font-black text-xl border border-slate-300 " + (v === null ? tutDemoVal === 8 ? 'bg-emerald-50' : tutDemoWrong ? 'bg-rose-50' : 'bg-amber-50' : 'bg-white text-slate-800')
-    }, v === null ? tutDemoVal === 8 ? /*#__PURE__*/React.createElement("span", {
-      className: "text-emerald-600"
-    }, "8") : tutDemoWrong ? /*#__PURE__*/React.createElement("span", {
-      className: "text-rose-500"
-    }, tutDemoWrong) : /*#__PURE__*/React.createElement("span", {
-      className: "text-amber-400"
-    }, "?") : v);
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "flex justify-center gap-2 mb-3"
-  }, [7, 8, 9].map(function (n) {
-    return /*#__PURE__*/React.createElement("button", {
-      key: n,
-      onClick: function onClick() {
-        if (n === 8) {
-          setTutDemoVal(8);
-          setTutDemoWrong(null);
-        } else {
-          setTutDemoVal(null);
-          setTutDemoWrong(n);
-        }
-      },
-      className: "plat-btn-hard plat-btn-hard-3 w-12 h-12 bg-white border-[3px] border-slate-800 rounded-xl font-black text-xl text-slate-800 shadow-[3px_3px_0px_rgba(30,41,59,1)]"
-    }, n);
-  })), /*#__PURE__*/React.createElement("p", {
-    className: "text-center font-bold text-slate-700"
-  }, tutDemoVal === 8 ? '✅ 答對了！中間這格就是 8——先點格子、再按數字鍵，就是這樣填的' : tutDemoWrong ? '❌ ' + tutDemoWrong + ' 不對喔，再想想這一格該填多少' : '動手試試：中間發亮的格子該填哪個數字？點下面的數字鍵試試')), /*#__PURE__*/React.createElement("div", {
-    className: "h-[400px] flex flex-col justify-center bg-white border-[3px] border-slate-800 rounded-xl p-4 mb-4 shadow-[4px_4px_0px_rgba(30,41,59,1)]" + (tutStep !== 1 ? " hidden" : "")
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex justify-center mb-3"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "relative w-20 h-20 border-[3px] border-slate-800 rounded-lg bg-white"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "tut-draft-a absolute top-1 left-2 font-black text-slate-400 text-lg"
-  }, "2"), /*#__PURE__*/React.createElement("span", {
-    className: "tut-draft-b absolute bottom-1 right-2 font-black text-slate-400 text-lg"
-  }, "7"), /*#__PURE__*/React.createElement("span", {
-    className: "absolute -bottom-3 -right-3 text-2xl"
-  }, "\u270F\uFE0F"))), /*#__PURE__*/React.createElement("p", {
-    className: "text-center font-bold text-slate-700"
-  }, "\u9084\u4E0D\u78BA\u5B9A\uFF1F\u5148\u958B\u7B46\u8A18\uFF0C\u628A\u53EF\u80FD\u7684\u6578\u5B57\u8A18\u4E0B\u4F86")), /*#__PURE__*/React.createElement("div", {
-    className: "h-[400px] flex flex-col justify-center bg-white border-[3px] border-slate-800 rounded-xl p-4 mb-4 shadow-[4px_4px_0px_rgba(30,41,59,1)]" + (tutStep !== 2 ? " hidden" : "")
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex justify-center mb-3"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex border-[3px] border-slate-800 rounded-lg overflow-hidden"
-  }, [1, 2, 3, 4, 5, 6, 7, 8, 9].map(function (n) {
-    return /*#__PURE__*/React.createElement("div", {
-      key: n,
-      className: "tut-row-cell w-8 h-8 md:w-9 md:h-9 flex items-center justify-center font-black border-r border-slate-300 last:border-r-0",
-      style: {
-        animationDelay: n * 0.28 + 's'
-      }
-    }, n);
-  }))), /*#__PURE__*/React.createElement("p", {
-    className: "text-center font-bold text-slate-700"
-  }, "\u6BCF\u4E00\u884C\u3001\u6BCF\u4E00\u5217\u3001\u6BCF\u500B 3\xD73 \u5BAE\uFF0C1~9 \u90FD\u4E0D\u80FD\u91CD\u8907")), /*#__PURE__*/React.createElement("div", {
-    className: "h-[400px] flex flex-col justify-center bg-white border-[3px] border-slate-800 rounded-xl p-4 mb-5 shadow-[4px_4px_0px_rgba(30,41,59,1)]" + (tutStep !== 3 ? " hidden" : "")
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex justify-center gap-2 mb-3 flex-wrap"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "px-3 py-2 bg-[#ffcc00] border-[3px] border-slate-800 rounded-xl font-black text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)]"
-  }, "\uD83D\uDD22 \u5148\u9EDE\u6578\u5B57 \u2192 \u518D\u9EDE\u683C\u5B50"), /*#__PURE__*/React.createElement("span", {
-    className: "px-3 py-2 bg-sky-300 border-[3px] border-slate-800 rounded-xl font-black text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)]"
-  }, "\uD83D\uDC46 \u5148\u9EDE\u683C\u5B50 \u2192 \u518D\u9EDE\u6578\u5B57")), /*#__PURE__*/React.createElement("p", {
-    className: "text-center font-bold text-slate-700"
-  }, "\u8F38\u5165\u65B9\u5F0F\u81EA\u5DF1\u9078\uFF0C\u904A\u6232\u4E2D\u5728\u76E4\u9762\u4E0B\u65B9\u96A8\u6642\u5207\u63DB")), /*#__PURE__*/React.createElement("div", {
-    className: "flex justify-center gap-2 mb-5"
-  }, [0, 1, 2, 3].map(function (idx) {
-    return /*#__PURE__*/React.createElement("div", {
-      key: idx,
-      className: "w-2.5 h-2.5 rounded-full border-2 border-slate-800 " + (idx === tutStep ? "bg-[#ffcc00]" : "bg-white")
-    });
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-3"
-  }, tutStep > 0 ? /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      setTutStep(tutStep - 1);
-    },
-    className: "plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-white text-slate-800"
-  }, "\u4E0A\u4E00\u6B65") : /*#__PURE__*/React.createElement("div", {
-    className: "flex-1"
-  }), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setShowTutorial(false);
-    },
-    className: "plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-white text-slate-400"
-  }, "\u8DF3\u904E"), tutStep < 3 ? /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      setTutStep(tutStep + 1);
-    },
-    className: "plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-[#ffcc00] text-slate-900"
-  }, "\u4E0B\u4E00\u6B65") : /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setShowTutorial(false);
-    },
-    className: "plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-emerald-400 text-slate-900"
-  }, "\u958B\u59CB\u904A\u6232 \uD83C\uDFAE")))) : null;
   if (screen === 'home') {
     return /*#__PURE__*/React.createElement("div", {
+      key: "sudoku-home",
       className: "h-screen w-screen flex flex-col items-center justify-center p-4 relative overflow-hidden animate-fadeIn"
     }, /*#__PURE__*/React.createElement("div", {
+      ref: platHomeRef,
+      className: "contents"
+    }), !platHomeMounted && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
       className: "flex-1 flex flex-col justify-center w-full max-w-md items-center"
     }, /*#__PURE__*/React.createElement("div", {
       className: "bg-[#fffaf0] border-4 border-slate-800 p-10 rounded-xl shadow-[10px_10px_0px_rgba(30,41,59,1)] w-full text-center relative transform -rotate-1 z-10"
@@ -6078,7 +6164,7 @@ function SudokuGame() {
     }, "Sudoku Master")), /*#__PURE__*/React.createElement("div", {
       className: "flex flex-col gap-5"
     }, /*#__PURE__*/React.createElement("button", {
-      onClick: startSinglePlayer,
+      onClick: openSudokuSetupSolo,
       className: "plat-btn-hard w-full py-4 bg-white border-4 border-slate-800 rounded-xl font-black text-xl text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)] transform rotate-1"
     }, "\uD83D\uDC64 \u55AE\u6A5F\u6311\u6230"), /*#__PURE__*/React.createElement("button", {
       onClick: function onClick() {
@@ -6111,12 +6197,7 @@ function SudokuGame() {
     }, "\u6700\u4F73 ", /*#__PURE__*/React.createElement(PlatNum, {
       value: formatTime(dailyRecords[dailyPickDate])
     })) : null), /*#__PURE__*/React.createElement("button", {
-      onClick: function onClick() {
-        setTutStep(0);
-        setTutDemoVal(null);
-        setTutDemoWrong(null);
-        setShowTutorial(true);
-      },
+      onClick: openSudokuTutorial,
       className: "plat-btn-hard w-full py-4 bg-white border-4 border-slate-800 rounded-xl font-black text-xl text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)] transform -rotate-1"
     }, "\u2753 \u73A9\u6CD5\u6559\u5B78"), typeof window !== 'undefined' && window.__PLAT_PLATFORM && /*#__PURE__*/React.createElement("div", {
       className: "flex items-center gap-2"
@@ -6127,7 +6208,7 @@ function SudokuGame() {
       className: "plat-btn-hard flex-1 py-3 bg-sky-400 border-4 border-slate-800 rounded-xl font-black text-lg text-slate-900 shadow-[4px_4px_0px_rgba(30,41,59,1)]"
     }, "\uD83C\uDFE0 \u56DE\u5927\u5EF3"), renderDockCapsule(false))))), /*#__PURE__*/React.createElement("div", {
       className: "shrink-0 pb-4 text-slate-800 font-black text-sm opacity-60 tracking-wider z-10"
-    }, "Copyright \xA9 2026 \u8449\u5927\u5E25. All rights reserved.", ' (v' + (window.PLAT_VERSION || '3.13.4') + ')'), tutorialOverlay);
+    }, "Copyright \xA9 2026 \u8449\u5927\u5E25. All rights reserved.", ' (v' + (window.PLAT_VERSION || '3.13.4') + ')')));
   }
 
   // 錦標賽每局開局門檻（房主）：全員到齊且全員準備才能開始；等滿 1 分鐘（且至少 2 人到齊）可強制開始
@@ -6147,12 +6228,8 @@ function SudokuGame() {
   });
   var tournStartNote = tournAllPresent && tournAllReady ? '全員準備好了，等房主開始！' : tournWaited ? '已等滿 1 分鐘，房主可強制開始' : !tournAllPresent ? '等待選手到齊…（或 ' + Math.max(0, 60 - Math.floor(tournWaitMs / 1000)) + ' 秒後可強制開始）' : '等待全員準備（或 ' + Math.max(0, 60 - Math.floor(tournWaitMs / 1000)) + ' 秒後可強制開始）';
   return /*#__PURE__*/React.createElement("div", {
-    className: "h-screen w-screen p-1 md:p-2 flex flex-col items-center font-sans relative",
-    style: {
-      backgroundColor: '#fdf5e6',
-      backgroundImage: 'radial-gradient(#d3c5ab 2px, transparent 2px)',
-      backgroundSize: '12px 12px'
-    }
+    key: "sudoku-game",
+    className: "h-screen w-screen p-1 md:p-2 flex flex-col items-center font-sans relative"
   }, matchPhase === 'waiting' && /*#__PURE__*/React.createElement("div", {
     className: "absolute inset-0 z-[65] flex items-center justify-center bg-slate-900/80 backdrop-blur-md pointer-events-auto p-4 overflow-y-auto"
   }, engine === 'local' ? /*#__PURE__*/React.createElement("div", {
@@ -6258,98 +6335,14 @@ function SudokuGame() {
       setResultsDismissedUi(false);
     },
     className: "plat-btn-hard plat-btn-hard-3 fixed bottom-24 right-3 z-[56] bg-white border-[3px] border-slate-800 rounded-full px-4 py-2 font-black shadow-[3px_3px_0px_#1e293b]"
-  }, "\uD83C\uDFC6 \u7D50\u679C"), showExitMenu && /*#__PURE__*/React.createElement("div", {
-    className: "fixed inset-0 z-[95] flex items-center justify-center bg-slate-900/60 backdrop-blur-[2px] p-4",
-    onClick: function onClick() {
-      return setShowExitMenu(false);
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-white border-4 border-[#1e293b] rounded-2xl shadow-[10px_10px_0px_#1e293b] p-6 w-full max-w-xs text-center animate-popUpCenter",
-    onClick: function onClick(e) {
-      return e.stopPropagation();
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "font-black text-xl text-[#1e293b] mb-4"
-  }, "\u8981\u96E2\u958B\u5C0D\u5C40\u55CE\uFF1F"), typeof window !== 'undefined' && window.__PLAT_TOURN_CAN_FORCEEND && window.__PLAT_TOURN_CAN_FORCEEND() && /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      setShowExitMenu(false);
-      if (window.__PLAT_TOURN_FORCEEND) window.__PLAT_TOURN_FORCEEND();
-    },
-    className: "plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 bg-rose-500 text-white border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_#1e293b]"
-  }, "\u23F9\uFE0F \u7D50\u675F\u672C\u5C40\uFF08\u9326\u6A19\u8CFD\uFF09"), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      setShowExitMenu(false);
-      handleBackToLobby();
-    },
-    className: "plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 bg-white text-slate-800 border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_#1e293b]"
-  }, "\uD83C\uDFC1 \u56DE\u7B49\u5F85\u5BA4"), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      setShowExitMenu(false);
-      handleGoHome('leave');
-    },
-    className: "plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 bg-white text-slate-800 border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_#1e293b]"
-  }, "\uD83D\uDEAA \u9000\u51FA\uFF08\u56DE\u5927\u5EF3\uFF09"), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setShowExitMenu(false);
-    },
-    className: "w-full py-2 text-slate-400 font-bold hover:text-slate-700"
-  }, "\u53D6\u6D88"))), countdownValue !== null && !isGenerating && !(typeof window !== 'undefined' && window.PlatCountdown) && /*#__PURE__*/React.createElement("div", {
+  }, "\uD83C\uDFC6 \u7D50\u679C"), countdownValue !== null && !isGenerating && !(typeof window !== 'undefined' && window.PlatCountdown) && /*#__PURE__*/React.createElement("div", {
     className: "absolute inset-0 z-[65] flex items-center justify-center bg-slate-900/50 backdrop-blur-md pointer-events-auto"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[12rem] font-black text-red-500 drop-shadow-[0_0_30px_rgba(255,0,0,0.8)] animate-pulse",
     style: {
       textShadow: '6px 6px 0 #fff, -6px -6px 0 #fff, 6px -6px 0 #fff, -6px 6px 0 #fff'
     }
-  }, countdownValue)), showSetupModal && /*#__PURE__*/React.createElement("div", {
-    className: "absolute inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-md pointer-events-auto animate-fadeIn p-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-[#fffdfa] rounded-2xl p-6 border-[4px] border-[#1e293b] shadow-[10px_10px_0px_#1e293b] relative flex flex-col gap-4 min-w-[300px] max-w-md w-full mx-auto my-auto animate-popUpCenter"
-  }, /*#__PURE__*/React.createElement("h2", {
-    className: "text-xl font-black mb-2 border-b-4 border-[#ffcc00] inline-block pb-1"
-  }, "\u2699\uFE0F \u8A2D\u5B9A\u984C\u578B\u8207\u96E3\u5EA6"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    className: "block text-sm font-bold text-slate-600 mb-1"
-  }, "\u76E4\u9762\u5C3A\u5BF8\uFF1A"), /*#__PURE__*/React.createElement("select", {
-    value: tempSizeId,
-    onChange: function onChange(e) {
-      return setTempSizeId(parseInt(e.target.value));
-    },
-    className: "w-full px-3 py-2 rounded-xl border-2 border-slate-800 font-bold bg-white text-slate-800 outline-none shadow-[2px_2px_0px_#1e293b] cursor-pointer"
-  }, SIZES.map(function (s) {
-    return /*#__PURE__*/React.createElement("option", {
-      key: s.id,
-      value: s.id
-    }, s.name);
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "mb-2"
-  }, /*#__PURE__*/React.createElement("label", {
-    className: "block text-sm font-bold text-slate-600 mb-1"
-  }, "\u904A\u6232\u96E3\u5EA6\uFF1A"), /*#__PURE__*/React.createElement("select", {
-    value: tempDiffId,
-    onChange: function onChange(e) {
-      return setTempDiffId(e.target.value);
-    },
-    className: "w-full px-3 py-2 rounded-xl border-2 border-slate-800 font-bold bg-white text-slate-800 outline-none shadow-[2px_2px_0px_#1e293b] cursor-pointer"
-  }, DIFFICULTIES.map(function (d) {
-    return /*#__PURE__*/React.createElement("option", {
-      key: d.id,
-      value: d.id
-    }, d.name);
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-3 mt-2"
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setShowSetupModal(false);
-    },
-    className: "flex-1 py-3 bg-white border-2 border-slate-800 rounded-xl font-black text-slate-800 shadow-[2px_2px_0px_rgba(30,41,59,1)] hover:translate-y-[2px] hover:shadow-none transition-all"
-  }, "\u53D6\u6D88"), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      setShowSetupModal(false);
-      if (isHostRef.current && (sizeId !== tempSizeId || diffId !== tempDiffId)) {
-        generateAndSync(tempSizeId, tempDiffId);
-      }
-    },
-    className: "flex-1 py-3 bg-[#ffcc00] text-slate-900 border-2 border-slate-800 rounded-xl font-black shadow-[2px_2px_0px_rgba(30,41,59,1)] hover:translate-y-[2px] hover:shadow-none transition-all"
-  }, "\u78BA\u8A8D\u7522\u751F")))), showBrawlSettings && /*#__PURE__*/React.createElement("div", {
+  }, countdownValue)), showBrawlSettings && /*#__PURE__*/React.createElement("div", {
     className: "absolute inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-md pointer-events-auto animate-fadeIn p-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "bg-white rounded-2xl p-6 border-[4px] border-[#1e293b] shadow-[10px_10px_0px_#1e293b] relative flex flex-col gap-4 min-w-[300px] max-w-sm w-full mx-auto my-auto"
@@ -6506,29 +6499,11 @@ function SudokuGame() {
     },
     className: "mt-4 px-4 py-3 bg-[#ffcc00] border-4 border-[#1e293b] font-black rounded-xl shadow-[4px_4px_0px_#1e293b] hover:translate-y-[2px] hover:shadow-none transition-all"
   }, "\u95DC\u9589\u8A2D\u5B9A"))), /*#__PURE__*/React.createElement("div", {
-    className: "w-full max-w-[1200px] bg-[#fffaf0] rounded-xl border-4 border-slate-800 shadow-[10px_10px_0px_rgba(30,41,59,1)] flex flex-col h-full relative z-10 overflow-hidden"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-[#ffcc00] border-b-[3px] border-slate-800 shrink-0 z-50 relative transition-all duration-300 ease-in-out px-2 md:px-4 py-1.5 flex flex-col gap-1.5"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center justify-between gap-2 w-full overflow-x-auto hide-scrollbar pb-0.5"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-1.5 flex-nowrap shrink-0"
-  }, /*#__PURE__*/React.createElement("h1", {
-    className: "font-black tracking-tight uppercase text-base md:text-2xl text-[#1e293b] flex items-center gap-1 shrink-0"
-  }, "\uD83D\uDD22", /*#__PURE__*/React.createElement("span", {
-    className: "hidden sm:inline"
-  }, "\u6578\u7368 - SUDOKU")), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-1 bg-[#1e293b] text-white px-1.5 py-0.5 rounded font-mono font-bold shadow-[2px_2px_0px_rgba(0,0,0,0.4)] text-[10px] md:text-sm whitespace-nowrap shrink-0"
-  }, /*#__PURE__*/React.createElement(GameTimer, {
-    startTime: startTime,
-    endTime: isBrawlMode ? matchPhase === 'finished' ? stateRef.current.matchEndTime || endTime : null : endTime || (winner ? matchStartTime : null),
-    isRunning: (isBrawlMode ? matchPhase === 'playing' : !isWon) && !winner && screen === 'game',
-    matchPhase: matchPhase
-  })), dailyDate && /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-1 bg-emerald-500 text-white px-1.5 py-0.5 rounded font-black shadow-[2px_2px_0px_rgba(0,0,0,0.4)] text-[10px] md:text-sm whitespace-nowrap shrink-0"
-  }, "\uD83D\uDCC5 \u6BCF\u65E5 ", dailyDate.slice(5), dailyDate !== dailyTodayStr() ? ' 補玩' : ''), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-1 shrink-0"
-  }, isMultiplayer && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
+    ref: platFrameRef,
+    className: "w-full max-w-[1200px] flex-1 min-h-0"
+  }), ptcSlot && ReactDOM.createPortal( /*#__PURE__*/React.createElement(React.Fragment, null, isMultiplayer && /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-1.5 flex-wrap"
+  }, /*#__PURE__*/React.createElement("span", {
     className: "bg-emerald-400 text-slate-900 px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] flex items-center gap-1 whitespace-nowrap shrink-0"
   }, "\u4EE3\u78BC: ", roomId), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
@@ -6541,44 +6516,14 @@ function SudokuGame() {
     disabled: !isHostRef.current,
     className: "".concat(isBrawlMode ? 'bg-purple-600' : 'bg-sky-400', " text-white px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] flex items-center gap-1 whitespace-nowrap shrink-0 ").concat(isHostRef.current ? 'cursor-pointer hover:translate-y-[1px] hover:shadow-none active:translate-y-[2px] transition-all' : 'opacity-90 cursor-default'),
     title: isHostRef.current ? "點擊切換競賽模式（將會重新出題）" : "僅房主可切換模式"
-  }, isBrawlMode ? '⚔️ 大亂鬥' : '🌐 合作模式')), (!isMultiplayer || isHostRef.current) && /*#__PURE__*/React.createElement("button", {
+  }, isBrawlMode ? '⚔️ 大亂鬥' : '🌐 合作模式')), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-1.5 items-center w-full"
+  }, (!isMultiplayer || isHostRef.current) && /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       return setShowBrawlSettings(true);
     },
-    className: "bg-slate-700 text-white px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] hover:translate-y-[1px] hover:shadow-none active:translate-y-[2px] transition-all"
-  }, "\u2699\uFE0F \u8A2D\u5B9A"))), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setIsHeaderCollapsed(!isHeaderCollapsed);
-    },
-    className: "shrink-0 flex px-1.5 py-0.5 bg-[#1e293b] text-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(0,0,0,0.3)] hover:bg-slate-800 items-center gap-1 whitespace-nowrap"
-  }, isHeaderCollapsed ? '🔽 展開規則' : '🔼 縮小面板')), /*#__PURE__*/React.createElement("div", {
-    className: "plat-collapse-y w-full" + (isHeaderCollapsed ? "" : " open")
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-white border-[3px] border-[#1e293b] rounded-xl p-2 md:p-3 text-[#1e293b] shadow-[4px_4px_0px_#1e293b] flex flex-col md:flex-row gap-3"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex-1"
-  }, /*#__PURE__*/React.createElement("h3", {
-    className: "text-sm md:text-base font-black mb-1 border-b-[3px] border-[#ffcc00] inline-block pb-0.5"
-  }, "\uD83D\uDCDC \u904A\u6232\u898F\u5247"), /*#__PURE__*/React.createElement("ol", {
-    className: "list-decimal list-outside ml-4 space-y-1 text-[10px] md:text-sm leading-relaxed font-bold"
-  }, /*#__PURE__*/React.createElement("li", null, "\u9078\u64C7\u4E0A\u65B9\u6578\u5B57\u9EDE\u64CA\u65B9\u683C\u3002\u82E5\u4E0D\u9078\u4E0A\u65B9\u6578\u5B57\uFF0C\u53EF\u76F4\u63A5\u9EDE\u64CA\u76E4\u9762\u5DF2\u6709\u6578\u5B57\u4F86\u300C\u667A\u6167\u5438\u53D6\u300D\u9AD8\u4EAE\u3002"), /*#__PURE__*/React.createElement("li", null, "\u8F38\u5165\u65B9\u5F0F\u53EF\u5728\u4E0B\u65B9\u5207\u63DB\u6210\u300C\uD83D\uDC46 \u683C\u5B50\u5148\u884C\u300D\uFF1A\u5148\u9EDE\u683C\u5B50\u3001\u518D\u9EDE\u6578\u5B57\u586B\u5165\uFF0C\u7FD2\u6163\u9019\u7A2E\u9806\u5E8F\u7684\u73A9\u5BB6\u9069\u7528\uFF1B\u5207\u63DB\u5F8C\u6703\u8A18\u4F4F\u4F60\u7684\u9078\u64C7\u3002"), /*#__PURE__*/React.createElement("li", null, "\u4E0D\u53EF\u91CD\u8907\uFF1A\u82E5\u767C\u751F\u885D\u7A81\uFF0C\u80CC\u666F\u6703\u4EAE\u8D77\u7D05\u8272\u63D0\u793A\u3002"), /*#__PURE__*/React.createElement("li", null, "\u8349\u7A3F\u6A21\u5F0F\uFF1A\u53EF\u5728\u65B9\u683C\u5167\u6A19\u8A18\u591A\u500B\u5C0F\u6578\u5B57\u8F14\u52A9\u63A8\u7406\u3002"), /*#__PURE__*/React.createElement("li", null, "\u9577\u6309\u6E05\u9664\uFF1A\u82E5\u586B\u932F\u6578\u5B57\u4E14\u4E0A\u65B9\u6309\u9375\u5DF2\u88AB\u9396\u5B9A\uFF08\u53CD\u7070\uFF09\uFF0C\u53EF\u9577\u6309\u8A72\u683C 0.5 \u79D2\u5F37\u5236\u6E05\u9664\u3002"))))), /*#__PURE__*/React.createElement("div", {
-    className: "flex flex-nowrap gap-1.5 items-center w-full overflow-x-auto hide-scrollbar pt-0.5 pb-1"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-1.5 items-center shrink-0"
-  }, /*#__PURE__*/React.createElement("button", {
-    disabled: isMultiplayer && !isHostRef.current,
-    onClick: function onClick() {
-      setTempSizeId(sizeId);
-      setTempDiffId(diffId);
-      setShowSetupModal(true);
-    },
-    className: "plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 rounded border-2 border-[#1e293b] font-bold bg-white text-[#1e293b] text-[10px] md:text-sm outline-none shadow-[2px_2px_0px_#1e293b] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed shrink-0 flex items-center gap-1 hover:translate-y-[1px]",
-    title: "\u8A2D\u5B9A\u984C\u578B\u8207\u96E3\u5EA6"
-  }, "\u2699\uFE0F ", (_SIZES$find = SIZES.find(function (s) {
-    return s.id === sizeId;
-  })) === null || _SIZES$find === void 0 ? void 0 : _SIZES$find.name.split(' ')[0], " - ", ((_DIFFICULTIES$find = DIFFICULTIES.find(function (d) {
-    return d.id === diffId;
-  })) === null || _DIFFICULTIES$find === void 0 ? void 0 : _DIFFICULTIES$find.name.split(' ')[1]) || '難度')), /*#__PURE__*/React.createElement("div", {
+    className: "bg-slate-700 text-white px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] hover:translate-y-[1px] hover:shadow-none active:translate-y-[2px] transition-all shrink-0"
+  }, "\u2699\uFE0F \u8A2D\u5B9A"), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-1.5 items-center ml-auto shrink-0"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: handlePlayAgain,
@@ -6587,7 +6532,7 @@ function SudokuGame() {
     title: "\u65B0\u984C"
   }, "\uD83C\uDFB2", /*#__PURE__*/React.createElement("span", {
     className: "hidden sm:inline"
-  }, "\u65B0\u984C")), true && /*#__PURE__*/React.createElement("button", {
+  }, "\u65B0\u984C")), /*#__PURE__*/React.createElement("button", {
     onClick: handleUndo,
     disabled: history.length === 0 || isWon || isMultiplayer && !isBrawlMode,
     className: "plat-btn-hard plat-btn-hard-2 px-1.5 py-1 md:px-3 md:py-1.5 bg-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[2px_2px_0px_#1e293b] disabled:opacity-50 disabled:shadow-none flex items-center gap-1 text-[#1e293b] shrink-0",
@@ -6608,23 +6553,7 @@ function SudokuGame() {
     title: "\u5B58\u6A94/\u8B80\u6A94"
   }, "\uD83D\uDCBE", /*#__PURE__*/React.createElement("span", {
     className: "hidden sm:inline"
-  }, "\u5B58\u6A94")), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      var m = platAudio().toggleMuted();
-      setMuted(m);
-    },
-    className: "plat-btn-hard plat-btn-hard-2 px-1.5 py-1 md:px-3 md:py-1.5 bg-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1 text-[#1e293b] shrink-0",
-    title: muted ? "取消靜音" : "靜音"
-  }, muted ? '🔇' : '🔊'), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      var N = typeof window !== 'undefined' ? window.__PLAT_NET : null;
-      if (N && N.inMatch === 'sudoku' || typeof window !== 'undefined' && window.__PLAT_TOURN_CAN_FORCEEND && window.__PLAT_TOURN_CAN_FORCEEND()) setShowExitMenu(true);else handleGoHome();
-    },
-    className: "plat-btn-hard plat-btn-hard-2 bg-white text-[#1e293b] border-2 border-[#1e293b] px-1.5 py-1 md:px-3 md:py-1.5 rounded font-bold text-[10px] md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1 shrink-0",
-    title: "\u56DE\u9996\u9801/\u65B7\u7DDA"
-  }, !isMultiplayer ? '🏠' : '🔌', /*#__PURE__*/React.createElement("span", {
-    className: "hidden sm:inline ml-1"
-  }, !isMultiplayer ? '回首頁' : '退出'))))), isMultiplayer && /*#__PURE__*/React.createElement("div", {
+  }, "\u5B58\u6A94"))))), ptcSlot), frameBody && ReactDOM.createPortal( /*#__PURE__*/React.createElement(React.Fragment, null, isMultiplayer && /*#__PURE__*/React.createElement("div", {
     className: "px-2 md:px-4 py-1.5 bg-[#fffdfa] border-b-[3px] border-slate-800 flex flex-nowrap gap-2 items-center relative z-40 shadow-inner shrink-0 overflow-x-auto hide-scrollbar w-full"
   }, /*#__PURE__*/React.createElement("span", {
     className: "font-black text-slate-800 text-xs shrink-0 whitespace-nowrap"
@@ -6710,7 +6639,7 @@ function SudokuGame() {
       return setShowGhostProgress(e.target.checked);
     },
     className: "w-3 h-3 accent-purple-500"
-  }), "\u986F\u793A\u5C0D\u624B\u8272\u584A"))), !isHeaderCollapsed && /*#__PURE__*/React.createElement("div", {
+  }), "\u986F\u793A\u5C0D\u624B\u8272\u584A"))), rulesOpenUi && /*#__PURE__*/React.createElement("div", {
     className: "h-6 md:h-8 shrink-0 flex items-center justify-center bg-slate-800 text-white border-b-4 border-slate-800 relative z-30 font-bold tracking-wide"
   }, /*#__PURE__*/React.createElement("span", {
     className: "text-[10px] md:text-sm hidden md:inline"
@@ -7114,10 +7043,10 @@ function SudokuGame() {
   }, isBrawlMode && showGhostProgress && activeCells.map(function (cell) {
     var ghostInfo = ghostHints[cell.id];
     if (!ghostInfo || cell.isGiven || cell.isSystemRevealed) return null;
-    return Object.entries(ghostInfo).map(function (_ref10, idx) {
-      var _ref11 = _slicedToArray(_ref10, 2),
-        uid = _ref11[0],
-        hint = _ref11[1];
+    return Object.entries(ghostInfo).map(function (_ref9, idx) {
+      var _ref10 = _slicedToArray(_ref9, 2),
+        uid = _ref10[0],
+        hint = _ref10[1];
       if (uid === myId) return null; // 不顯示自己的
 
       // 只有一位填答者時，且是上帝模式，畫出「大方塊」覆蓋格子背景
@@ -7208,10 +7137,10 @@ function SudokuGame() {
     });
   }), /*#__PURE__*/React.createElement("g", {
     transform: "translate(".concat(PADDING, ", ").concat(PADDING, ")")
-  }, isBrawlMode && Object.entries(foggedBoxes).map(function (_ref12) {
-    var _ref13 = _slicedToArray(_ref12, 2),
-      boxIdStr = _ref13[0],
-      expiry = _ref13[1];
+  }, isBrawlMode && Object.entries(foggedBoxes).map(function (_ref11) {
+    var _ref12 = _slicedToArray(_ref11, 2),
+      boxIdStr = _ref12[0],
+      expiry = _ref12[1];
     var boxId = parseInt(boxIdStr);
     var boxRow = Math.floor(boxId / (cSizeDef.size / cSizeDef.boxH));
     var boxCol = boxId % (cSizeDef.size / cSizeDef.boxW);
@@ -7356,7 +7285,7 @@ function SudokuGame() {
       return setHideVictoryModal(false);
     },
     className: "pointer-events-auto bg-[#ffcc00] text-[#1e293b] border-[4px] border-[#1e293b] px-6 py-3 rounded-full shadow-[6px_6px_0px_#1e293b] hover:translate-y-[2px] transition-all font-black flex items-center gap-2 tracking-wide text-lg"
-  }, "\uD83C\uDFC6 \u986F\u793A\u6210\u7E3E")))), flares.length > 0 && /*#__PURE__*/React.createElement("svg", {
+  }, "\uD83C\uDFC6 \u986F\u793A\u6210\u7E3E")))), frameBody), flares.length > 0 && /*#__PURE__*/React.createElement("svg", {
     className: "fixed inset-0 pointer-events-none z-[120]",
     style: {
       width: '100vw',

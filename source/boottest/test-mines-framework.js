@@ -60,9 +60,9 @@ const cs = (p, el, prop) => el ? p.window.getComputedStyle(el)[prop] : '(none)';
   S.window.PLAT_show('sudoku');
   await waitFor(() => S.document.querySelector('#sudoku-root h1'), 120000, 'sudoku home S');
   clickEl(S, [...S.document.querySelectorAll('#sudoku-root button')].find(b => (b.textContent || '').includes('單機挑戰')));
-  const sStart = await waitFor(() => [...S.document.querySelectorAll('#sudoku-root button')].find(b => (b.textContent || '').includes('開始挑戰')) || null, 30000, 'sudoku start btn');
-  clickEl(S, sStart);
-  const sFrame = await waitFor(() => { const f = [...S.document.querySelectorAll('#sudoku-root div')].find(el => (el.className || '').includes('max-w-[1200px]') && (el.className || '').includes('border-4')); return f || null; }, 90000, 'sudoku frame');
+  await waitFor(() => S.document.querySelector('#plat-setup [data-pse-card]'), 30000, 'sudoku setup'); // F3：單機入口改殼 PlatSetup（seg 選版型/難度→開始）
+  clickEl(S, S.document.querySelector('#plat-setup [data-pse="start"]'));
+  const sFrame = await waitFor(() => S.document.querySelector('#sudoku-root [data-pframe]'), 90000, 'sudoku frame');
   check('對照：數獨對局外框存在', !!sFrame);
   // ===== 單機設定（PlatSetup＋自訂欄位） =====
   clickEl(A, A.document.querySelector('#mines-root [data-ph="solo"]'));
@@ -99,6 +99,7 @@ const cs = (p, el, prop) => el ? p.window.getComputedStyle(el)[prop] : '(none)';
   check('頂欄：計時晶片深底（#1e293b）', !!timerChip && /30[ ,]41[ ,]59/.test(cs(A, timerChip, 'backgroundColor')), timerChip && cs(A, timerChip, 'backgroundColor'));
   const slot = band && band.querySelector('[data-ptc-slot]');
   check('頂欄槽：模式切換（挖開/插旗）＋進度字（3BV）在槽內', !!slot && !!slot.querySelector('[data-mode="dig"]') && !!slot.querySelector('[data-mode="flag"]') && (slot.textContent || '').includes('進度（3BV）'));
+  check('滾字：槽內 3BV 進度 % 為 PlatCount 滾輪（.plat-count，同批檢查已接 PlatPct）', !!slot && !!slot.querySelector('.plat-count'));
   check('頂欄槽：💣 剩雷數＋愛心在槽內', !!slot && (slot.textContent || '').includes('💣') && (slot.textContent || '').includes('❤️'));
   check('頂欄單機：規則預設展開（newGame setRulesOpen(true)）', !!band && band.querySelector('[data-ptc-region="ruleswrap"]').classList.contains('open'));
   clickEl(A, band.querySelector('[data-ptc="rules"]'));

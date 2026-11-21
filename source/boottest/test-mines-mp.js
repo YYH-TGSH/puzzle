@@ -106,6 +106,7 @@ function clickCell(p, idx) {
   await sleep(600);
   const gViewTxt = G.document.querySelector('#view-mines').textContent;
   check('競速：來賓出局後自動上帝面板（已出局・觀戰中）', gViewTxt.includes('已出局・觀戰中'));
+  check('滾字：觀戰面板對手晶片 % 為 PlatCount 滾輪（.plat-count，v1.72.0 追補）', !!G.document.querySelector('#view-mines .plat-count'));
   const gResTxt = (G.document.querySelector('#plat-results') || { textContent: '' }).textContent;
   check('競速：來賓出局後先出等待結算卡（等待其他玩家完成）', gResTxt.includes('等待其他玩家完成'), gResTxt.slice(0, 80));
 

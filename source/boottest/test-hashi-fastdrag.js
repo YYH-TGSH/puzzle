@@ -42,8 +42,8 @@ const clickEl = (p, el) => { if (el) el.dispatchEvent(new p.window.MouseEvent('c
   const soloBtn = await waitFor(() => [...view().querySelectorAll('button')].find(b => (b.textContent || '').includes('單機挑戰')) || null, 60000, 'hashi main');
   check('前置：數橋主畫面', !!soloBtn);
   clickEl(p, soloBtn); await sleep(700);
-  const lvBtn = [...view().querySelectorAll('button')].find(b => (b.textContent || '').includes('10x10') || (b.textContent || '').includes('10×10'));
-  check('前置：難度選單有 10x10', !!lvBtn);
+  const lvBtn = await waitFor(() => D.querySelector('#plat-setup [data-pse-opt="2"]'), 20000, 'PlatSetup'); // F3：難度選擇改殼 PlatSetup overlay（不在 #view-hashi 內）
+  check('前置：難度選單有 10x10', !!lvBtn && (lvBtn.textContent || '').includes('10x10'));
   clickEl(p, lvBtn);
   const board = await waitFor(() => { const s = [...view().querySelectorAll('svg')].find(x => [...x.querySelectorAll('text')].some(t => /^[1-8]$/.test((t.textContent || '').trim()))); return s || null; }, 60000, 'board');
   check('前置：盤面渲染', !!board);

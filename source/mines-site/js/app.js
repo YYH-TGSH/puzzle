@@ -347,8 +347,11 @@ var BV_BANDS = { 9: [10, 22], 16: [52, 81] };
 function bv3OfLayout(w, h, L) { return computeBVWeights(w, h, L, computeNums(w, h, L)).bv; }
 function finalizeFirstClick(w, h, mines, sizeId, seed, L0, clickIdx, cells) {
   var band = BV_BANDS[sizeId] || null;
+  var hasLock = false;
+  if (cells) { for (var li = 0; li < cells.length; li++) if (cells[li] === 'L') { hasLock = true; break; } }
   var best = null;
   for (var k = 0; k < 40; k++) {
+    if (k > 0 && hasLock) break; // 禮物鎖定旗綁定 L0 的雷位：換 seed 候選盤會讓旗孤兒化（makeFirstSafe 的 L 豁免只對 L0 成立）——有鎖定旗時只准用 L0、3BV 帶讓位（v1.72.0 修：test-mines-items Phase E 種子相依失敗的真因）
     var cand = k === 0 ? L0 : makeLayout(w, h, mines, (seed + k) >>> 0);
     var fs = makeFirstSafe(cand, w, h, clickIdx, cells);
     var bv = bv3OfLayout(w, h, fs.layout);
@@ -1089,7 +1092,7 @@ function MinesGame() {
       if (C[idx] !== 'h') return;
       var reloc = null, layoutFull = null;
       if (firstRef.current) {
-        var fin2 = finalizeFirstClick(sp.w, sp.h, sp.mines, mpRef.current.sizeId, mpRef.current.seed || 0, L, idx, null);
+        var fin2 = finalizeFirstClick(sp.w, sp.h, sp.mines, mpRef.current.sizeId, mpRef.current.seed || 0, L, idx, C); // cells 傳 C（原傳 null）：合作盤首挖也要吃到鎖定旗 L 豁免與 hasLock 守衛，否則同型孤兒旗
         if (fin2.tries > 1) { L = fin2.layout; N = computeNums(sp.w, sp.h, L); layoutFull = L; }
         else if (fin2.moves.length) { L = fin2.layout; N = computeNums(sp.w, sp.h, L); reloc = fin2.moves; }
         firstRef.current = false;
@@ -1587,7 +1590,7 @@ function MinesGame() {
   useEffect(() => { // PlatFrame 自我修復 attach（先於 PlatTopCard effect 宣告：同輪先建框、再掛頂欄）
     if (typeof window === 'undefined' || typeof window.PlatFrame === 'undefined') return;
     if (window.__PLAT_NET && window.__PLAT_NET.inMatch && window.__PLAT_NET.inMatch !== 'mines') return;
-    if (screen !== 'game') { if (window.PlatFrame.isAttached()) window.PlatFrame.detach(); if (frameBody) setFrameBody(null); if (ptcEl) setPtcEl(null); return; }
+    if (screen !== 'game') { if (window.PlatFrame.isAttached() && (window.PlatFrame._el() === platFrameRef.current || !window.PlatFrame._elConnected())) window.PlatFrame.detach(window.PlatFrame._el()); if (frameBody) setFrameBody(null); if (ptcEl) setPtcEl(null); return; } // detach 只清自己的或已斷線的：無條件 detach() 會誤殺他款對局中的外框（同 PlatHome 誤殺案，v1.72.0 一併修）
     const el = platFrameRef.current;
     if (el) {
       if (window.PlatFrame._el() !== el || !window.PlatFrame._elConnected()) window.PlatFrame.attach(el, platFrameCfgStable.current);
@@ -1834,7 +1837,7 @@ function MinesGame() {
         <div className="flex flex-wrap gap-1.5 mb-2">
           {opps.map(p => { var gg = godBoards[p.id] || { progress: 0, state: 'playing' }; return (
             <button key={p.id} onClick={() => setGodUid(p.id)} className="text-xs font-black px-2 py-1 rounded-full border-2 flex items-center gap-1 active:translate-y-[1px]" style={p.id === sel ? { background: '#1e293b', color: '#fff', borderColor: '#1e293b' } : { background: '#fff', color: '#334155', borderColor: '#cbd5e1' }}>
-              <span className="w-2.5 h-2.5 rounded-full border border-slate-800" style={{ background: p.color }}></span>{p.name} {gg.state === 'finished' ? '⏱ ' + fmtTime(Math.floor((gg.timeMs || 0) / 1000)) : gg.state === 'boom' ? '💥 ' + Math.floor(effOfGod(gg) * 100) + '%' : Math.floor(effOfGod(gg) * 100) + '%'}
+              <span className="w-2.5 h-2.5 rounded-full border border-slate-800" style={{ background: p.color }}></span>{p.name} {gg.state === 'finished' ? '⏱ ' + fmtTime(Math.floor((gg.timeMs || 0) / 1000)) : gg.state === 'boom' ? <span>💥 <PlatPct value={Math.floor(effOfGod(gg) * 100)} /></span> : <PlatPct value={Math.floor(effOfGod(gg) * 100)} />}
             </button>); })}
         </div>
         {g.cells ? <div style={{ overflowX: 'auto', maxWidth: '100%' }}>{renderGodBoard(g, mpRef.current.sizeId)}</div> : <p className="font-bold text-slate-400 text-center py-3">等待 {selP ? selP.name : '對手'} 的盤面…</p>}

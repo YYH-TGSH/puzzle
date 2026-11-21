@@ -14,6 +14,24 @@ var _React = React,
   useState = _React.useState,
   useEffect = _React.useEffect,
   useRef = _React.useRef;
+// PlatPct：進度 % 滾字（v1.53.0 物理感規格）——殼層 PlatCount 的 React 包裝；獨立版（無 PlatCount）退回純文字（比照數獨/數橋/地雷同款元件，v1.72.0 追補接入）
+function PlatPct(props) {
+  var ref = useRef(null);
+  var hRef = useRef(null);
+  var v = Math.max(0, Math.min(100, Math.round(props.value) || 0));
+  useEffect(function () {
+    if (window.PlatCount && ref.current) {
+      if (!hRef.current) hRef.current = window.PlatCount.mount(ref.current, {
+        value: v,
+        suffix: '%'
+      });else window.PlatCount.set(hRef.current, v);
+    }
+  }, [v]);
+  if (!window.PlatCount) return /*#__PURE__*/React.createElement("span", null, v, "%");
+  return /*#__PURE__*/React.createElement("span", {
+    ref: ref
+  });
+}
 
 // ---------- 小工具 ----------
 function sGet(k) {
@@ -2164,11 +2182,11 @@ function AkariGame() {
     if (typeof window === 'undefined' || typeof window.PlatFrame === 'undefined') return;
     if (window.__PLAT_NET && window.__PLAT_NET.inMatch && window.__PLAT_NET.inMatch !== 'akari') return;
     if (screen !== 'game') {
-      if (window.PlatFrame.isAttached()) window.PlatFrame.detach();
+      if (window.PlatFrame.isAttached() && (window.PlatFrame._el() === platFrameRef.current || !window.PlatFrame._elConnected())) window.PlatFrame.detach(window.PlatFrame._el());
       if (frameBody) setFrameBody(null);
       if (ptcEl) setPtcEl(null);
       return;
-    }
+    } // detach 只清自己的或已斷線的：無條件 detach() 會誤殺他款對局中的外框（同 PlatHome 誤殺案，v1.72.0 一併修）
     var el = platFrameRef.current;
     if (el) {
       if (window.PlatFrame._el() !== el || !window.PlatFrame._elConnected()) window.PlatFrame.attach(el, platFrameCfgStable.current);
@@ -2665,13 +2683,17 @@ function AkariGame() {
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex-1 h-3.5 bg-white/80 border-2 border-slate-800 rounded-full overflow-hidden"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "h-full bg-slate-800 transition-all duration-300",
+    className: "h-full bg-slate-800 transition-all duration-300 plat-pbar",
     style: {
       width: Math.round(dispProgress * 100) + '%'
     }
   })), /*#__PURE__*/React.createElement("span", {
     className: "font-black text-xs text-slate-900 whitespace-nowrap"
-  }, "\u9032\u5EA6 ", Math.round(dispProgress * 100), "%\u30FB\u7167\u4EAE ", litPct, "%")), mpOn && itemsLive() && !iAmSpecRef.current && !myOutcome && mpPhase === 'playing' && /*#__PURE__*/React.createElement("div", {
+  }, "\u9032\u5EA6 ", /*#__PURE__*/React.createElement(PlatPct, {
+    value: Math.round(dispProgress * 100)
+  }), "\u30FB\u7167\u4EAE ", /*#__PURE__*/React.createElement(PlatPct, {
+    value: litPct
+  }))), mpOn && itemsLive() && !iAmSpecRef.current && !myOutcome && mpPhase === 'playing' && /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-1.5 mt-1.5 justify-end"
   }, /*#__PURE__*/React.createElement("span", {
     className: "font-black text-[11px] text-slate-900",
@@ -2771,7 +2793,9 @@ function AkariGame() {
       style: {
         background: p.color
       }
-    }), p.name, "\u30FB", g.state === 'finished' ? '🏁' : Math.floor((g.progress || 0) * 100) + '%');
+    }), p.name, "\u30FB", g.state === 'finished' ? '🏁' : /*#__PURE__*/React.createElement(PlatPct, {
+      value: Math.floor((g.progress || 0) * 100)
+    }));
   })), specUid && godBoards[specUid] && typeof godBoards[specUid].cells === 'string' && P && /*#__PURE__*/React.createElement("div", {
     className: "flex justify-center"
   }, /*#__PURE__*/React.createElement("div", {

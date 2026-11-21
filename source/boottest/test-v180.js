@@ -36,8 +36,8 @@ const HTML = '/home/hatch/workspace/platform/platform-v1-test.html';
   await waitFor(() => host.D.querySelector('#lob-step-nick').style.display === 'block', 60000, 'host nick');
   setInput(host.w, host.D.querySelector('#lob-name'), '阿主');
   click(host.w, host.D.querySelector('#lob-confirm'));
-  await waitFor(() => (host.D.querySelector('#lob-room-code') || { textContent: '' }).textContent.trim().length === 4, 60000, 'host room');
-  const code = host.D.querySelector('#lob-room-code').textContent.trim();
+  await waitFor(() => host.w.__PLAT_NET && host.w.__PLAT_NET.code, 60000, 'host room code'); // 2026-11-21 修：#lob-room-code 已隨舊大廳退役，房號改讀 __PLAT_NET.code
+  const code = host.w.__PLAT_NET.code;
   check('分頁列存在', !!host.D.querySelector('#lob-tabsbar'));
   check('預設數獨分頁顯示、數橋隱藏', host.D.querySelector('#lob-panel-sudoku').style.display !== 'none' && host.D.querySelector('#lob-panel-hashi').style.display === 'none');
   click(host.w, host.D.querySelector('[data-lobtab="hashi"]'));

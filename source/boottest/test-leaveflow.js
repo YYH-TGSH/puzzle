@@ -152,7 +152,7 @@ function clickCell(p, idx) { const el = p.document.querySelector('#view-mines [d
     // B：重開一局打完，來賓在結算卡按離開（兩段確認）→ 落多人入口；回大廳→多人連線→看到建立/加入畫面而不是地雷頁
     await roomStart(H, G);
     await waitFor(() => (dbgM(H).mp.phase === 'playing' && dbgM(G).mp.phase === 'playing') ? true : null, 90000, 'mines playing 2');
-    const digSafeThenBoom = async (p) => { const d0 = dbgM(p); const s = d0.layout.findIndex((v, i) => !v && d0.cells[i] === 'h'); clickCell(p, s); await sleep(800); const d1 = dbgM(p); const m = d1.layout.findIndex((v, i) => v && d1.cells[i] === 'h'); clickCell(p, m); await sleep(800); };
+    const digSafeThenBoom = async (p) => { const d0 = dbgM(p); const s = d0.layout.findIndex((v, i) => !v && d0.cells[i] === 'h'); clickCell(p, s); await sleep(800); for (let k = 0; k < 4 && dbgM(p).status !== 'lost'; k++) { const dd = dbgM(p); const m = dd.layout.findIndex((v, i) => v && dd.cells[i] === 'h'); if (m < 0) break; clickCell(p, m); await sleep(800); } }; // 容錯制（v1.49 定案：雷數 10% 次內踩雷記 'x' 續玩）：挖雷到出局為止（2026-11-21 修：舊版只挖一顆、被容錯吃掉，比賽永遠不結束、結算卡永遠不出現）
     await digSafeThenBoom(G); // 第一下有整圈保護炸不到雷：先挖安全格、再點雷（重讀盤面挑雷）
     await digSafeThenBoom(H);
     const resShown = await waitFor(() => { const pr = G.document.querySelector('#plat-results'); return pr && pr.style.display !== 'none' ? pr : null; }, 60000, 'G results');

@@ -27,20 +27,6 @@ function PlatNum(props) {
 }
 
 
-function GameTimer({ startTime, endTime, isRunning, matchPhase }) {
-    const [now, setNow] = useState(Date.now());
-    useEffect(() => {
-        if (!isRunning) return;
-        setNow(Date.now()); const t = setInterval(() => setNow(Date.now()), 1000);
-        return () => clearInterval(t);
-    }, [isRunning, startTime]);
-    let secs = 0;
-    if (matchPhase === 'playing' || matchPhase === 'finished') {
-        secs = Math.max(0, Math.floor(((endTime || now) - startTime) / 1000));
-    }
-    return <span style={{ color: matchPhase === 'finished' ? '#ff4444' : 'white', fontWeight: 'bold', fontSize: '1.1em' }}>⏱ {formatTime(secs)}</span>;
-}
-
 function platTimeOffset() { try { return (window.__PLAT_NET && window.__PLAT_NET.timeOffset) || 0; } catch (e) { return 0; } } // 房主時鐘偏移（稽核 D-05）：殼以 roster 時間戳估計，房主/單機恆 0
 function SudokuGame() {
         const playerIdRef = useRef((() => { try {
@@ -98,10 +84,6 @@ function SudokuGame() {
     const lastWinInfoRef = useRef(null); // 最近一次完賽資訊（GHOST_I_WON 補送用）
     const winResentRef = useRef(0);
 
-    const [showSetupModal, setShowSetupModal] = useState(false);
-    const [tempSizeId, setTempSizeId] = useState(9);
-    const [tempDiffId, setTempDiffId] = useState('medium');
-
     const [matchPhase, setMatchPhase] = useState('playing');
     const [countdownTarget, setCountdownTarget] = useState(null);
     const [countdownValue, setCountdownValue] = useState(null);
@@ -117,7 +99,6 @@ function SudokuGame() {
     const [resultsDismissedUi, setResultsDismissedUi] = useState(false); // 結果卡被「看盤面」關掉後，畫面留一顆🏆結果鈕可隨時叫回
     const [leaveArm, setLeaveArm] = useState(false); // 結果卡「離開」兩段確認（防誤按就拆連線退場、結果再也叫不回）
     const leaveArmTimerRef = useRef(null);
-    const [showExitMenu, setShowExitMenu] = useState(false); // 標頭「退出」選單（錦標賽房主進行中按退出才開，內含「結束本局」防誤觸）
     const [toastMsg, setToastMsg] = useState("");
 
     const [startTime, setStartTime] = useState(Date.now());
@@ -125,7 +106,6 @@ function SudokuGame() {
     const [matchStartTime, setMatchStartTime] = useState(null);
 
     const [zoomLevel, setZoomLevel] = useState(1);
-    const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(true);
     const [showSaveModal, setShowSaveModal] = useState(false);
     const [saveCode, setSaveCode] = useState("");
 
@@ -136,8 +116,19 @@ function SudokuGame() {
     const [inputMode, setInputMode] = useState(() => platSave().getStr('sudoku_input_mode', '') === 'cell' ? 'cell' : 'num');
     const [selectedCellId, setSelectedCellId] = useState(null);
     useEffect(() => { platSave().setStr('sudoku_input_mode', inputMode); }, [inputMode]);
-    // v1.61.0 K1：單機難度段位滑動指示片（殼 PlatSeg 共用；量測在 effect 內、選取變化才滑）
-    useEffect(() => { if (window.PlatSeg) { var c = document.querySelector('#view-sudoku [data-seg="sudoku-diff"]'); var b = c && c.querySelector('[data-seg-on="1"]'); if (c && b) window.PlatSeg(c, 'sudoku-diff', b, '#ffcc00'); } }, [diffId, screen]);
+    // ===== 框架層 F3（v1.72.0）：主畫面/頂欄/外框改掛殼 PlatHome/PlatTopCard/PlatFrame（單一實作） =====
+    // 難度 seg 滑動指示片改由殼 PlatSetup 內部持有（groups seg 組），本檔不再自呼 PlatSeg。
+    // 規則面板開合改殼 PlatTopCard 持有：讀寫走 setRulesOpen/_debug（捲動自動收合等既有行為改呼叫殼）
+    const rulesOpenNow = () => { try { return !!(window.PlatTopCard && window.PlatTopCard._debug().rulesOpen); } catch (e) { return false; } };
+    const collapseRules = () => { if (typeof window !== 'undefined' && window.PlatTopCard) window.PlatTopCard.setRulesOpen(false); };
+    const platHomeRef = useRef(null);
+    const [platHomeMounted, setPlatHomeMounted] = useState(false);
+    const [rulesOpenUi, setRulesOpenUi] = useState(true); // 規則開合的 React 鏡像（僅供對局說明列 {!rulesOpenUi 隱藏} 用；真值在殼 PlatTopCard，PTC update effect 每 render 同步）
+    const platFrameRef = useRef(null);
+    const [frameBody, setFrameBody] = useState(null);
+    const [ptcSlot, setPtcSlot] = useState(null);
+    const [ptcTick, setPtcTick] = useState(0); // 頂欄計時字 1 秒跳字（取代 GameTimer 元件自帶 interval）
+    useEffect(() => { if (screen !== 'game') return; const t = setInterval(() => setPtcTick(x => x + 1), 1000); return () => clearInterval(t); }, [screen]);
     // 靜音偏好（與全域音效引擎同步，同數橋）
     const [muted, setMuted] = useState(() => platAudio().isMuted()); // 靜音統一殼級 plat_muted（PlatAudio，v1.64.0）
 
@@ -234,10 +225,6 @@ function SudokuGame() {
     const dailyRecordedRef = useRef(false);
     const [dailyRecords, setDailyRecords] = useState(() => platSave().read('sudoku_daily_records', { fallback: {} }));
     const [dailyStreak, setDailyStreak] = useState(() => platSave().read('sudoku_daily_streak', { fallback: { count: 0, lastDate: '' } }));
-    const [showTutorial, setShowTutorial] = useState(false);
-    const [tutStep, setTutStep] = useState(0); // 玩法教學步進（美學稽核 V-09：三款教學統一為數橋的步進骨架）
-    const [tutDemoVal, setTutDemoVal] = useState(null);   // 教學互動 demo（v1.46 Q6）：已填入的數字
-    const [tutDemoWrong, setTutDemoWrong] = useState(null); // 教學互動 demo：剛填錯的數字
 
     const [playersList, setPlayersList] = useState([{ id: myId, name: "單機玩家", isHost: true, color: COLORS[11], isReady: false, isSpectator: false }]);
     const [isConnecting, setIsConnecting] = useState(false);
@@ -943,14 +930,14 @@ function SudokuGame() {
                 }
                 lastPinchDist.current = dist;
             } else if (e.touches.length === 1 && touchStartY !== null) {
-                if (Math.abs(e.touches[0].clientY - touchStartY) > 30 && !isHeaderCollapsed) setIsHeaderCollapsed(true);
+                if (Math.abs(e.touches[0].clientY - touchStartY) > 30 && rulesOpenNow()) collapseRules();
             }
         };
         const handleTouchEnd = () => { lastPinchDist.current = null; touchStartY = null; if (zoomLevel !== zoomLevelRef.current) setZoomLevel(zoomLevelRef.current); };
-        const handleWheel = (e) => { if (interactionMode >= 2 || isSpectator) return; if (Math.abs(e.deltaY) > 10 && !isHeaderCollapsed) setIsHeaderCollapsed(true); if (e.ctrlKey && zoomModeIdxRef.current !== 0) { setZoomModeIdx(0); zoomModeIdxRef.current = 0; } };
+        const handleWheel = (e) => { if (interactionMode >= 2 || isSpectator) return; if (Math.abs(e.deltaY) > 10 && rulesOpenNow()) collapseRules(); if (e.ctrlKey && zoomModeIdxRef.current !== 0) { setZoomModeIdx(0); zoomModeIdxRef.current = 0; } };
         el.addEventListener('touchstart', handleTouchStart, { passive: true }); el.addEventListener('touchmove', handleTouchMove, { passive: false }); el.addEventListener('touchend', handleTouchEnd); el.addEventListener('touchcancel', handleTouchEnd); el.addEventListener('wheel', handleWheel, { passive: true });
         return () => { el.removeEventListener('touchstart', handleTouchStart); el.removeEventListener('touchmove', handleTouchMove); el.removeEventListener('touchend', handleTouchEnd); el.removeEventListener('touchcancel', handleTouchEnd); el.removeEventListener('wheel', handleWheel); };
-    }, [screen, isHeaderCollapsed, interactionMode, svgW, svgH, zoomLevel, isSpectator]);
+    }, [screen, interactionMode, svgW, svgH, zoomLevel, isSpectator]); // F3：規則開合改殼持有、handler 即時讀 _debug，不入 deps
 
     // 觸控筆同點連點防護：不認 touch-action 的舊版 iOS Safari 會把「同位置的快速第二下點按」配對成雙擊縮放手勢、
     // 整下被仲裁吃掉（手指落點較飄移反而不會被配對——使用者實機回報：筆連點四下，第 2、4 下連水波紋都沒有）。
@@ -1255,7 +1242,8 @@ function SudokuGame() {
     const amLastPlayer = () => {
         if (isSpectator) return false;
         if (stateRef.current.brawlWinners.some(w => w.id === myId)) return false;
-        const entrants = playersListRef.current.filter(p => !p.isSpectator);
+        const winnersNow = stateRef.current.brawlWinners;
+        const entrants = playersListRef.current.filter(p => !p.isSpectator || winnersNow.some(w => w.id === p.id)); // 已完賽者會被自動轉觀戰（isSpectator）但仍是本局選手，必須計入 entrants；否則 2 人局對手一完賽 entrants 只剩 1、下面的 <2 守衛會把「最後一位」永遠擋死（2026-11-21 test-lastone 抓到）
         if (entrants.length < 2) return false; // 至少 2 位選手才有「最後一位」：房間頁遊戲被預載、名單只有房主一人時 remaining==1 會誤判（2026-11-05 實機回報；數橋 racers<2、地雷 entrants>1 本來就有這道守衛，數獨漏了）
         const remaining = entrants.filter(p => !stateRef.current.brawlWinners.some(w => w.id === p.id));
         return remaining.length === 1 && remaining[0].id === myId;
@@ -2011,12 +1999,12 @@ function SudokuGame() {
             const t = cur.find(x => x.id === selectedCellId);
             if (!t) return;
             if (t.isGiven || t.isSystemRevealed) { showToast("⚠️ 這格是題目給的，不能修改"); return; }
-            if (!isHeaderCollapsed) setIsHeaderCollapsed(true);
+            if (rulesOpenNow()) collapseRules();
             applyCharToCell(selectedCellId, c);
             setSelectedChar(c);
             return;
         }
-        if (!isHeaderCollapsed) setIsHeaderCollapsed(true);
+        if (rulesOpenNow()) collapseRules();
         const now = Date.now(); const tracker = clickTracker.current;
         if (tracker.char === c && now - tracker.time < 400) { tracker.count += 1; } else { tracker.char = c; tracker.count = 1; }
         tracker.time = now; const isCompleted = completedChars.has(c);
@@ -2367,13 +2355,143 @@ function SudokuGame() {
         window.PlatBar.update(st);
     });
 
+    // ===== 框架層 F3：PlatHome / PlatSetup / PlatTutorial / PlatFrame / PlatTopCard 接線 =====
+    const platHomeCfgStable = useRef(null);
+    if (!platHomeCfgStable.current) platHomeCfgStable.current = {
+        accent: '#ffcc00', titleChars: ['數', '獨'], enName: 'Sudoku Master', dailyLabel: '每日一題',
+        onAction: (name) => {
+            if (name === 'solo') openSudokuSetupSolo();
+            else if (name === 'daily') startDailyGame(dailyPickDate);
+            else if (name === 'prev') setDailyPickDate(shiftDateStr(dailyPickDate, -1));
+            else if (name === 'next') setDailyPickDate(shiftDateStr(dailyPickDate, 1));
+            else if (name === 'cal') openDailyCal(); // PlatHome 日期鈕的 action 名是 'cal'（F1/F2 既定契約、地雷/美術燈同款）；F3 初版誤寫 'date' → 主畫面點日期鈕沒反應、月曆打不開（test-daily-cal 抓到）
+            else if (name === 'tutorial') openSudokuTutorial();
+            else if (name === 'lobby') { if (window.PLAT_show) window.PLAT_show('home'); }
+        }
+    };
+    useEffect(() => {
+        if (typeof window === 'undefined' || typeof window.PlatHome === 'undefined') return;
+        const el = platHomeRef.current;
+        if (screen === 'home') {
+            if (el) {
+                if (window.PlatHome._el() !== el || !window.PlatHome._elConnected()) window.PlatHome.attach(el, platHomeCfgStable.current);
+                if (!platHomeMounted) setPlatHomeMounted(true);
+            }
+        } else if (window.PlatHome.isAttached() && !window.PlatHome._elConnected()) {
+            window.PlatHome.detach(window.PlatHome._el()); // 只清「已斷線的殘留持有者」；detach() 無參數會清掉目前持有者——他款正顯示的主畫面會被本款在對局中的每秒 render 誤殺（F3 回歸實測，改 mines/akari 同款守衛）
+        }
+    });
+    useEffect(() => {
+        if (typeof window === 'undefined' || typeof window.PlatHome === 'undefined' || !window.PlatHome.isAttached()) return;
+        window.PlatHome.update({
+            dailyDate: dailyPickDate, dailyIsToday: dailyPickDate === dailyTodayStr(), dailyDone: !!dailyRecords[dailyPickDate],
+            canPrev: dailyPickDate > '2026-01-01', canNext: dailyPickDate < dailyTodayStr(),
+            streak: dailyStreak.count || 0, bestText: dailyRecords[dailyPickDate] ? formatTime(dailyRecords[dailyPickDate]) : null,
+            inPlatform: !!window.__PLAT_PLATFORM
+        });
+    });
+
+    const sudokuSetupGroups = () => ([
+        { key: 'size', label: '📐 選擇版型', style: 'seg', options: SIZES.map(s => ({ id: s.id, label: s.name })), value: sizeId },
+        { key: 'diff', label: '🔥 挑戰難度', style: 'seg', options: DIFFICULTIES.map(d => ({ id: d.id, label: d.name })), value: diffId }
+    ]);
+    const openSudokuSetupSolo = () => {
+        if (typeof window === 'undefined' || typeof window.PlatSetup === 'undefined') { startSinglePlayer(); return; } // 獨立版 fallback：舊局內設定 overlay
+        window.PlatSetup.show({ accent: '#ffcc00', title: '🧩 單機挑戰設定', groups: sudokuSetupGroups(), confirmText: '🚀 開始挑戰',
+            onStart: (vals) => { startSinglePlayer(); generateAndSync(vals.size, vals.diff); setMatchPhase('playing'); } });
+    };
+    const openSudokuSetupGame = () => {
+        if (typeof window === 'undefined' || typeof window.PlatSetup === 'undefined') return;
+        window.PlatSetup.show({ accent: '#ffcc00', title: '⚙️ 設定題型與難度', groups: sudokuSetupGroups(), confirmText: '確認產生',
+            onStart: (vals) => { if (isHostRef.current && (sizeId !== vals.size || diffId !== vals.diff)) generateAndSync(vals.size, vals.diff); } });
+    };
+
+    const mountSudokuTutDemo = (el, api) => {
+        el.innerHTML = '<div class="flex flex-col items-center">'
+            + '<div class="grid grid-cols-3 border-[3px] border-slate-800 rounded-lg overflow-hidden w-40 mb-3">'
+            + ['5', '', '', '', null, '3', '', '', ''].map((v, i) => '<div data-stut-cell="' + i + '" class="relative aspect-square flex items-center justify-center font-black text-xl border border-slate-300 ' + (v === null ? 'bg-amber-50' : 'bg-white text-slate-800') + '">' + (v === null ? '<span data-stut-mid="1" class="text-amber-400">?</span>' : (v || '')) + '</div>').join('')
+            + '</div>'
+            + '<div class="flex justify-center gap-2">' + [7, 8, 9].map(n => '<button data-stut-num="' + n + '" class="plat-btn-hard plat-btn-hard-3 w-12 h-12 bg-white border-[3px] border-slate-800 rounded-xl font-black text-xl text-slate-800 shadow-[3px_3px_0px_rgba(30,41,59,1)]">' + n + '</button>').join('') + '</div>'
+            + '</div>';
+        const mid = el.querySelector('[data-stut-mid]'), cell = el.querySelector('[data-stut-cell="4"]');
+        el.querySelectorAll('[data-stut-num]').forEach(btn => btn.addEventListener('click', () => {
+            const n = Number(btn.getAttribute('data-stut-num'));
+            if (n === 8) { mid.textContent = '8'; mid.className = 'text-emerald-600'; cell.className = cell.className.replace('bg-amber-50', 'bg-emerald-50'); api.setCaption('✅ 答對了！中間這格就是 8——先點格子、再按數字鍵，就是這樣填的'); }
+            else { mid.textContent = String(n); mid.className = 'text-rose-500'; cell.className = cell.className.replace('bg-emerald-50', 'bg-rose-50').replace('bg-amber-50', 'bg-rose-50'); api.setCaption('❌ ' + n + ' 不對喔，再想想這一格該填多少'); }
+        }));
+        api.setCaption('動手試試：中間發亮的格子該填哪個數字？點下面的數字鍵試試');
+    };
+    const openSudokuTutorial = () => {
+        if (typeof window === 'undefined' || typeof window.PlatTutorial === 'undefined') return;
+        window.PlatTutorial.show({ accent: '#ffcc00', title: '❓ 玩法教學', steps: [
+            { mount: mountSudokuTutDemo, caption: '動手試試：中間發亮的格子該填哪個數字？點下面的數字鍵試試' },
+            { html: '<div class="flex justify-center mb-3"><div class="relative w-20 h-20 border-[3px] border-slate-800 rounded-lg bg-white"><span class="tut-draft-a absolute top-1 left-2 font-black text-slate-400 text-lg">2</span><span class="tut-draft-b absolute bottom-1 right-2 font-black text-slate-400 text-lg">7</span><span class="absolute -bottom-3 -right-3 text-2xl">✏️</span></div></div><p class="text-center font-bold text-slate-700">還不確定？先開筆記，把可能的數字記下來</p>' },
+            { html: '<div class="flex justify-center mb-3"><div class="flex border-[3px] border-slate-800 rounded-lg overflow-hidden">' + [1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => '<div class="tut-row-cell w-8 h-8 md:w-9 md:h-9 flex items-center justify-center font-black border-r border-slate-300" style="animation-delay:' + (n * 0.28) + 's">' + n + '</div>').join('') + '</div></div><p class="text-center font-bold text-slate-700">每一行、每一列、每個 3×3 宮，1~9 都不能重複</p>' },
+            { html: '<div class="flex justify-center gap-2 mb-3 flex-wrap"><span class="px-3 py-2 bg-[#ffcc00] border-[3px] border-slate-800 rounded-xl font-black text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)]">🔢 先點數字 → 再點格子</span><span class="px-3 py-2 bg-sky-300 border-[3px] border-slate-800 rounded-xl font-black text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)]">👆 先點格子 → 再點數字</span></div><p class="text-center font-bold text-slate-700">輸入方式自己選，遊戲中在盤面下方隨時切換</p>' }
+        ] });
+    };
+
+    const platFrameCfgStable = useRef(null);
+    if (!platFrameCfgStable.current) platFrameCfgStable.current = { paper: '#fffaf0', bodyCls: 'flex-1 w-full flex flex-col min-h-0' }; // body 無 padding：玩家列/盤面容器自帶間距（遷移前自有框同形）
+    const platTopCfgStable = useRef(null);
+    if (!platTopCfgStable.current) platTopCfgStable.current = {
+        accent: '#ffcc00', logo: '🔢', name: '數獨 - SUDOKU', frame: false,
+        rulesHtml: '<ol class="list-decimal list-outside ml-4 space-y-1"><li>選擇上方數字點擊方格。若不選上方數字，可直接點擊盤面已有數字來「智慧吸取」高亮。</li><li>輸入方式可在下方切換成「👆 格子先行」：先點格子、再點數字填入，習慣這種順序的玩家適用；切換後會記住你的選擇。</li><li>不可重複：若發生衝突，背景會亮起紅色提示。</li><li>草稿模式：可在方格內標記多個小數字輔助推理。</li><li>長按清除：若填錯數字且上方按鍵已被鎖定（反灰），可長按該格 0.5 秒強制清除。</li></ol>',
+        onAction: (name) => {
+            if (name === 'mute') { const m = platAudio().toggleMuted(); setMuted(m); }
+            else if (name === 'spec') openSudokuSetupGame();
+            else if (name === 'leave-home') handleGoHome();
+            else if (name === 'leave-lobby') handleBackToLobby();
+            else if (name === 'leave-leave') handleGoHome('leave');
+            else if (name === 'leave-forceend') { if (window.__PLAT_TOURN_FORCEEND) window.__PLAT_TOURN_FORCEEND(); }
+        }
+    };
+    useEffect(() => { // PlatFrame 自我修復掛載（無 deps、每 render 自檢；先於 PlatTopCard）
+        if (typeof window === 'undefined' || typeof window.PlatFrame === 'undefined') return;
+        const el = platFrameRef.current;
+        if (el) {
+            if (window.PlatFrame._el() !== el || !window.PlatFrame._elConnected()) { window.PlatFrame.attach(el, platFrameCfgStable.current); setFrameBody(window.PlatFrame.getBody()); }
+            else if (frameBody !== window.PlatFrame.getBody()) setFrameBody(window.PlatFrame.getBody());
+        }
+    });
+    useEffect(() => { // PlatTopCard 自我修復掛載（掛進外框框頂）
+        if (typeof window === 'undefined' || typeof window.PlatTopCard === 'undefined') return;
+        if (typeof window.PlatFrame === 'undefined' || !window.PlatFrame.isAttached()) return;
+        const el = window.PlatFrame.getTop();
+        if (el) {
+            if (window.PlatTopCard._el() !== el || !window.PlatTopCard._elConnected()) window.PlatTopCard.attach(el, platTopCfgStable.current);
+            const slot = window.PlatTopCard.getSlot();
+            if (slot !== ptcSlot) setPtcSlot(slot);
+        }
+    });
+    useEffect(() => {
+        if (typeof window === 'undefined' || typeof window.PlatTopCard === 'undefined' || !window.PlatTopCard.isAttached()) return;
+        if (screen !== 'game') return;
+        const ro = window.PlatTopCard._debug().rulesOpen; if (ro !== rulesOpenUi) setRulesOpenUi(ro);
+        const endMs = isBrawlMode ? (matchPhase === 'finished' ? (stateRef.current.matchEndTime || endTime) : null) : (endTime || (winner ? matchStartTime : null));
+        let secs = 0;
+        if ((matchPhase === 'playing' || matchPhase === 'finished') && startTime) secs = Math.max(0, Math.floor(((endMs || Date.now()) - startTime) / 1000));
+        window.PlatTopCard.update({
+            leaveIcon: isMultiplayer ? '🔌' : '🏠', leaveLabel: isMultiplayer ? '退出' : '回首頁',
+            modeChip: isMultiplayer ? (isBrawlMode ? '⚔️ 大亂鬥' : '🌐 合作模式') : null,
+            dailyChip: dailyDate ? ('每日 ' + dailyDate.slice(5) + (dailyDate !== dailyTodayStr() ? ' 補玩' : '')) : null,
+            specLabel: '⚙️ ' + (SIZES.find(s => s.id === sizeId)?.name.split(' ')[0] || '') + ' - ' + (DIFFICULTIES.find(d => d.id === diffId)?.name || ''),
+            specClickable: !(isMultiplayer && !isHostRef.current),
+            statText: null,
+            timerText: formatTime(secs),
+            muted: muted,
+            players: null,
+            leaveMenu: { mode: isMultiplayer ? 'mp' : 'solo', canForceEnd: !!(typeof window !== 'undefined' && window.__PLAT_TOURN_CAN_FORCEEND && window.__PLAT_TOURN_CAN_FORCEEND()) }
+        });
+    });
+
     const startDailyGame = (dateStr) => {
         switchToOffline();
         dailyRef.current = dateStr; setDailyDate(dateStr); dailyRecordedRef.current = false;
         setScreen('game');
         setMatchPhase('playing');
         setIsBrawlMode(false);
-        setIsHeaderCollapsed(false);
+        if (window.PlatTopCard) window.PlatTopCard.setRulesOpen(true);
         setIsGenerating(true); setWinner(null); isWinnerDeclaredRef.current = false;
         setTimeout(() => {
             generateDailySudoku(dateStr, setGenProgress).then(newData => {
@@ -2419,7 +2537,7 @@ function SudokuGame() {
         setScreen('game');
         setMatchPhase('waiting');
         setIsBrawlMode(false); setIsBrawlMode(false); // 確保是純單機模式
-        setIsHeaderCollapsed(false);
+        if (window.PlatTopCard) window.PlatTopCard.setRulesOpen(true);
     };
 
     const handleSaveCode = () => {
@@ -2759,7 +2877,7 @@ function SudokuGame() {
                 const isMigrating = hasLevelData && (currentPhase === 'playing' || currentPhase === 'countdown');
                 const targetPhase = isMigrating ? currentPhase : 'waiting';
 
-                setIsHost(true); isHostRef.current = true; setIsSpectator(false); setRoomId(rId); setScreen('game'); setIsHeaderCollapsed(true); setIsConnecting(false);
+                setIsHost(true); isHostRef.current = true; setIsSpectator(false); setRoomId(rId); setScreen('game'); if (window.PlatTopCard) window.PlatTopCard.setRulesOpen(false); setIsConnecting(false);
                 syncState({ matchPhase: targetPhase }, false);
 
                 setPlayersList(prev => {
@@ -2960,10 +3078,18 @@ function SudokuGame() {
                     if (m.type === 'PONG') { return; }
                     if (m.type === 'INIT') {
                         setConnectionStatus("同步完成，進入遊戲！");
-                        setRoomId(rId); setScreen('game'); setIsHeaderCollapsed(true); setIsConnecting(false);
-                        // 強制立刻儲存一次，避開 syncState 的狀態更新延遲 (v3.8.15)
-                        saveLocalProgress(rId, myId, pName, false, m.data.isBrawlMode ? m.data.localCells : m.data.cells);
+                        setRoomId(rId); setScreen('game'); if (window.PlatTopCard) window.PlatTopCard.setRulesOpen(false); setIsConnecting(false);
                         syncState(m.data, false, true); setPlayersList(adoptHubPlayers(m.players)); setIsSpectator(m.isSpectator);
+                        // 回座還原（v1.33 設計：本地存檔優先）：房主分支在 setup 時有還原、來賓分支漏了——INIT 以題面重設 localCells，
+                        // 來賓中途離開回座後進度全失（2026-11-21 test-resume 探針實證：prog 存檔完好、還原從未套用）。
+                        // 題面吻合（題面每個 given 在存檔同位同值）才套用，防房號撞號殘檔污染新局；套用後以還原盤面回存，避免存檔被 INIT 資料覆寫。
+                        let restoredProg = false;
+                        if (savedProg && m.data.isBrawlMode && Array.isArray(savedProg.d) && savedProg.d.length) {
+                            const flatP = []; const pushP = (a) => { if (Array.isArray(a)) a.forEach(pushP); else flatP.push(a); }; pushP((m.data.levelData && m.data.levelData.cells) || []);
+                            if (flatP.length === savedProg.d.length && flatP.every((pc, i) => { const pv = pc && pc.value !== undefined && pc.value !== null ? String(pc.value) : ''; if (!pv) return true; const sc = savedProg.d[i]; const sv = sc && sc.value !== undefined && sc.value !== null ? String(sc.value) : ''; return pv === sv; })) { setLocalCells(savedProg.d); restoredProg = true; showToast("📦 已恢復上次對局進度"); }
+                        }
+                        // 強制立刻儲存一次，避開 syncState 的狀態更新延遲 (v3.8.15)
+                        saveLocalProgress(rId, myId, pName, false, restoredProg ? savedProg.d : (m.data.isBrawlMode ? m.data.localCells : m.data.cells));
                     }
                     else if (m.type === 'SYNC') {
                         if (isStaleSync(m.data)) { /* 上一局遲到的 SYNC：丟棄，不覆寫新局盤面（新局開局包不在此列，見 isStaleSync） */ }
@@ -3154,73 +3280,13 @@ function SudokuGame() {
         );
     }
 
-    const tutorialOverlay = showTutorial ? (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4" onClick={() => setShowTutorial(false)}>
-            <div className="bg-[#fffaf0] border-4 border-slate-800 rounded-2xl shadow-[10px_10px_0px_rgba(30,41,59,1)] max-w-lg w-full max-h-[92vh] overflow-y-auto p-6 relative" onClick={(e) => e.stopPropagation()}>
-                <button onClick={() => setShowTutorial(false)} className="plat-btn-hard plat-btn-hard-2 absolute top-3 right-3 w-9 h-9 bg-white border-[3px] border-slate-800 rounded-full font-black shadow-[2px_2px_0px_rgba(30,41,59,1)] z-10">✕</button>
-                <h3 className="text-2xl font-black text-slate-800 border-b-4 border-[#ffcc00] inline-block pb-1 mb-5">❓ 玩法教學</h3>
-
-                <div className={"h-[400px] flex flex-col justify-center bg-white border-[3px] border-slate-800 rounded-xl p-4 mb-4 shadow-[4px_4px_0px_rgba(30,41,59,1)]" + (tutStep !== 0 ? " hidden" : "")}>
-                    <div className="flex justify-center mb-3">
-                        <div className="grid grid-cols-3 border-[3px] border-slate-800 rounded-lg overflow-hidden w-40">
-                            {['5', '', '', '', null, '3', '', '', ''].map((v, i) => (
-                                <div key={i} className={"relative aspect-square flex items-center justify-center font-black text-xl border border-slate-300 " + (v === null ? (tutDemoVal === 8 ? 'bg-emerald-50' : tutDemoWrong ? 'bg-rose-50' : 'bg-amber-50') : 'bg-white text-slate-800')}>
-                                    {v === null ? (tutDemoVal === 8 ? <span className="text-emerald-600">8</span> : tutDemoWrong ? <span className="text-rose-500">{tutDemoWrong}</span> : <span className="text-amber-400">?</span>) : v}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                    <div className="flex justify-center gap-2 mb-3">
-                        {[7, 8, 9].map(n => (
-                            <button key={n} onClick={() => { if (n === 8) { setTutDemoVal(8); setTutDemoWrong(null); } else { setTutDemoVal(null); setTutDemoWrong(n); } }} className="plat-btn-hard plat-btn-hard-3 w-12 h-12 bg-white border-[3px] border-slate-800 rounded-xl font-black text-xl text-slate-800 shadow-[3px_3px_0px_rgba(30,41,59,1)]">{n}</button>
-                        ))}
-                    </div>
-                    <p className="text-center font-bold text-slate-700">{tutDemoVal === 8 ? '✅ 答對了！中間這格就是 8——先點格子、再按數字鍵，就是這樣填的' : tutDemoWrong ? '❌ ' + tutDemoWrong + ' 不對喔，再想想這一格該填多少' : '動手試試：中間發亮的格子該填哪個數字？點下面的數字鍵試試'}</p>
-                </div>
-
-                <div className={"h-[400px] flex flex-col justify-center bg-white border-[3px] border-slate-800 rounded-xl p-4 mb-4 shadow-[4px_4px_0px_rgba(30,41,59,1)]" + (tutStep !== 1 ? " hidden" : "")}>
-                    <div className="flex justify-center mb-3">
-                        <div className="relative w-20 h-20 border-[3px] border-slate-800 rounded-lg bg-white">
-                            <span className="tut-draft-a absolute top-1 left-2 font-black text-slate-400 text-lg">2</span>
-                            <span className="tut-draft-b absolute bottom-1 right-2 font-black text-slate-400 text-lg">7</span>
-                            <span className="absolute -bottom-3 -right-3 text-2xl">✏️</span>
-                        </div>
-                    </div>
-                    <p className="text-center font-bold text-slate-700">還不確定？先開筆記，把可能的數字記下來</p>
-                </div>
-
-                <div className={"h-[400px] flex flex-col justify-center bg-white border-[3px] border-slate-800 rounded-xl p-4 mb-4 shadow-[4px_4px_0px_rgba(30,41,59,1)]" + (tutStep !== 2 ? " hidden" : "")}>
-                    <div className="flex justify-center mb-3">
-                        <div className="flex border-[3px] border-slate-800 rounded-lg overflow-hidden">
-                            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => (<div key={n} className="tut-row-cell w-8 h-8 md:w-9 md:h-9 flex items-center justify-center font-black border-r border-slate-300 last:border-r-0" style={{ animationDelay: (n * 0.28) + 's' }}>{n}</div>))}
-                        </div>
-                    </div>
-                    <p className="text-center font-bold text-slate-700">每一行、每一列、每個 3×3 宮，1~9 都不能重複</p>
-                </div>
-
-                <div className={"h-[400px] flex flex-col justify-center bg-white border-[3px] border-slate-800 rounded-xl p-4 mb-5 shadow-[4px_4px_0px_rgba(30,41,59,1)]" + (tutStep !== 3 ? " hidden" : "")}>
-                    <div className="flex justify-center gap-2 mb-3 flex-wrap">
-                        <span className="px-3 py-2 bg-[#ffcc00] border-[3px] border-slate-800 rounded-xl font-black text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)]">🔢 先點數字 → 再點格子</span>
-                        <span className="px-3 py-2 bg-sky-300 border-[3px] border-slate-800 rounded-xl font-black text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)]">👆 先點格子 → 再點數字</span>
-                    </div>
-                    <p className="text-center font-bold text-slate-700">輸入方式自己選，遊戲中在盤面下方隨時切換</p>
-                </div>
-
-                <div className="flex justify-center gap-2 mb-5">
-                    {[0, 1, 2, 3].map(idx => (<div key={idx} className={"w-2.5 h-2.5 rounded-full border-2 border-slate-800 " + (idx === tutStep ? "bg-[#ffcc00]" : "bg-white")} />))}
-                </div>
-                <div className="flex gap-3">
-                    {tutStep > 0 ? (<button onClick={() => { setTutStep(tutStep - 1); }} className="plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-white text-slate-800">上一步</button>) : (<div className="flex-1"></div>)}
-                    <button onClick={() => setShowTutorial(false)} className="plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-white text-slate-400">跳過</button>
-                    {tutStep < 3 ? (<button onClick={() => { setTutStep(tutStep + 1); }} className="plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-[#ffcc00] text-slate-900">下一步</button>) : (<button onClick={() => setShowTutorial(false)} className="plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-emerald-400 text-slate-900">開始遊戲 🎮</button>)}
-                </div>
-            </div>
-        </div>
-    ) : null;
 
     if (screen === 'home') {
         return (
-            <div className="h-screen w-screen flex flex-col items-center justify-center p-4 relative overflow-hidden animate-fadeIn">
+            <div key="sudoku-home" className="h-screen w-screen flex flex-col items-center justify-center p-4 relative overflow-hidden animate-fadeIn">
+                <div ref={platHomeRef} className="contents"></div>
+                {!platHomeMounted && (
+                <React.Fragment>
                 <div className="flex-1 flex flex-col justify-center w-full max-w-md items-center">
                     <div className="bg-[#fffaf0] border-4 border-slate-800 p-10 rounded-xl shadow-[10px_10px_0px_rgba(30,41,59,1)] w-full text-center relative transform -rotate-1 z-10">
                         <h1 className="text-6xl font-black text-slate-800 mb-6 tracking-widest flex justify-center gap-3">
@@ -3231,7 +3297,7 @@ function SudokuGame() {
                             <p className="text-slate-800 font-black text-xl tracking-widest uppercase italic">Sudoku Master</p>
                         </div>
                         <div className="flex flex-col gap-5">
-                            <button onClick={startSinglePlayer} className="plat-btn-hard w-full py-4 bg-white border-4 border-slate-800 rounded-xl font-black text-xl text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)] transform rotate-1">👤 單機挑戰</button>
+                            <button onClick={openSudokuSetupSolo} className="plat-btn-hard w-full py-4 bg-white border-4 border-slate-800 rounded-xl font-black text-xl text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)] transform rotate-1">👤 單機挑戰</button>
                             <button onClick={() => startDailyGame(dailyPickDate)} className="plat-btn-hard w-full py-4 bg-[#ffcc00] border-4 border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[4px_4px_0px_rgba(30,41,59,1)] transform rotate-1">📅 每日一題{dailyPickDate !== dailyTodayStr() ? '（' + dailyPickDate.slice(5) + '）' : ''}{dailyRecords[dailyPickDate] ? ' ✓' : ''}</button>
                             <div className="flex items-center justify-center gap-2 flex-wrap">
                                 <button onClick={() => setDailyPickDate(shiftDateStr(dailyPickDate, -1))} disabled={dailyPickDate <= '2026-01-01'} className="plat-btn-hard plat-btn-hard-2 w-9 h-9 bg-white border-[3px] border-slate-800 rounded-lg font-black shadow-[2px_2px_0px_rgba(30,41,59,1)] disabled:opacity-30">◀</button>
@@ -3240,7 +3306,7 @@ function SudokuGame() {
                                 <span className="font-black text-sm text-orange-600">🔥 連續 <PlatNum value={dailyStreak.count || 0} /> 天</span>
                                 {dailyRecords[dailyPickDate] ? <span className="font-black text-sm text-emerald-600">最佳 <PlatNum value={formatTime(dailyRecords[dailyPickDate])} /></span> : null}
                             </div>
-                            <button onClick={() => { setTutStep(0); setTutDemoVal(null); setTutDemoWrong(null); setShowTutorial(true); }} className="plat-btn-hard w-full py-4 bg-white border-4 border-slate-800 rounded-xl font-black text-xl text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)] transform -rotate-1">❓ 玩法教學</button>
+                            <button onClick={openSudokuTutorial} className="plat-btn-hard w-full py-4 bg-white border-4 border-slate-800 rounded-xl font-black text-xl text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)] transform -rotate-1">❓ 玩法教學</button>
                             {(typeof window !== 'undefined' && window.__PLAT_PLATFORM) && (
                                 <div className="flex items-center gap-2">
                                     <button onClick={() => { if (window.PLAT_show) window.PLAT_show('home'); }} className="plat-btn-hard flex-1 py-3 bg-sky-400 border-4 border-slate-800 rounded-xl font-black text-lg text-slate-900 shadow-[4px_4px_0px_rgba(30,41,59,1)]">🏠 回大廳</button>
@@ -3251,8 +3317,8 @@ function SudokuGame() {
                     </div>
                 </div>
                 <div className="shrink-0 pb-4 text-slate-800 font-black text-sm opacity-60 tracking-wider z-10">Copyright © 2026 葉大帥. All rights reserved.{' (v' + (window.PLAT_VERSION || '3.13.4') + ')'}</div>
-                {tutorialOverlay}
-                
+                </React.Fragment>
+                )}
             </div>
         );
     }
@@ -3273,7 +3339,7 @@ function SudokuGame() {
     const tournStartNote = (tournAllPresent && tournAllReady) ? '全員準備好了，等房主開始！' : (tournWaited ? '已等滿 1 分鐘，房主可強制開始' : (!tournAllPresent ? ('等待選手到齊…（或 ' + Math.max(0, 60 - Math.floor(tournWaitMs / 1000)) + ' 秒後可強制開始）') : ('等待全員準備（或 ' + Math.max(0, 60 - Math.floor(tournWaitMs / 1000)) + ' 秒後可強制開始）')));
 
     return (
-        <div className="h-screen w-screen p-1 md:p-2 flex flex-col items-center font-sans relative" style={{ backgroundColor: '#fdf5e6', backgroundImage: 'radial-gradient(#d3c5ab 2px, transparent 2px)', backgroundSize: '12px 12px' }}>
+        <div key="sudoku-game" className="h-screen w-screen p-1 md:p-2 flex flex-col items-center font-sans relative">
 
             {matchPhase === 'waiting' && (
                 <div className="absolute inset-0 z-[65] flex items-center justify-center bg-slate-900/80 backdrop-blur-md pointer-events-auto p-4 overflow-y-auto">
@@ -3360,60 +3426,11 @@ function SudokuGame() {
                 <button onClick={() => { resultsDismissRef.current = null; setResultsDismissedUi(false); }} className="plat-btn-hard plat-btn-hard-3 fixed bottom-24 right-3 z-[56] bg-white border-[3px] border-slate-800 rounded-full px-4 py-2 font-black shadow-[3px_3px_0px_#1e293b]">🏆 結果</button>
             )}
 
-            {showExitMenu && (
-                <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-900/60 backdrop-blur-[2px] p-4" onClick={() => setShowExitMenu(false)}>
-                    <div className="bg-white border-4 border-[#1e293b] rounded-2xl shadow-[10px_10px_0px_#1e293b] p-6 w-full max-w-xs text-center animate-popUpCenter" onClick={e => e.stopPropagation()}>
-                        <div className="font-black text-xl text-[#1e293b] mb-4">要離開對局嗎？</div>
-                        {(typeof window !== 'undefined' && window.__PLAT_TOURN_CAN_FORCEEND && window.__PLAT_TOURN_CAN_FORCEEND()) && (
-                            <button onClick={() => { setShowExitMenu(false); if (window.__PLAT_TOURN_FORCEEND) window.__PLAT_TOURN_FORCEEND(); }} className="plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 bg-rose-500 text-white border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_#1e293b]">⏹️ 結束本局（錦標賽）</button>
-                        )}
-                        <button onClick={() => { setShowExitMenu(false); handleBackToLobby(); }} className="plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 bg-white text-slate-800 border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_#1e293b]">🏁 回等待室</button>
-                        <button onClick={() => { setShowExitMenu(false); handleGoHome('leave'); }} className="plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 bg-white text-slate-800 border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_#1e293b]">🚪 退出（回大廳）</button>
-                        <button onClick={() => setShowExitMenu(false)} className="w-full py-2 text-slate-400 font-bold hover:text-slate-700">取消</button>
-                    </div>
-                </div>
-            )}
-
             {/* === 倒數 UI === */}
             {countdownValue !== null && !isGenerating && !(typeof window !== 'undefined' && window.PlatCountdown) && (
                 <div className="absolute inset-0 z-[65] flex items-center justify-center bg-slate-900/50 backdrop-blur-md pointer-events-auto">
                     <div className="text-[12rem] font-black text-red-500 drop-shadow-[0_0_30px_rgba(255,0,0,0.8)] animate-pulse" style={{ textShadow: '6px 6px 0 #fff, -6px -6px 0 #fff, 6px -6px 0 #fff, -6px 6px 0 #fff' }}>
                         {countdownValue}
-                    </div>
-                </div>
-            )}
-
-            {/* === 題型與難度設定 Modal === */}
-            {showSetupModal && (
-                <div className="absolute inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-md pointer-events-auto animate-fadeIn p-4">
-                    <div className="bg-[#fffdfa] rounded-2xl p-6 border-[4px] border-[#1e293b] shadow-[10px_10px_0px_#1e293b] relative flex flex-col gap-4 min-w-[300px] max-w-md w-full mx-auto my-auto animate-popUpCenter">
-                        <h2 className="text-xl font-black mb-2 border-b-4 border-[#ffcc00] inline-block pb-1">
-                            ⚙️ 設定題型與難度
-                        </h2>
-
-                        <div>
-                            <label className="block text-sm font-bold text-slate-600 mb-1">盤面尺寸：</label>
-                            <select value={tempSizeId} onChange={(e) => setTempSizeId(parseInt(e.target.value))} className="w-full px-3 py-2 rounded-xl border-2 border-slate-800 font-bold bg-white text-slate-800 outline-none shadow-[2px_2px_0px_#1e293b] cursor-pointer">
-                                {SIZES.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                            </select>
-                        </div>
-
-                        <div className="mb-2">
-                            <label className="block text-sm font-bold text-slate-600 mb-1">遊戲難度：</label>
-                            <select value={tempDiffId} onChange={(e) => setTempDiffId(e.target.value)} className="w-full px-3 py-2 rounded-xl border-2 border-slate-800 font-bold bg-white text-slate-800 outline-none shadow-[2px_2px_0px_#1e293b] cursor-pointer">
-                                {DIFFICULTIES.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                            </select>
-                        </div>
-
-                        <div className="flex gap-3 mt-2">
-                            <button onClick={() => setShowSetupModal(false)} className="flex-1 py-3 bg-white border-2 border-slate-800 rounded-xl font-black text-slate-800 shadow-[2px_2px_0px_rgba(30,41,59,1)] hover:translate-y-[2px] hover:shadow-none transition-all">取消</button>
-                            <button onClick={() => {
-                                setShowSetupModal(false);
-                                if (isHostRef.current && (sizeId !== tempSizeId || diffId !== tempDiffId)) {
-                                    generateAndSync(tempSizeId, tempDiffId);
-                                }
-                            }} className="flex-1 py-3 bg-[#ffcc00] text-slate-900 border-2 border-slate-800 rounded-xl font-black shadow-[2px_2px_0px_rgba(30,41,59,1)] hover:translate-y-[2px] hover:shadow-none transition-all">確認產生</button>
-                        </div>
                     </div>
                 </div>
             )}
@@ -3529,84 +3546,45 @@ function SudokuGame() {
                 </div>
             )}
 
-            <div className="w-full max-w-[1200px] bg-[#fffaf0] rounded-xl border-4 border-slate-800 shadow-[10px_10px_0px_rgba(30,41,59,1)] flex flex-col h-full relative z-10 overflow-hidden">
-
-                <div className={`bg-[#ffcc00] border-b-[3px] border-slate-800 shrink-0 z-50 relative transition-all duration-300 ease-in-out px-2 md:px-4 py-1.5 flex flex-col gap-1.5`}>
-                    <div className="flex items-center justify-between gap-2 w-full overflow-x-auto hide-scrollbar pb-0.5">
-                        <div className="flex items-center gap-1.5 flex-nowrap shrink-0">
-                            <h1 className="font-black tracking-tight uppercase text-base md:text-2xl text-[#1e293b] flex items-center gap-1 shrink-0">🔢<span className="hidden sm:inline">數獨 - SUDOKU</span></h1>
-                            <div className="flex items-center gap-1 bg-[#1e293b] text-white px-1.5 py-0.5 rounded font-mono font-bold shadow-[2px_2px_0px_rgba(0,0,0,0.4)] text-[10px] md:text-sm whitespace-nowrap shrink-0">
-                                <GameTimer startTime={startTime} endTime={isBrawlMode ? (matchPhase === 'finished' ? (stateRef.current.matchEndTime || endTime) : null) : (endTime || (winner ? matchStartTime : null))} isRunning={(isBrawlMode ? matchPhase === 'playing' : !isWon) && !winner && screen === 'game'} matchPhase={matchPhase} />
-                            </div>
-                            {dailyDate && (<div className="flex items-center gap-1 bg-emerald-500 text-white px-1.5 py-0.5 rounded font-black shadow-[2px_2px_0px_rgba(0,0,0,0.4)] text-[10px] md:text-sm whitespace-nowrap shrink-0">📅 每日 {dailyDate.slice(5)}{dailyDate !== dailyTodayStr() ? ' 補玩' : ''}</div>)}
-                            <div className="flex items-center gap-1 shrink-0">
-                                {isMultiplayer && (
-                                    <React.Fragment>
-                                        <span className="bg-emerald-400 text-slate-900 px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] flex items-center gap-1 whitespace-nowrap shrink-0">代碼: {roomId}</span>
-                                        <button
-                                            onClick={() => {
-                                                if (isHostRef.current) {
-                                                    const currentMode = stateRef.current.isBrawlMode ? 'brawl' : 'coop';
-                                                    const nextMode = currentMode === 'coop' ? 'ghost' : (currentMode === 'ghost' ? 'brawl' : 'coop');
-                                                    generateAndSync(sizeId, diffId, nextMode);
-                                                }
-                                            }}
-                                            disabled={!isHostRef.current}
-                                            className={`${isBrawlMode ? 'bg-purple-600' : 'bg-sky-400'} text-white px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] flex items-center gap-1 whitespace-nowrap shrink-0 ${isHostRef.current ? 'cursor-pointer hover:translate-y-[1px] hover:shadow-none active:translate-y-[2px] transition-all' : 'opacity-90 cursor-default'}`}
-                                            title={isHostRef.current ? "點擊切換競賽模式（將會重新出題）" : "僅房主可切換模式"}
-                                        >
-                                            {isBrawlMode ? '⚔️ 大亂鬥' : '🌐 合作模式'}
-                                        </button>
-                                    </React.Fragment>
-                                )}
-                                {(!isMultiplayer || isHostRef.current) && (
-                                    <button onClick={() => setShowBrawlSettings(true)} className="bg-slate-700 text-white px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] hover:translate-y-[1px] hover:shadow-none active:translate-y-[2px] transition-all">
-                                        ⚙️ 設定
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                        <button onClick={() => setIsHeaderCollapsed(!isHeaderCollapsed)} className="shrink-0 flex px-1.5 py-0.5 bg-[#1e293b] text-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(0,0,0,0.3)] hover:bg-slate-800 items-center gap-1 whitespace-nowrap">{isHeaderCollapsed ? '🔽 展開規則' : '🔼 縮小面板'}</button>
-                    </div>
-
-                    <div className={"plat-collapse-y w-full" + (isHeaderCollapsed ? "" : " open")}>
-                        <div className="bg-white border-[3px] border-[#1e293b] rounded-xl p-2 md:p-3 text-[#1e293b] shadow-[4px_4px_0px_#1e293b] flex flex-col md:flex-row gap-3">
-                            <div className="flex-1">
-                                <h3 className="text-sm md:text-base font-black mb-1 border-b-[3px] border-[#ffcc00] inline-block pb-0.5">📜 遊戲規則</h3>
-                                <ol className="list-decimal list-outside ml-4 space-y-1 text-[10px] md:text-sm leading-relaxed font-bold">
-                                    <li>選擇上方數字點擊方格。若不選上方數字，可直接點擊盤面已有數字來「智慧吸取」高亮。</li>
-                                    <li>輸入方式可在下方切換成「👆 格子先行」：先點格子、再點數字填入，習慣這種順序的玩家適用；切換後會記住你的選擇。</li>
-                                    <li>不可重複：若發生衝突，背景會亮起紅色提示。</li>
-                                    <li>草稿模式：可在方格內標記多個小數字輔助推理。</li>
-                                    <li>長按清除：若填錯數字且上方按鍵已被鎖定（反灰），可長按該格 0.5 秒強制清除。</li>
-                                </ol>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="flex flex-nowrap gap-1.5 items-center w-full overflow-x-auto hide-scrollbar pt-0.5 pb-1">
-                        <div className="flex gap-1.5 items-center shrink-0">
+            <div ref={platFrameRef} className="w-full max-w-[1200px] flex-1 min-h-0"></div>
+            {ptcSlot && ReactDOM.createPortal((
+                <React.Fragment>
+                    {isMultiplayer && (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="bg-emerald-400 text-slate-900 px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] flex items-center gap-1 whitespace-nowrap shrink-0">代碼: {roomId}</span>
                             <button
-                                disabled={isMultiplayer && !isHostRef.current}
-                                onClick={() => { setTempSizeId(sizeId); setTempDiffId(diffId); setShowSetupModal(true); }}
-                                className="plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 rounded border-2 border-[#1e293b] font-bold bg-white text-[#1e293b] text-[10px] md:text-sm outline-none shadow-[2px_2px_0px_#1e293b] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed shrink-0 flex items-center gap-1 hover:translate-y-[1px]"
-                                title="設定題型與難度"
+                                onClick={() => {
+                                    if (isHostRef.current) {
+                                        const currentMode = stateRef.current.isBrawlMode ? 'brawl' : 'coop';
+                                        const nextMode = currentMode === 'coop' ? 'ghost' : (currentMode === 'ghost' ? 'brawl' : 'coop');
+                                        generateAndSync(sizeId, diffId, nextMode);
+                                    }
+                                }}
+                                disabled={!isHostRef.current}
+                                className={`${isBrawlMode ? 'bg-purple-600' : 'bg-sky-400'} text-white px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] flex items-center gap-1 whitespace-nowrap shrink-0 ${isHostRef.current ? 'cursor-pointer hover:translate-y-[1px] hover:shadow-none active:translate-y-[2px] transition-all' : 'opacity-90 cursor-default'}`}
+                                title={isHostRef.current ? "點擊切換競賽模式（將會重新出題）" : "僅房主可切換模式"}
                             >
-                                ⚙️ {SIZES.find(s => s.id === sizeId)?.name.split(' ')[0]} - {DIFFICULTIES.find(d => d.id === diffId)?.name.split(' ')[1] || '難度'}
+                                {isBrawlMode ? '⚔️ 大亂鬥' : '🌐 合作模式'}
                             </button>
                         </div>
-
+                    )}
+                    <div className="flex gap-1.5 items-center w-full">
+                        {(!isMultiplayer || isHostRef.current) && (
+                            <button onClick={() => setShowBrawlSettings(true)} className="bg-slate-700 text-white px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] hover:translate-y-[1px] hover:shadow-none active:translate-y-[2px] transition-all shrink-0">
+                                ⚙️ 設定
+                            </button>
+                        )}
                         <div className="flex gap-1.5 items-center ml-auto shrink-0">
                             <button onClick={handlePlayAgain} disabled={isMultiplayer && !isHost} className="plat-btn-hard plat-btn-hard-2 px-1.5 py-1 md:px-3 md:py-1.5 bg-blue-500 text-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[2px_2px_0px_#1e293b] disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1 shrink-0" title="新題">🎲<span className="hidden sm:inline">新題</span></button>
-                            {(true) && (<button onClick={handleUndo} disabled={history.length === 0 || isWon || (isMultiplayer && !isBrawlMode)} className="plat-btn-hard plat-btn-hard-2 px-1.5 py-1 md:px-3 md:py-1.5 bg-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[2px_2px_0px_#1e293b] disabled:opacity-50 disabled:shadow-none flex items-center gap-1 text-[#1e293b] shrink-0" title="復原">↩️<span className="hidden sm:inline">復原</span></button>)}
+                            <button onClick={handleUndo} disabled={history.length === 0 || isWon || (isMultiplayer && !isBrawlMode)} className="plat-btn-hard plat-btn-hard-2 px-1.5 py-1 md:px-3 md:py-1.5 bg-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[2px_2px_0px_#1e293b] disabled:opacity-50 disabled:shadow-none flex items-center gap-1 text-[#1e293b] shrink-0" title="復原">↩️<span className="hidden sm:inline">復原</span></button>
                             <button onClick={handleReset} className="plat-btn-hard plat-btn-hard-2 px-1.5 py-1 md:px-3 md:py-1.5 bg-red-500 text-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1 shrink-0" title="重置">🔄<span className="hidden sm:inline">重置</span></button>
                             <button onClick={() => setShowSaveModal(true)} className="plat-btn-hard plat-btn-hard-2 px-1.5 py-1 md:px-3 md:py-1.5 bg-blue-500 text-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1 shrink-0" title="存檔/讀檔">💾<span className="hidden sm:inline">存檔</span></button>
-                            <button onClick={() => { const m = platAudio().toggleMuted(); setMuted(m); }} className="plat-btn-hard plat-btn-hard-2 px-1.5 py-1 md:px-3 md:py-1.5 bg-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1 text-[#1e293b] shrink-0" title={muted ? "取消靜音" : "靜音"}>{muted ? '🔇' : '🔊'}</button>
-                            <button onClick={() => { const N = typeof window !== 'undefined' ? window.__PLAT_NET : null; if ((N && N.inMatch === 'sudoku') || (typeof window !== 'undefined' && window.__PLAT_TOURN_CAN_FORCEEND && window.__PLAT_TOURN_CAN_FORCEEND())) setShowExitMenu(true); else handleGoHome(); }} className="plat-btn-hard plat-btn-hard-2 bg-white text-[#1e293b] border-2 border-[#1e293b] px-1.5 py-1 md:px-3 md:py-1.5 rounded font-bold text-[10px] md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1 shrink-0" title="回首頁/斷線">{!isMultiplayer ? '🏠' : '🔌'}<span className="hidden sm:inline ml-1">{!isMultiplayer ? '回首頁' : '退出'}</span></button>
                         </div>
                     </div>
-                </div>
-
+                </React.Fragment>
+            ), ptcSlot)}
+            {frameBody && ReactDOM.createPortal((
+                <React.Fragment>
                 {isMultiplayer && (
                     <div className="px-2 md:px-4 py-1.5 bg-[#fffdfa] border-b-[3px] border-slate-800 flex flex-nowrap gap-2 items-center relative z-40 shadow-inner shrink-0 overflow-x-auto hide-scrollbar w-full">
                         <span className="font-black text-slate-800 text-xs shrink-0 whitespace-nowrap">👥 玩家：</span>
@@ -3664,7 +3642,7 @@ function SudokuGame() {
                     </div>
                 )}
 
-                {!isHeaderCollapsed && (
+                {rulesOpenUi && (
                     <div className="h-6 md:h-8 shrink-0 flex items-center justify-center bg-slate-800 text-white border-b-4 border-slate-800 relative z-30 font-bold tracking-wide">
                         <span className="text-[10px] md:text-sm hidden md:inline">支援滑鼠拖曳、滾輪縮放；下方工具列可切換模式與縮放。{' (v' + (window.PLAT_VERSION || '3.13.4') + ')'}</span>
                         <span className="text-[10px] md:text-sm md:hidden">點選上方數字再點擊方格。支援雙指縮放與平移。</span>
@@ -4096,7 +4074,8 @@ function SudokuGame() {
 
                     {/* === 道具/禮物按鈕區塊已整合至漂浮選單 === */}
                 </div>
-            </div>
+            </React.Fragment>
+            ), frameBody)}
 
             {/* SVG 發射閃光彈動畫層 */}
             {flares.length > 0 && (

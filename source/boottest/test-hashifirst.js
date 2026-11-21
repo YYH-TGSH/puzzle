@@ -35,44 +35,45 @@ function setInput(w, el, val) {
 }
 const HTML = '/home/hatch/workspace/platform/platform-v1-test.html';
 (async () => {
-  // ===== Phase 0：來賓先玩數獨每日一題（毒化 isHost）=====
+  // ===== Phase 0：來賓先玩數獨每日一題（舊版毒化點：單機/每日把 isHost 毒化為 true）=====
   const guest = loadPageShared(HTML);
-  await waitFor(() => typeof guest.w.PLAT_show === 'function' && guest.w.PlatDock, 600000, 'guest shell');
+  await waitFor(() => typeof guest.w.PLAT_show === 'function' && guest.w.PlatDock, 120000, 'guest shell');
   guest.w.PLAT_show('sudoku');
-  const dailyBtn = await waitFor(() => [...guest.D.querySelectorAll('#view-sudoku button')].find(b => b.textContent.includes('每日一題')), 180000, 'guest sudoku daily btn');
+  const dailyBtn = await waitFor(() => [...guest.D.querySelectorAll('#view-sudoku button')].find(b => b.textContent.includes('每日一題')), 120000, 'guest sudoku daily btn');
   check('來賓打開數獨主畫面（每日一題鈕）', !!dailyBtn);
   click(guest.w, dailyBtn);
-  await sleep(4000); // 每日一題開局 → switchToOffline → isHost=true（舊版毒化點）
-  guest.w.PLAT_show('home');
+  await sleep(4000); // 每日一題開局（舊版在此毒化 isHost）
+  guest.w.PLAT_show('lobby');
   await sleep(1000);
 
-  // ===== 正常大廳流程 =====
+  // ===== 殼房間頁流程（v1.11+；舊版 [data-launch]＋遊戲內等待室已刪——2026-11-21 改寫）=====
   const host = loadPageShared(HTML);
-  await waitFor(() => typeof host.w.PLAT_show === 'function' && host.w.PlatDock, 600000, 'host shell');
+  await waitFor(() => typeof host.w.PLAT_show === 'function' && host.w.PlatDock, 120000, 'host shell');
   click(host.w, host.D.querySelector('#lob-go-create'));
   await waitFor(() => host.D.querySelector('#lob-step-nick').style.display === 'block', 60000, 'host nick step');
   setInput(host.w, host.D.querySelector('#lob-name'), '阿主');
   click(host.w, host.D.querySelector('#lob-confirm'));
-  await waitFor(() => (host.D.querySelector('#lob-room-code') || { textContent: '' }).textContent.trim().length === 4, 60000, 'host room code');
-  const code = host.D.querySelector('#lob-room-code').textContent.trim();
+  await waitFor(() => { const rm = host.D.querySelector('#lob-step-room'); return rm && rm.style.display === 'block' && host.w.__PLAT_NET && host.w.__PLAT_NET.code; }, 90000, 'host room');
+  const code = host.w.__PLAT_NET.code;
   click(guest.w, guest.D.querySelector('#lob-go-join'));
   await waitFor(() => guest.D.querySelector('#lob-step-nick').style.display === 'block', 60000, 'guest nick step');
   setInput(guest.w, guest.D.querySelector('#lob-code'), code);
   setInput(guest.w, guest.D.querySelector('#lob-name'), '阿客');
   click(guest.w, guest.D.querySelector('#lob-confirm'));
-  await waitFor(() => (guest.D.querySelector('#lob-roster') || { textContent: '' }).textContent.includes('阿主'), 60000, 'guest sees host');
-  click(host.w, host.D.querySelector('[data-launch="sudoku-coop"]'));
-  await waitFor(() => host.D.querySelector('#view-sudoku [data-pr-region="roster"]'), 180000, 'host sudoku room');
-  await waitFor(() => guest.D.querySelector('#view-sudoku [data-pr-region="roster"]'), 180000, 'guest sudoku room');
+  await waitFor(() => { const r = guest.D.querySelector('#lob-step-room [data-pr-region="roster"]'); return r && (r.textContent || '').includes('阿主'); }, 90000, 'guest in room');
+  // 房主在房間頁選數獨＋合作（armed 同步到來賓）
+  click(host.w, host.D.querySelector('#lob-step-room [data-rtab="sudoku"]'));
+  await waitFor(() => guest.w.__PLAT_NET && guest.w.__PLAT_NET.armed && guest.w.__PLAT_NET.armed.game === 'sudoku', 30000, 'guest armed');
+  click(host.w, host.D.querySelector('#lob-step-room [data-hub-mode="coop"][data-hub-game="sudoku"]'));
   await sleep(1500);
-  check('被毒化的來賓：沒有開始按鈕', !guest.D.querySelector('#view-sudoku [data-pr="start"]'));
-  check('被毒化的來賓：看到「等待房主開始」', guest.D.querySelector('#view-sudoku').textContent.includes('等待房主開始'));
-  check('房主端：有開始按鈕', !!host.D.querySelector('#view-sudoku [data-pr="start"]'));
+  check('被毒化的來賓：沒有開始按鈕', !guest.D.querySelector('#lob-step-room [data-pr="start"]'));
+  check('被毒化的來賓：看到「等待房主開始」', (guest.D.querySelector('#lob-step-room').textContent || '').includes('等待房主開始'));
+  check('房主端：有開始按鈕', !!host.D.querySelector('#lob-step-room [data-pr="start"]'));
   // 房主端名單穩定取樣 10 秒（殭屍廣播會讓 阿客 反覆消失/出現＝斷線重連感）
   let present = 0, total = 0, transitions = 0, prev = null;
   const t0 = Date.now();
   while (Date.now() - t0 < 10000) {
-    const r = host.D.querySelector('#view-sudoku [data-pr-region="roster"]');
+    const r = host.D.querySelector('#lob-step-room [data-pr-region="roster"]');
     const has = r ? r.textContent.includes('阿客') : false;
     total++; if (has) present++;
     if (prev !== null && has !== prev) transitions++;

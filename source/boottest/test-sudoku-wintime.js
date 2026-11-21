@@ -90,7 +90,7 @@ const parseClock = (s) => { const m = /(\d+):(\d{2})/.exec(s || ''); return m ? 
   // 模擬長局：兩邊時鐘一起快轉 10 分鐘
   H.window.__clockJump(600000); G.window.__clockJump(600000);
   await sleep(1500); // 讓 GameTimer tick
-  const gTimer = [...G.document.querySelectorAll('#view-sudoku span')].map(s => s.textContent || '').find(t => t.includes('⏱'));
+  const gTimer = [...G.document.querySelectorAll('#view-sudoku span, #view-sudoku div')].map(s => (s.textContent || '').trim()).filter(t => t.includes('⏱')).sort((a, b) => a.length - b.length)[0]; // F3：計時改殼 PlatTopCard 的 div 晶片（取最短者＝晶片本體）
   const gSecs = parseClock(gTimer);
   console.log('  來賓端計時器（快轉 10 分鐘後）:', gTimer);
   check('來賓計時器 ≈10 分鐘（未被房主時鐘污染）', gSecs >= 540, 'secs=' + gSecs);

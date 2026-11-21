@@ -17,7 +17,7 @@ ok(!/\$\('plat-speak'\)\.style\.display/.test(shellSrc), 'plat-speak 不再直�
 ok(/function speakShow/.test(shellSrc) && /function speakHide/.test(shellSrc), 'speakShow/speakHide 包裝存在');
 ok(/PlatLite\(span, msg\)/.test(shellSrc) && /plat-toast-in/.test(shellSrc), 'toast 換字走 PlatLite＋升起 class');
 ok((shellSrc.match(/data-pbmenu=/g) || []).length >= 3, 'PlatBar 三個子選單帶 data-pbmenu');
-ok(/PLAT_VERSION = '1\.64\.1'/.test(shellSrc), '版本 1.64.1');
+ok(/PLAT_VERSION = '\d+\.\d+\.\d+'/.test(shellSrc), '版本字串存在'); // 2026-11-21 改：原釘死 1.64.1、每升版必假失敗，改驗版號格式存在即可
 
 const sharedReg = {};
 function loadPage(label) {
@@ -96,7 +96,9 @@ function loadPage(label) {
   await waitFor(() => S.document.querySelector('#mines-root h1'), 60000, 'S mines home');
   const clickBtn = pred => { const b = [...S.document.querySelectorAll('#mines-root button')].find(pred); if (b) { b.click(); return true; } return false; };
   clickBtn(b => b.textContent.includes('單機挑戰')); await sleep(250);
-  clickBtn(b => b.textContent.includes('9×9'));
+  // F2 起開局走殼 PlatSetup（body 層）：點 9×9 選項即開局（2026-11-21 修：舊版在 #mines-root 內找 9×9 鈕）
+  await waitFor(() => S.document.querySelector('#plat-setup [data-pse-card]'), 15000, 'S setup');
+  clickEl(S, S.document.querySelector('#plat-setup [data-pse-opt="9"]'));
   await waitFor(() => S.document.querySelectorAll('#mines-root button[data-cell]').length === 81, 15000, 'S cells');
   await waitFor(() => S.document.querySelector('[data-pb="zoom-toggle"]'), 10000, 'S bar');
   clickEl(S, S.document.querySelector('[data-pb="zoom-toggle"]'));

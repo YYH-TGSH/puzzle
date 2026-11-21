@@ -792,8 +792,16 @@ function bv3OfLayout(w, h, L) {
 }
 function finalizeFirstClick(w, h, mines, sizeId, seed, L0, clickIdx, cells) {
   var band = BV_BANDS[sizeId] || null;
+  var hasLock = false;
+  if (cells) {
+    for (var li = 0; li < cells.length; li++) if (cells[li] === 'L') {
+      hasLock = true;
+      break;
+    }
+  }
   var best = null;
   for (var k = 0; k < 40; k++) {
+    if (k > 0 && hasLock) break; // 禮物鎖定旗綁定 L0 的雷位：換 seed 候選盤會讓旗孤兒化（makeFirstSafe 的 L 豁免只對 L0 成立）——有鎖定旗時只准用 L0、3BV 帶讓位（v1.72.0 修：test-mines-items Phase E 種子相依失敗的真因）
     var cand = k === 0 ? L0 : makeLayout(w, h, mines, seed + k >>> 0);
     var fs = makeFirstSafe(cand, w, h, clickIdx, cells);
     var bv = bv3OfLayout(w, h, fs.layout);
@@ -2704,7 +2712,7 @@ function MinesGame() {
       var reloc = null,
         layoutFull = null;
       if (firstRef.current) {
-        var fin2 = finalizeFirstClick(sp.w, sp.h, sp.mines, mpRef.current.sizeId, mpRef.current.seed || 0, L, idx, null);
+        var fin2 = finalizeFirstClick(sp.w, sp.h, sp.mines, mpRef.current.sizeId, mpRef.current.seed || 0, L, idx, C); // cells 傳 C（原傳 null）：合作盤首挖也要吃到鎖定旗 L 豁免與 hasLock 守衛，否則同型孤兒旗
         if (fin2.tries > 1) {
           L = fin2.layout;
           N = computeNums(sp.w, sp.h, L);
@@ -3809,11 +3817,11 @@ function MinesGame() {
     if (typeof window === 'undefined' || typeof window.PlatFrame === 'undefined') return;
     if (window.__PLAT_NET && window.__PLAT_NET.inMatch && window.__PLAT_NET.inMatch !== 'mines') return;
     if (screen !== 'game') {
-      if (window.PlatFrame.isAttached()) window.PlatFrame.detach();
+      if (window.PlatFrame.isAttached() && (window.PlatFrame._el() === platFrameRef.current || !window.PlatFrame._elConnected())) window.PlatFrame.detach(window.PlatFrame._el());
       if (frameBody) setFrameBody(null);
       if (ptcEl) setPtcEl(null);
       return;
-    }
+    } // detach 只清自己的或已斷線的：無條件 detach() 會誤殺他款對局中的外框（同 PlatHome 誤殺案，v1.72.0 一併修）
     var el = platFrameRef.current;
     if (el) {
       if (window.PlatFrame._el() !== el || !window.PlatFrame._elConnected()) window.PlatFrame.attach(el, platFrameCfgStable.current);
@@ -4399,7 +4407,11 @@ function MinesGame() {
         style: {
           background: p.color
         }
-      }), p.name, " ", gg.state === 'finished' ? '⏱ ' + fmtTime(Math.floor((gg.timeMs || 0) / 1000)) : gg.state === 'boom' ? '💥 ' + Math.floor(effOfGod(gg) * 100) + '%' : Math.floor(effOfGod(gg) * 100) + '%');
+      }), p.name, " ", gg.state === 'finished' ? '⏱ ' + fmtTime(Math.floor((gg.timeMs || 0) / 1000)) : gg.state === 'boom' ? /*#__PURE__*/React.createElement("span", null, "\uD83D\uDCA5 ", /*#__PURE__*/React.createElement(PlatPct, {
+        value: Math.floor(effOfGod(gg) * 100)
+      })) : /*#__PURE__*/React.createElement(PlatPct, {
+        value: Math.floor(effOfGod(gg) * 100)
+      }));
     })), g.cells ? /*#__PURE__*/React.createElement("div", {
       style: {
         overflowX: 'auto',

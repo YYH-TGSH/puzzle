@@ -28,9 +28,9 @@ async function main() {
   const clickEl = (p, el) => { if (el) el.dispatchEvent(new p.window.MouseEvent('click', { bubbles: true })); return !!el; };
   const click = (p, sel) => clickEl(p, p.document.querySelector(sel));
   const hubRoom = (p) => { const rm = p.document.querySelector('#lob-step-room'); return rm && rm.style.display === 'block' ? rm : null; };
-  // 退出選單：在遊戲畫面裡找標題為「要離開對局嗎？」的浮層，再在裡面找按鈕（避免誤點底部列的回大廳鈕）
+  // 退出選單：F3 起離開選單是殼 PlatLeaveMenu（body 層 #plat-leave-menu，不在 #view-* 內）——全文件找標題浮層（2026-11-21 修：舊版只搜 #view 內、永遠找不到，整支連鎖假失敗）
   const menuBtn = (p, view, text) => {
-    const root = p.document.querySelector('#view-' + view); if (!root) return null;
+    const root = p.document; if (!root) return null;
     const menus = [...root.querySelectorAll('div')].filter(d => (d.textContent || '').includes('要離開對局嗎？') && (d.className || '').includes('inset-0'));
     for (const m of menus) { const b = [...m.querySelectorAll('button')].find(x => (x.textContent || '').includes(text)); if (b) return b; }
     return null;
@@ -65,7 +65,7 @@ async function main() {
   await sleep(1500);
 
   // 3) 來賓從標頭退出選單個人退出 → 回大廳；房主繼續對局
-  clickEl(G, G.document.querySelector('#view-sudoku button[title="回首頁/斷線"]'));
+  clickEl(G, G.document.querySelector('#view-sudoku [data-ptc="leave"]'));
   const gLeave = await waitFor(() => menuBtn(G, 'sudoku', '退出（回大廳）'), 30000, 'G exit menu');
   check('來賓退出選單出現（含退出（回大廳））', !!gLeave);
   if (gLeave) clickEl(G, gLeave);
@@ -75,7 +75,7 @@ async function main() {
   check('房主不受影響、還在對局中', H.window.__PLAT_NET.inMatch === 'sudoku' && H.window.__PLAT_NET.active, String(H.window.__PLAT_NET.inMatch));
 
   // 4) 房主用選單回等待室 → 回房間頁
-  clickEl(H, H.document.querySelector('#view-sudoku button[title="回首頁/斷線"]'));
+  clickEl(H, H.document.querySelector('#view-sudoku [data-ptc="leave"]'));
   const hBack = await waitFor(() => menuBtn(H, 'sudoku', '回等待室'), 30000, 'H exit menu');
   check('房主退出選單有「回等待室」', !!hBack);
   if (hBack) clickEl(H, hBack);
@@ -98,7 +98,7 @@ async function main() {
   // 6) 再開一局 → 房主個人退出 → 來賓接管成新房主、對局由新房主延續
   check('開局二：雙邊進數獨', !!await startMatch('m2'));
   await sleep(2500);
-  clickEl(H, H.document.querySelector('#view-sudoku button[title="回首頁/斷線"]'));
+  clickEl(H, H.document.querySelector('#view-sudoku [data-ptc="leave"]'));
   const hLeave = await waitFor(() => menuBtn(H, 'sudoku', '退出（回大廳）'), 30000, 'H exit menu leave');
   check('房主退出選單出現', !!hLeave);
   if (hLeave) clickEl(H, hLeave);

@@ -163,6 +163,7 @@
     // 先 boot 遊戲、再做裝飾更新：dock/rejoin 只是外觀與探測，萬一丟錯絕不能擋住遊戲載入（v1.19.0 靈魂拷問盤點）
     if (name === 'sudoku' || name === 'hashi' || name === 'mines' || name === 'akari') {
       try { boot(name); } catch (e) { status('❌ ' + name + ' 啟動例外: ' + (e && e.message ? e.message : e)); }
+      try { if (window.PlatHome && window.PlatHome._showGame) window.PlatHome._showGame(name); } catch (e) {} // 已 boot 的遊戲：主畫面單例若被他款搶走，切回來時以註冊表重掛（見 PlatHome.PHREG）
     }
     try { if (window.__PLAT_UPDATE_DOCK) window.__PLAT_UPDATE_DOCK(); } catch (e) { status('dock 更新失敗（不擋遊戲）: ' + (e && e.message ? e.message : e)); } // updateDock 在另一個 IIFE：舊版直接寫函數名永遠是 undefined、dock 在回主頁時不會收
     if (name === 'lobby' && window.__PLAT_REFRESH_REJOIN) window.__PLAT_REFRESH_REJOIN(); // 進多人連線才探測房間存續（主畫面不放重連鈕）
@@ -178,7 +179,7 @@
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.71.1';
+  var PLAT_VERSION = '1.72.0';
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -2633,7 +2634,9 @@
   // ===== PlatSetup：單機設定殼（modal＋選項組 list/seg＋開始/取消；instant=true 時點選項即開始） =====
   // cfg.custom（可選）：{ label, fields:[{key,label,min,max}], values:{}, validate(vals)->{values,note,startText} }
   // 自訂區塊：展開式數字欄位，validate 由遊戲提供（clamp/提示/開始鈕文案）；開始走 onStart('custom', validatedValues)
-  var PSE = { cfg: null, el: null, sel: null, cust: null, custOpen: false };
+  // cfg.groups（可選，F3 v1.72.0）：多組選項 [{key,label,style:'seg'|'list',options:[{id,label}],value}]——seg 組走真 .plat-seg
+  // ＋PlatSeg 滑動指示片（數獨難度形狀）；有 groups 時開始鈕走 onStart(valuesObject)、選項變更回呼 onGroupChange(key,id)
+  var PSE = { cfg: null, el: null, sel: null, cust: null, custOpen: false, grp: null };
   function pseCustValidated() {
     var cfg = PSE.cfg, cu = cfg && cfg.custom;
     if (!cu) return null;
@@ -2655,6 +2658,29 @@
     var h = '<div class="bg-[#fffaf0] border-4 border-slate-800 rounded-2xl p-6 shadow-[10px_10px_0px_rgba(30,41,59,1)] w-full max-w-md animate-popIn" data-pse-card="1">';
     h += '<h2 class="text-2xl font-black text-slate-800 mb-2 inline-block pb-1" style="border-bottom:4px solid ' + ac + '">' + pbEsc(cfg.title || '⚙️ 設定') + '</h2>';
     if (cfg.subtitle) h += '<p class="text-sm font-bold text-slate-600 mb-4">' + pbEsc(cfg.subtitle) + '</p>';
+    if (cfg.groups) {
+      cfg.groups.forEach(function (g) {
+        h += '<div class="bg-white border-[3px] border-slate-800 rounded-2xl p-4 shadow-[4px_4px_0px_rgba(30,41,59,1)] mb-4" data-pse-groupcard="' + pbEsc(g.key) + '">';
+        if (g.label) h += '<div class="font-black text-slate-400 text-xs uppercase tracking-[0.2em] mb-3">' + pbEsc(g.label) + '</div>';
+        var gsel = PSE.grp ? PSE.grp[g.key] : g.value;
+        if (g.style === 'seg') {
+          h += '<div class="grid grid-cols-2 gap-3 plat-seg" data-pse-group="' + pbEsc(g.key) + '" data-seg="pse-' + pbEsc(g.key) + '">';
+          (g.options || []).forEach(function (o) {
+            var gon = String(o.id) === String(gsel);
+            h += '<button data-pse-gopt="' + pbEsc(g.key) + '" data-pse-gid="' + pbEsc(o.id) + '"' + (gon ? ' data-seg-on="1"' : '') + ' class="py-3 border-2 border-slate-800 rounded-xl font-black text-sm transition-all ' + (gon ? 'seg-on text-slate-900 shadow-[3px_3px_0px_#1e293b] -translate-y-0.5' : 'bg-slate-50 text-slate-400 hover:bg-white') + '"' + (gon ? ' style="background:' + ac + '"' : '') + '>' + pbEsc(o.label) + '</button>';
+          });
+          h += '</div>';
+        } else {
+          h += '<div class="flex flex-col gap-2">';
+          (g.options || []).forEach(function (o) {
+            var gon2 = String(o.id) === String(gsel);
+            h += '<button data-pse-gopt="' + pbEsc(g.key) + '" data-pse-gid="' + pbEsc(o.id) + '" class="plat-btn-hard plat-btn-hard-3 w-full text-left px-4 py-3 border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_rgba(30,41,59,1)]" style="' + (gon2 ? 'background:' + ac + ';color:#0f172a' : 'background:#ffffff;color:#1e293b') + '">' + pbEsc(o.label) + '</button>';
+          });
+          h += '</div>';
+        }
+        h += '</div>';
+      });
+    }
     if (cfg.mode === 'seg') {
       h += '<div class="flex bg-white border-[3px] border-slate-800 rounded-xl overflow-hidden font-black mb-4" data-pse-seg="1">';
       opts.forEach(function (o) {
@@ -2687,19 +2713,55 @@
     h += '</div>';
     PSE.el.innerHTML = h;
     PSE.el.style.display = 'flex';
+    if (cfg.groups && window.PlatSeg) { // seg 組：滑動指示片定位（量測在版面定稿後；PlatSeg 內部另有延遲複量）
+      cfg.groups.forEach(function (g) {
+        if (g.style !== 'seg') return;
+        var c = PSE.el.querySelector('[data-seg="pse-' + g.key + '"]');
+        var b = c && c.querySelector('[data-seg-on="1"]');
+        if (c && b) { try { window.PlatSeg(c, 'pse-' + g.key, b, ac); } catch (e) {} }
+      });
+    }
   }
   function pseDone(start, custValues) {
-    var cfg = PSE.cfg, sel = PSE.sel;
-    PSE.cfg = null; PSE.cust = null; PSE.custOpen = false; pseRender();
+    var cfg = PSE.cfg, sel = PSE.sel, grp = PSE.grp;
+    PSE.cfg = null; PSE.cust = null; PSE.custOpen = false; PSE.grp = null; pseRender();
     if (!cfg) return;
-    if (start && cfg.onStart) { try { cfg.onStart(custValues ? 'custom' : sel, custValues); } catch (e) {} }
+    if (start && cfg.onStart) {
+      try {
+        if (cfg.groups) cfg.onStart(Object.assign({}, grp || {}));
+        else cfg.onStart(custValues ? 'custom' : sel, custValues);
+      } catch (e) {}
+    }
     else if (!start && cfg.onCancel) { try { cfg.onCancel(); } catch (e) {} }
   }
   function pseClick(e) {
     if (!PSE.el || !PSE.cfg) return;
     if (e.target === PSE.el) { pseDone(false); return; }
-    var t = e.target && e.target.closest ? e.target.closest('[data-pse-opt],[data-pse]') : null;
+    var t = e.target && e.target.closest ? e.target.closest('[data-pse-opt],[data-pse-gopt],[data-pse]') : null;
     if (!t || !PSE.el.contains(t)) return;
+    var gopt = t.getAttribute('data-pse-gopt');
+    if (gopt != null) {
+      var g = (PSE.cfg.groups || []).filter(function (x) { return String(x.key) === String(gopt); })[0];
+      var gid = t.getAttribute('data-pse-gid');
+      var go = g && (g.options || []).filter(function (o) { return String(o.id) === String(gid); })[0];
+      if (!PSE.grp) PSE.grp = {};
+      PSE.grp[gopt] = go ? go.id : gid;
+      if (PSE.cfg.onGroupChange) { try { PSE.cfg.onGroupChange(gopt, PSE.grp[gopt]); } catch (e) {} }
+      // 就地更新選取態、不整卡重繪：seg 組的容器必須恆存，PlatSeg 的 pill 才能滑動（整卡重繪會讓每次點選都變「首次掛載直接定位」，K1 段位滑動就死了——比照 pseCustRefresh 的就地更新先例）
+      var grpEl = PSE.el.querySelector('[data-pse-group="' + gopt + '"]');
+      if (grpEl && g) {
+        var ac2 = PSE.cfg.accent || '#ffcc00';
+        grpEl.querySelectorAll('[data-pse-gopt]').forEach(function (b) {
+          var on = String(b.getAttribute('data-pse-gid')) === String(PSE.grp[gopt]);
+          if (g.style === 'seg') {
+            if (on) { b.setAttribute('data-seg-on', '1'); b.className = 'py-3 border-2 border-slate-800 rounded-xl font-black text-sm transition-all seg-on text-slate-900 shadow-[3px_3px_0px_#1e293b] -translate-y-0.5'; b.style.background = ac2; }
+            else { b.removeAttribute('data-seg-on'); b.className = 'py-3 border-2 border-slate-800 rounded-xl font-black text-sm transition-all bg-slate-50 text-slate-400 hover:bg-white'; b.style.background = ''; }
+          } else { b.style.background = on ? ac2 : '#ffffff'; b.style.color = on ? '#0f172a' : '#1e293b'; }
+        });
+        if (g.style === 'seg' && window.PlatSeg) { var selB = grpEl.querySelector('[data-seg-on="1"]'); if (selB) { try { window.PlatSeg(grpEl, 'pse-' + g.key, selB, ac2); } catch (e) {} } }
+      } else pseRender();
+      return;
+    }
     var opt = t.getAttribute('data-pse-opt');
     if (opt != null) {
       var found = (PSE.cfg.options || []).filter(function (o) { return String(o.id) === String(opt); })[0];
@@ -2736,9 +2798,11 @@
       PSE.cfg = cfg || {}; PSE.sel = PSE.cfg.selectedId;
       PSE.cust = PSE.cfg.custom ? Object.assign({}, PSE.cfg.custom.values || {}) : null;
       PSE.custOpen = false;
+      PSE.grp = null;
+      if (PSE.cfg.groups) { PSE.grp = {}; PSE.cfg.groups.forEach(function (g) { PSE.grp[g.key] = g.value; }); }
       pseRender();
     },
-    hide: function () { PSE.cfg = null; PSE.cust = null; PSE.custOpen = false; pseRender(); },
+    hide: function () { PSE.cfg = null; PSE.cust = null; PSE.custOpen = false; PSE.grp = null; pseRender(); },
     isShown: function () { return !!PSE.cfg; },
     _debug: function () { return { shown: !!PSE.cfg, sel: PSE.sel }; }
   };
@@ -2796,11 +2860,20 @@
     else if (k === 'dock-speaker' && window.PlatDock) window.PlatDock.toggleSpeaker();
     else phAct(k);
   }
+  var PHREG = {}; // 每款遊戲的 PlatHome 註冊表（el/cfg/state）：PlatHome 是單例、四款共用——後 boot 的遊戲 attach 會 detach 先前遊戲的家並清空；註冊表讓 PLAT_show 切回該款時以存下的 cfg/state 立即重掛，不必等該款自己 re-render（背景 boot 後閒置的主畫面不會自己 re-render；v1.72.0 F3 回歸抓到：先開他款再切地雷、地雷主畫面全空）
+  function phGameKey(el) { var r = el && el.closest ? el.closest('[id$="-root"]') : null; return r ? r.id.replace(/-root$/, '') : null; }
   window.PlatHome = {
     attach: function (el, cfg) {
       if (!el) return;
+      var key = phGameKey(el);
+      if (key) { var prev = PHREG[key]; PHREG[key] = { el: el, cfg: cfg || {}, state: prev && prev.state ? prev.state : null }; }
+      // 單例搶奪防護：body[data-view] 是殼同步設定的「目前顯示中的畫面」——持有者正是顯示中的遊戲、而新請求來自其他遊戲（背景預載 boot 的他款會 re-render 並重跑 attach effect）時，只登記不搶。使用者切過去時 PLAT_show._showGame 或該款自己的 render 會正式掛上。注意不可用 view 的 active class 判斷：切換 crossfade 的 90ms 內新舊 view 同時帶 active，先 boot 完的遊戲會在這窗內被舊遊戲的一次 re-render 搶回去（v1.72.0 F3 回歸實測：先開數橋再切地雷、地雷主畫面全空）
+      var shown = document.body.getAttribute('data-view');
+      var curGame = PH.el ? phGameKey(PH.el) : null;
+      if (PH.el && PH.el !== el && shown && curGame === shown && key !== shown) return;
       if (PH.el && PH.el !== el) window.PlatHome.detach(PH.el);
       PH.el = el; PH.cfg = cfg || {}; PH.lastJson = null;
+      PH.state = key ? PHREG[key].state : null;
       el.setAttribute('data-phome', '1');
       el.removeEventListener('click', phClick);
       el.addEventListener('click', phClick);
@@ -2811,9 +2884,15 @@
       if (!state) return;
       var j = null;
       try { j = JSON.stringify(state); } catch (e) {}
+      var k2 = phGameKey(PH.el); if (k2 && PHREG[k2]) PHREG[k2].state = state;
       if (j && j === PH.lastJson && PH.state) { PH.state = state; return; }
       PH.lastJson = j; PH.state = state;
       phRender();
+    },
+    _showGame: function (game) { // PLAT_show 切到某款時呼叫：該款主畫面若曾被他款 attach 搶走單例，以註冊表重掛（el 須仍在文件裡；未 boot 或已卸載就跳過，該款自己的 attach effect 會在 render 時處理）
+      var r = PHREG[game]; if (!r || !r.el || !r.el.isConnected) return;
+      if (PH.el === r.el) return;
+      window.PlatHome.attach(r.el, r.cfg);
     },
     detach: function (el) {
       if (!PH.el || (el && el !== PH.el)) return;
@@ -2825,7 +2904,7 @@
     isAttached: function () { return !!PH.el; },
     _el: function () { return PH.el; },
     _elConnected: function () { return !!(PH.el && PH.el.isConnected); },
-    _debug: function () { return { attached: !!PH.el, inDoc: !!(PH.el && PH.el.isConnected), hasState: !!PH.state, htmlLen: PH.el ? PH.el.innerHTML.length : -1 }; }
+    _debug: function () { var reg = {}; Object.keys(PHREG).forEach(function (k) { var r = PHREG[k]; reg[k] = { connected: !!(r.el && r.el.isConnected), htmlLen: r.el ? r.el.innerHTML.length : -1, isCurrent: r.el === PH.el }; }); return { attached: !!PH.el, inDoc: !!(PH.el && PH.el.isConnected), hasState: !!PH.state, htmlLen: PH.el ? PH.el.innerHTML.length : -1, reg: reg }; }
   };
 
   // ===== PlatTopCard：對局頂欄控制卡（卡框＋第一列＋規則 Collapse＋玩家晶片列＋遊戲槽） =====
@@ -2840,14 +2919,29 @@
     var frameCls = cfg.frame ? ' border-[3px] rounded-xl shadow-[3px_3px_0px_rgba(30,41,59,1)] mb-3' : '';
     PTC.el.innerHTML = '<div class="border-b-[3px] border-slate-800 px-2 md:px-4 py-1.5 flex flex-col gap-1.5 relative z-50' + frameCls + '" style="background:' + ac + '" data-ptc-band="1">'
       + '<div data-ptc-region="row1"></div>'
-      + '<div class="plat-collapse-y w-full" data-ptc-region="ruleswrap"><div class="bg-white border-[3px] border-slate-800 rounded-xl p-2 md:p-3 text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)]"><h3 class="text-sm md:text-base font-black mb-1 inline-block pb-0.5" style="border-bottom:3px solid ' + ac + '">📜 遊戲規則</h3><div class="text-xs md:text-sm leading-relaxed font-bold">' + (cfg.rulesHtml || '') + '</div></div></div>'
+      + '<div class="plat-collapse-y w-full" data-ptc-region="ruleswrap">' + (cfg.rulesRaw ? '<div data-ptc-rulesbody="1"></div>' : '<div class="bg-white border-[3px] border-slate-800 rounded-xl p-2 md:p-3 text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)]"><h3 class="text-sm md:text-base font-black mb-1 inline-block pb-0.5" style="border-bottom:3px solid ' + ac + '">📜 遊戲規則</h3><div data-ptc-rulesbody="1" class="text-xs md:text-sm leading-relaxed font-bold"></div></div>') + '</div>'
       + '<div data-ptc-region="chips"></div>'
       + '<div data-ptc-slot="1"></div></div>';
     PTC.slot = PTC.el.querySelector('[data-ptc-slot]');
     ptcRenderRegions();
   }
+  function ptcGameKey() { var r = PTC.el && PTC.el.closest ? PTC.el.closest('[id$="-root"]') : null; return r ? r.id.replace(/-root$/, '') : 'game'; }
+  function ptcCountifyHtml(text, keyBase) {
+    // 把文字裡的整數段包成 PlatCount 滾輪 span（data-pc＋data-pc-key 跨重渲染續滾；首次/值未變不滾，platCountify 內建）；單位與符號留純文字。計時器不走這裡（每秒滾是噪音，比照各款現行）
+    var s = String(text == null ? '' : text), out = '', n = 0, last = 0, m, re = /\d+/g;
+    while ((m = re.exec(s))) {
+      out += pbEsc(s.slice(last, m.index));
+      out += '<span data-pc="' + m[0] + '" data-pc-key="' + pbEsc(keyBase + '-' + n) + '">' + m[0] + '</span>';
+      n++; last = m.index + m[0].length;
+    }
+    out += pbEsc(s.slice(last));
+    return out;
+  }
   function ptcRenderRegions() {
     if (!PTC.el || !PTC.cfg) return;
+    var rb = PTC.el.querySelector('[data-ptc-rulesbody]'); // 規則內容可由 update 動態覆寫（數橋提示欄隨難度變）；cfg.rulesRaw 時遊戲自帶盒/標題
+    var rh = (PTC.state && PTC.state.rulesHtml) || PTC.cfg.rulesHtml || '';
+    if (rb && rb._rh !== rh) { rb.innerHTML = rh; rb._rh = rh; }
     var st = PTC.state || {}, cfg = PTC.cfg;
     var row1 = PTC.el.querySelector('[data-ptc-region="row1"]');
     if (row1) {
@@ -2862,7 +2956,7 @@
         var specCls = 'px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] whitespace-nowrap shrink-0 bg-white text-slate-800';
         h += st.specClickable ? '<button data-ptc="spec" class="plat-btn-hard plat-btn-hard-1 ' + specCls + '">' + pbEsc(st.specLabel) + '</button>' : '<span class="' + specCls + '">' + pbEsc(st.specLabel) + '</span>';
       }
-      if (st.statText) h += '<span class="font-black text-slate-900 text-sm md:text-base whitespace-nowrap shrink-0">' + pbEsc(st.statText) + '</span>';
+      if (st.statText) h += '<span class="font-black text-slate-900 text-sm md:text-base whitespace-nowrap shrink-0">' + ptcCountifyHtml(st.statText, ptcGameKey() + '-stat') + '</span>';
       h += '</div>';
       h += '<div class="flex items-center gap-1.5 flex-nowrap shrink-0">';
       h += '<div class="flex items-center gap-1 bg-[#1e293b] text-white px-1.5 py-0.5 rounded font-mono font-bold shadow-[2px_2px_0px_rgba(0,0,0,0.4)] text-[10px] md:text-sm whitespace-nowrap shrink-0">⏱ ' + pbEsc(st.timerText || '00:00') + '</div>';
@@ -2870,6 +2964,7 @@
       h += '<button data-ptc="rules" class="shrink-0 flex px-1.5 py-0.5 bg-[#1e293b] text-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(0,0,0,0.3)] items-center gap-1 whitespace-nowrap">' + (PTC.rulesOpen ? '🔼 縮小面板' : '🔽 展開規則') + '</button>';
       h += '</div></div>';
       row1.innerHTML = h;
+      platCountify(row1); // statText 數字滾輪接線（v1.72.0 追補：美術燈計數器等 statText 數字比照 PlatCount 規格）
     }
     var rw = PTC.el.querySelector('[data-ptc-region="ruleswrap"]');
     if (rw) rw.classList.toggle('open', !!PTC.rulesOpen);
@@ -2877,8 +2972,9 @@
     if (chips) {
       if (st.players && st.players.length) {
         chips.innerHTML = '<div class="flex items-center gap-1.5 flex-wrap">' + st.players.map(function (p) {
-          return '<span class="flex items-center gap-1 bg-slate-50 border-2 border-slate-800 rounded-full pl-1 pr-2 py-0.5 font-black text-[11px] text-slate-700"><span class="w-3 h-3 rounded-full border border-slate-800" style="background:' + pbEsc(p.color || '#ccc') + '"></span><span class="max-w-[5.5rem] truncate">' + pbEsc(p.name) + (p.isMe ? '（你）' : '') + '</span><span>' + pbEsc(p.text || '') + '</span></span>';
+          return '<span class="flex items-center gap-1 bg-slate-50 border-2 border-slate-800 rounded-full pl-1 pr-2 py-0.5 font-black text-[11px] text-slate-700"><span class="w-3 h-3 rounded-full border border-slate-800" style="background:' + pbEsc(p.color || '#ccc') + '"></span><span class="max-w-[5.5rem] truncate">' + pbEsc(p.name) + (p.isMe ? '（你）' : '') + '</span><span>' + ptcCountifyHtml(p.text || '', ptcGameKey() + '-chip-' + (p.key || p.name || '')) + '</span></span>';
         }).join('') + '</div>';
+        platCountify(chips); // 玩家晶片 % 滾輪接線（v1.72.0 追補，比照數獨/數橋自有晶片列的 PlatPct）
         chips.style.display = '';
       } else { chips.innerHTML = ''; chips.style.display = 'none'; }
     }

@@ -49,8 +49,8 @@ function hasStun(pg) {
   await waitFor(() => host.D.querySelector('#lob-step-nick').style.display === 'block', 60000, 'host nick step');
   setInput(host.w, host.D.querySelector('#lob-name'), '阿主');
   click(host.w, host.D.querySelector('#lob-confirm'));
-  await waitFor(() => (host.D.querySelector('#lob-room-code') || { textContent: '' }).textContent.trim().length === 4, 60000, 'host room code');
-  const code = host.D.querySelector('#lob-room-code').textContent.trim();
+  await waitFor(() => host.w.__PLAT_NET && host.w.__PLAT_NET.code, 60000, 'host room code'); // 2026-11-21 修：#lob-room-code 已隨舊大廳退役，房號改讀 __PLAT_NET.code
+  const code = host.w.__PLAT_NET.code;
   check('房主 Peer 有帶 TURN 中繼設定', hasTurn(host));
   check('房主 Peer 有帶 STUN 設定', hasStun(host));
   const guest = loadPageShared(HTML);

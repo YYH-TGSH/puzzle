@@ -1,8 +1,6 @@
 body {
       overscroll-behavior-y: none;
-      background-color: #e9f7e9;
-      background-image: radial-gradient(#b7ddb7 2px, transparent 2px);
-      background-size: 12px 12px; /* 背景語法三款統一：單層點陣 2px/12px、只換色調（美學稽核 V-06） */
+      background-color: #e9f7e9; /* 點陣圖樣已收歸殼 .plat-view（--plat-dot #b7ddb7，v1.72.0 F3）；底色由 build 轉 body[data-view] 保留 */
       margin: 0; padding: 0;
       font-family: 'Helvetica Neue', Helvetica, Arial, 'PingFang TC', 'Heiti TC', 'Microsoft JhengHei', sans-serif;
     }

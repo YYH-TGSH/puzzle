@@ -96,7 +96,9 @@ function loadPage(extraBeforeParse, url) {
   await sleep(400);
   const clickBtn = pred => { const b = [...P.document.querySelectorAll('#mines-root button')].find(pred); if (b) { b.click(); return true; } return false; };
   clickBtn(b => b.textContent.includes('單機挑戰')); await sleep(250);
-  clickBtn(b => b.textContent.includes('9×9'));
+  // F2 起開局走殼 PlatSetup（body 層）：點 9×9 選項即開局（2026-11-21 修：舊版在 #mines-root 內找 9×9 鈕）
+  await waitFor(() => P.document.querySelector('#plat-setup [data-pse-card]'), 15000, 'S setup');
+  P.document.querySelector('#plat-setup [data-pse-opt="9"]').click();
   const cells = await waitFor(() => P.document.querySelectorAll('#mines-root button[data-cell]').length === 81 ? true : null, 30000, 'mines cells');
   ok(!!cells, '地雷單機開局');
   const progDiv = [...P.document.querySelectorAll('#mines-root div')].find(x => (x.textContent.startsWith('進度（3BV）') || x.textContent.startsWith('開格 ')) && x.querySelector('.plat-count'));

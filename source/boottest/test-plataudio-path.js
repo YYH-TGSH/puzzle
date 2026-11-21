@@ -67,10 +67,11 @@ async function startSudokuSolo(p, sizeText, diffText) {
   p.window.PLAT_show('sudoku');
   const view = () => p.document.querySelector('#view-sudoku');
   const soloBtn = await waitFor(() => [...view().querySelectorAll('button')].find(b => (b.textContent || '').includes('單機挑戰')) || null, 60000, 'sudoku main');
-  clickEl(p, soloBtn); await sleep(600);
-  if (sizeText) { clickEl(p, [...view().querySelectorAll('button')].find(b => (b.textContent || '').includes(sizeText))); await sleep(300); }
-  if (diffText) { clickEl(p, [...view().querySelectorAll('button')].find(b => (b.textContent || '').includes(diffText))); await sleep(300); }
-  clickEl(p, [...view().querySelectorAll('button')].find(b => (b.textContent || '').includes('開始挑戰')));
+  clickEl(p, soloBtn);
+  await waitFor(() => p.document.querySelector('#plat-setup [data-pse-card]'), 30000, 'PlatSetup'); // F3：版型/難度改殼 PlatSetup seg 組
+  if (sizeText) { clickEl(p, [...p.document.querySelectorAll('#plat-setup [data-pse-group="size"] [data-pse-gopt]')].find(b => (b.textContent || '').includes(sizeText))); await sleep(300); }
+  if (diffText) { clickEl(p, [...p.document.querySelectorAll('#plat-setup [data-pse-group="diff"] [data-pse-gopt]')].find(b => (b.textContent || '').includes(diffText))); await sleep(300); }
+  clickEl(p, p.document.querySelector('#plat-setup [data-pse="start"]'));
   const okCells = await waitFor(() => p.document.querySelectorAll('#view-sudoku g[id^="cell-"]').length > 0 ? true : null, 60000, 'cells');
   await sleep(800);
   return !!okCells;
@@ -157,8 +158,9 @@ async function startSudokuSolo(p, sizeText, diffText) {
     p.window.PLAT_show('hashi');
     const view = () => p.document.querySelector('#view-hashi');
     const soloBtn = await waitFor(() => [...view().querySelectorAll('button')].find(b => (b.textContent || '').includes('單機挑戰')) || null, 60000, 'hashi main');
-    clickEl(p, soloBtn); await sleep(600);
-    clickEl(p, [...view().querySelectorAll('button')].find(b => (b.textContent || '').includes('10x10')));
+    clickEl(p, soloBtn);
+    const lvBtnF = await waitFor(() => p.document.querySelector('#plat-setup [data-pse-opt="2"]'), 30000, 'PlatSetup F'); // F3：難度選擇改殼 PlatSetup
+    clickEl(p, lvBtnF);
     const board = await waitFor(() => { const s = [...view().querySelectorAll('svg')].find(x => [...x.querySelectorAll('text')].some(t => /^[1-8]$/.test((t.textContent || '').trim()))); return s || null; }, 60000, 'hashi board');
     check('F 前置：數橋盤面', !!board);
     if (board) {
@@ -184,10 +186,10 @@ async function startSudokuSolo(p, sizeText, diffText) {
     p.window.PLAT_show('mines');
     const view = () => p.document.querySelector('#view-mines');
     const soloBtn = await waitFor(() => [...view().querySelectorAll('button')].find(b => (b.textContent || '').includes('單機挑戰')) || null, 60000, 'mines main');
-    clickEl(p, soloBtn); await sleep(600);
-    const lvBtn = [...view().querySelectorAll('button')].find(b => /9x9|9×9|簡單|初級/.test(b.textContent || ''));
+    clickEl(p, soloBtn);
+    const lvBtn = await waitFor(() => p.document.querySelector('#plat-setup [data-pse-opt="9"]'), 30000, 'PlatSetup G'); // F2/F3：尺寸選擇改殼 PlatSetup
     if (lvBtn) { clickEl(p, lvBtn); await sleep(600); }
-    const dbg = await waitFor(() => { const h = p.window.__PLAT_HOOKS_mines; return h && h.debug ? h.debug() : null; }, 60000, 'mines debug');
+    const dbg = await waitFor(() => { const h = p.window.__PLAT_HOOKS_mines; const dd = h && h.debug ? h.debug() : null; return dd && dd.cells ? dd : null; }, 60000, 'mines debug');
     check('G 前置：地雷開局', !!dbg);
     if (dbg) {
       const cells = [...view().querySelectorAll('button')].filter(b => /cell|格/.test(b.className || '') || b.dataset.idx !== undefined);

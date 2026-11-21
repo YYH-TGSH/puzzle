@@ -123,10 +123,11 @@ function readBoard(D) {
     const w = M.window, d = M.document;
     await waitFor(() => typeof w.PLAT_show === 'function' && w.PlatDock ? true : null, 120000, 'shell');
     w.PLAT_show('mines');
-    await waitFor(() => d.querySelector('#mines-root h1'), 60000, 'mines home');
     const clickBtn = (txt) => { const b = [...d.querySelectorAll('#mines-root button')].find(x => x.textContent.includes(txt)); if (b) { b.click(); return true; } return false; };
-    clickBtn('單機挑戰'); await sleep(300);
-    clickBtn('9×9');
+    await waitFor(() => clickBtn('單機挑戰') ? true : null, 60000, 'mines home solo btn');
+    // F2 起開局走殼 PlatSetup（body 層 #plat-setup、list+instant）：點 9×9 選項即開局（2026-11-21 修：舊版在 #mines-root 內找 9×9 鈕、永遠找不到、沒開局就 crash 在 layout null）
+    await waitFor(() => d.querySelector('#plat-setup [data-pse-card]'), 30000, 'mines setup');
+    clickEl(M, d.querySelector('#plat-setup [data-pse-opt="9"]'));
     await waitFor(() => d.querySelectorAll('#mines-root button[data-cell]').length === 81 ? true : null, 30000, '81 cells');
     const dbg = () => w.__PLAT_HOOKS_mines.debug();
     const snap0 = dbg();

@@ -27,6 +27,8 @@ body[data-view="home"] {
 .plat-view { background-image: radial-gradient(var(--plat-dot, transparent) 2px, transparent 2px); background-size: 12px 12px; }
 #view-mines { --plat-dot: #f7ddba; }
 #view-akari { --plat-dot: #b9cfee; }
+#view-sudoku { --plat-dot: #d3c5ab; } /* F3 v1.72.0：數獨米紙點（body 底紙段與對局根 inline 點陣已刪） */
+#view-hashi { --plat-dot: #b7ddb7; } /* F3 v1.72.0：數橋綠點（body 底紙段已刪；對局根 inline 點陣比照數獨刪除，由殼 view 紙面承擔） */
 .plat-view.plat-view-out { display: block; opacity: 0; transition: opacity 90ms var(--plat-ease-travel); pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .plat-view.plat-view-out { transition: none; } }
 /* 畫面轉場 Fade Through（美學稽核 V-02）：切換不再瞬斷，舊畫面換新畫面時淡入＋微縮放，約 260ms */
