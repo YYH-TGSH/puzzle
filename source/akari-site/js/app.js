@@ -951,20 +951,20 @@ function AkariGame() {
     if (screen !== 'game') return;
     const P2 = puzzleRef.current ? arraysToSets(puzzleRef.current) : null;
     const total = P2 ? P2.solution.size : 0;
-    let correct = 0;
-    if (P2) { cellsRef.current.forEach((cv, i) => { if ((cv === 1 || cv === 3) && P2.solution.has(i)) correct++; }); }
+    let placed = 0; // 放燈制（v1.71.1）：自己看得到的計數只計盤面燈數（1 自放＋3 鎖定）、不分對錯——correct 制會洩漏正解（放對才跳＝可逐格試探）
+    if (P2) { cellsRef.current.forEach((cv) => { if (cv === 1 || cv === 3) placed++; }); }
     window.PlatTopCard.update({
       leaveIcon: mpOn ? '🔌' : '🏠', leaveLabel: mpOn ? '退出' : '主選單',
       modeChip: mpOn ? '⚔️ 競速對戰' : null,
       dailyChip: (!mpOn && isDaily && dailyDate) ? ('每日 ' + dailyDate.slice(5) + (dailyDate !== todayStr() ? ' 補玩' : '')) : null,
       specLabel: '⚙️ ' + (isDaily ? '每日一題 ' + (puzzle ? SIZES[puzzle.w].short : '') : (puzzle ? SIZES[puzzle.w].name : '')),
       specClickable: false,
-      statText: '💡 ' + correct + '/' + total,
+      statText: '💡 ' + placed + '/' + total,
       timerText: String(Math.floor(elapsed / 60)).padStart(2, '0') + ':' + String(elapsed % 60).padStart(2, '0'),
       muted: muted,
       players: mpOn ? players.filter(p => !p.pending).map(p => {
         const g = godBoards[p.id] || { progress: p.id === myId ? 0 : 0, state: 'playing' };
-        const pct = Math.floor((p.id === myId ? (total ? correct / total : 0) : (g.progress || 0)) * 100);
+        const pct = Math.floor((p.id === myId ? (total ? placed / total : 0) : (g.progress || 0)) * 100);
         return { key: p.id, name: p.name, color: p.color, isMe: p.id === myId, text: p.spectator ? '👁️' : (g.state === 'finished' ? '🏁' : pct + '%') };
       }) : null,
       leaveMenu: { mode: mpOn ? 'mp' : 'solo', canForceEnd: !!(mpOn && typeof window.__PLAT_TOURN_CAN_FORCEEND === 'function' && window.__PLAT_TOURN_CAN_FORCEEND()) }
@@ -1062,13 +1062,14 @@ function AkariGame() {
   }, []);
 
   // ---------- 衍生狀態 ----------
-  let litSet = new Set(), confBad = new Set(), numState = new Map(), progress = 0, correct = 0, litPct = 0;
+  let litSet = new Set(), confBad = new Set(), numState = new Map(), progress = 0, correct = 0, litPct = 0, dispProgress = 0;
   if (P && cells.length) {
     const bulbs = placedBulbs(cells);
     litSet = window.Akari.litCells(P.w, P.h, P.walls, bulbs);
     const conf = window.Akari.conflicts(P.w, P.h, P.walls, P.numbers, bulbs);
     confBad = conf.badBulbs; numState = conf.numState;
     progress = window.Akari.progressOf(P.solution, bulbs);
+    dispProgress = P.solution.size ? bulbs.size / P.solution.size : 0; // 顯示用放燈制（v1.71.1 使用者實機抓洩漏：correct 制計數＝逐格試探正解的作弊通道）；progress/correct 僅供系統邏輯（同步/里程碑/完賽），顯示一律用 dispProgress/放燈數
     P.solution.forEach(b => { if (bulbs.has(b)) correct++; });
     let nonWall = 0; for (let i = 0; i < P.w * P.h; i++) if (!P.walls.has(i)) nonWall++;
     litPct = nonWall ? Math.round(100 * litSet.size / nonWall) : 0;
@@ -1167,9 +1168,9 @@ function AkariGame() {
           <div>
             <div className="flex items-center gap-2">
               <div className="flex-1 h-3.5 bg-white/80 border-2 border-slate-800 rounded-full overflow-hidden">
-                <div className="h-full bg-slate-800 transition-all duration-300" style={{ width: Math.round(progress * 100) + '%' }}></div>
+                <div className="h-full bg-slate-800 transition-all duration-300" style={{ width: Math.round(dispProgress * 100) + '%' }}></div>
               </div>
-              <span className="font-black text-xs text-slate-900 whitespace-nowrap">進度 {Math.round(progress * 100)}%・照亮 {litPct}%</span>
+              <span className="font-black text-xs text-slate-900 whitespace-nowrap">進度 {Math.round(dispProgress * 100)}%・照亮 {litPct}%</span>
             </div>
             {mpOn && itemsLive() && !iAmSpecRef.current && !myOutcome && mpPhase === 'playing' && (
               <div className="flex items-center gap-1.5 mt-1.5 justify-end">

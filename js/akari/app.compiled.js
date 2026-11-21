@@ -2199,10 +2199,10 @@ function AkariGame() {
     if (screen !== 'game') return;
     var P2 = puzzleRef.current ? arraysToSets(puzzleRef.current) : null;
     var total = P2 ? P2.solution.size : 0;
-    var correct = 0;
+    var placed = 0; // 放燈制（v1.71.1）：自己看得到的計數只計盤面燈數（1 自放＋3 鎖定）、不分對錯——correct 制會洩漏正解（放對才跳＝可逐格試探）
     if (P2) {
-      cellsRef.current.forEach(function (cv, i) {
-        if ((cv === 1 || cv === 3) && P2.solution.has(i)) correct++;
+      cellsRef.current.forEach(function (cv) {
+        if (cv === 1 || cv === 3) placed++;
       });
     }
     window.PlatTopCard.update({
@@ -2212,7 +2212,7 @@ function AkariGame() {
       dailyChip: !mpOn && isDaily && dailyDate ? '每日 ' + dailyDate.slice(5) + (dailyDate !== todayStr() ? ' 補玩' : '') : null,
       specLabel: '⚙️ ' + (isDaily ? '每日一題 ' + (puzzle ? SIZES[puzzle.w]["short"] : '') : puzzle ? SIZES[puzzle.w].name : ''),
       specClickable: false,
-      statText: '💡 ' + correct + '/' + total,
+      statText: '💡 ' + placed + '/' + total,
       timerText: String(Math.floor(elapsed / 60)).padStart(2, '0') + ':' + String(elapsed % 60).padStart(2, '0'),
       muted: muted,
       players: mpOn ? players.filter(function (p) {
@@ -2222,7 +2222,7 @@ function AkariGame() {
           progress: p.id === myId ? 0 : 0,
           state: 'playing'
         };
-        var pct = Math.floor((p.id === myId ? total ? correct / total : 0 : g.progress || 0) * 100);
+        var pct = Math.floor((p.id === myId ? total ? placed / total : 0 : g.progress || 0) * 100);
         return {
           key: p.id,
           name: p.name,
@@ -2497,7 +2497,8 @@ function AkariGame() {
     numState = new Map(),
     progress = 0,
     correct = 0,
-    litPct = 0;
+    litPct = 0,
+    dispProgress = 0;
   if (P && cells.length) {
     var bulbs = placedBulbs(cells);
     litSet = window.Akari.litCells(P.w, P.h, P.walls, bulbs);
@@ -2505,6 +2506,7 @@ function AkariGame() {
     confBad = conf.badBulbs;
     numState = conf.numState;
     progress = window.Akari.progressOf(P.solution, bulbs);
+    dispProgress = P.solution.size ? bulbs.size / P.solution.size : 0; // 顯示用放燈制（v1.71.1 使用者實機抓洩漏：correct 制計數＝逐格試探正解的作弊通道）；progress/correct 僅供系統邏輯（同步/里程碑/完賽），顯示一律用 dispProgress/放燈數
     P.solution.forEach(function (b) {
       if (bulbs.has(b)) correct++;
     });
@@ -2665,11 +2667,11 @@ function AkariGame() {
   }, /*#__PURE__*/React.createElement("div", {
     className: "h-full bg-slate-800 transition-all duration-300",
     style: {
-      width: Math.round(progress * 100) + '%'
+      width: Math.round(dispProgress * 100) + '%'
     }
   })), /*#__PURE__*/React.createElement("span", {
     className: "font-black text-xs text-slate-900 whitespace-nowrap"
-  }, "\u9032\u5EA6 ", Math.round(progress * 100), "%\u30FB\u7167\u4EAE ", litPct, "%")), mpOn && itemsLive() && !iAmSpecRef.current && !myOutcome && mpPhase === 'playing' && /*#__PURE__*/React.createElement("div", {
+  }, "\u9032\u5EA6 ", Math.round(dispProgress * 100), "%\u30FB\u7167\u4EAE ", litPct, "%")), mpOn && itemsLive() && !iAmSpecRef.current && !myOutcome && mpPhase === 'playing' && /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-1.5 mt-1.5 justify-end"
   }, /*#__PURE__*/React.createElement("span", {
     className: "font-black text-[11px] text-slate-900",

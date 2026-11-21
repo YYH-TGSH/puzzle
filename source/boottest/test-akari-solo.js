@@ -65,8 +65,16 @@ function ok(c, label) { if (c) { pass++; console.log('✅', label); } else { fai
   // 三態循環：找一個空格
   snap = dbg();
   const free = snap.cells.findIndex((c, i) => c === 0 && !P.walls.has(i) && !P.solution.has(i));
+  // 計數器放燈制（v1.71.1 洩漏修補：correct 制＝放對才跳、可逐格試探正解）：此刻盤面只有 b0（正解）→ 1/總數
+  const statCount = () => { const b = root().querySelector('[data-ptc-band]'); const m = b && (b.textContent || '').match(/💡\s*(\d+)\/(\d+)/); return m ? Number(m[1]) : null; };
+  const total0 = snap.puzzle.solution.length;
+  ok(await waitFor(() => statCount() === 1 ? 1 : null, 8000, 'stat 1'), '計數器：只放正解 b0 → 💡 1/' + total0, 'now=' + statCount());
   cellEl(free).click(); await sleep(120); ok(dbg().cells[free] === 1, '點按 1：放燈');
+  ok(await waitFor(() => statCount() === 2 ? 1 : null, 8000, 'stat 2'), '計數器：放一盞「錯」燈也 +1（放燈制、不洩漏正解）→ 💡 2/' + total0, 'now=' + statCount());
+  const slotTxt = (root().querySelector('[data-ptc-slot]') || {}).textContent || '';
+  ok(slotTxt.includes('進度 ' + Math.round(2 / total0 * 100) + '%'), '計數器：頂欄槽進度 % 同步放燈制（' + Math.round(2 / total0 * 100) + '%）', slotTxt.slice(0, 40));
   cellEl(free).click(); await sleep(120); ok(dbg().cells[free] === 2, '點按 2：變叉');
+  ok(await waitFor(() => statCount() === 1 ? 1 : null, 8000, 'stat back 1'), '計數器：拔除（變叉）→ −1 回 💡 1/' + total0, 'now=' + statCount());
   cellEl(free).click(); await sleep(120); ok(dbg().cells[free] === 0, '點按 3：清空');
   // PlatBar 塗叉模式：點模式鈕 → 點空格直接變叉
   const pb = d.querySelector('#view-akari [data-pb="mode-press"]'); pb.click(); await sleep(250);
