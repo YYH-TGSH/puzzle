@@ -23281,10 +23281,10 @@ function MinesGame() {
     // 主畫面由殼 PlatHome 單一實作渲染（框架層 F2）；無殼環境（獨立開啟）才用下方最小備援
     return /*#__PURE__*/React.createElement("div", {
       key: "home",
-      className: "min-h-screen w-full flex flex-col"
+      className: "min-h-screen w-full flex flex-col items-center p-4"
     }, /*#__PURE__*/React.createElement("div", {
       ref: platHomeRef,
-      className: "flex-1 flex flex-col min-h-screen"
+      className: "contents"
     }), typeof window !== 'undefined' && !window.PlatHome && /*#__PURE__*/React.createElement("div", {
       className: "fixed inset-0 flex flex-col items-center justify-center gap-4 p-4"
     }, /*#__PURE__*/React.createElement("div", {
@@ -26433,10 +26433,10 @@ function AkariGame() {
     // 主畫面由殼 PlatHome 單一實作渲染（框架層 F1）；無殼環境（獨立開啟）才用下方最小備援
     return /*#__PURE__*/React.createElement("div", {
       key: "akari-home",
-      className: "min-h-screen flex flex-col"
+      className: "min-h-screen flex flex-col items-center p-4"
     }, /*#__PURE__*/React.createElement("div", {
       ref: platHomeRef,
-      className: "flex-1 flex flex-col min-h-screen"
+      className: "contents"
     }), typeof window !== 'undefined' && !window.PlatHome && /*#__PURE__*/React.createElement("div", {
       className: "fixed inset-0 flex flex-col items-center justify-center gap-4 p-4"
     }, /*#__PURE__*/React.createElement("div", {
@@ -26922,7 +26922,7 @@ ReactDOM.createRoot(document.getElementById('akari-root')).render( /*#__PURE__*/
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.72.1';
+  var PLAT_VERSION = '1.72.2';
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。

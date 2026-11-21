@@ -1851,8 +1851,8 @@ function MinesGame() {
   if (screen === 'home') {
     // 主畫面由殼 PlatHome 單一實作渲染（框架層 F2）；無殼環境（獨立開啟）才用下方最小備援
     return (
-      <div key="home" className="min-h-screen w-full flex flex-col">
-        <div ref={platHomeRef} className="flex-1 flex flex-col min-h-screen"></div>
+      <div key="home" className="min-h-screen w-full flex flex-col items-center p-4">
+        <div ref={platHomeRef} className="contents"></div>
         {typeof window !== 'undefined' && !window.PlatHome && (
           <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 p-4">
             <div className="text-6xl">💣</div>

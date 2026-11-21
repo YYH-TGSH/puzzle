@@ -69,6 +69,7 @@ const SUITES = [
   ['test-mines-takeover.js', {}],
   ['test-mines-zoomcustom.js', {}],
   ['test-resume.js', {}],
+  ['test-layout-width.js', {}], // 真引擎排版寬度（CDP/Chromium；jsdom 量不到溢出，v1.72.2 起常設）
 ];
 
 const filter = process.argv[2] || '';

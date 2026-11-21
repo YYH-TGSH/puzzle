@@ -4439,10 +4439,10 @@ function MinesGame() {
     // 主畫面由殼 PlatHome 單一實作渲染（框架層 F2）；無殼環境（獨立開啟）才用下方最小備援
     return /*#__PURE__*/React.createElement("div", {
       key: "home",
-      className: "min-h-screen w-full flex flex-col"
+      className: "min-h-screen w-full flex flex-col items-center p-4"
     }, /*#__PURE__*/React.createElement("div", {
       ref: platHomeRef,
-      className: "flex-1 flex flex-col min-h-screen"
+      className: "contents"
     }), typeof window !== 'undefined' && !window.PlatHome && /*#__PURE__*/React.createElement("div", {
       className: "fixed inset-0 flex flex-col items-center justify-center gap-4 p-4"
     }, /*#__PURE__*/React.createElement("div", {
