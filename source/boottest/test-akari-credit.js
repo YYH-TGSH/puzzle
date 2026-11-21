@@ -59,14 +59,17 @@ function neighborsOf(w, h, i) { const x = i % w, y = Math.floor(i / w), out = []
   const w0 = walls[0];
   for (const b of w0.solNb) { if (dbg(G).cells[b] === 0) { cellEl(G, b).click(); await sleep(50); } }
   await waitFor(() => dbg(G).giftCredit >= 0.5, 15000, 'credit 0.5');
+  // 放 w0 的燈可能同時滿足鄰接的別面牆（同燈共鄰）——期望值照引擎 correctWallsNow 規則（鄰燈數==數字且全為解答燈）逐面算，不假設只有一面
+  const correctWalls = (cells) => pz.numbers.filter(([wi, n]) => { const nb = neighborsOf(W, Hh, wi); let cnt = 0, allSol = true; nb.forEach(j => { if (cells[j] === 1 || cells[j] === 3) { cnt++; if (!solSet.has(j)) allSol = false; } }); return cnt === n && allSol; }).length;
+  const expected = 0.5 * correctWalls(dbg(G).cells);
   const c1 = dbg(G).giftCredit;
-  check('滿足一面牆 → 額度 0.5', c1 === 0.5, 'credit=' + c1);
+  check('滿足數字牆 → 額度＝0.5×滿足面數（' + expected + '）', c1 === expected && expected >= 0.5, 'credit=' + c1 + ' expected=' + expected);
   // 拆掉一盞再放回（燈→叉→空→燈）：同一面牆重新滿足
   const b0 = w0.solNb[0];
   cellEl(G, b0).click(); await sleep(150);
   cellEl(G, b0).click(); await sleep(150);
   cellEl(G, b0).click(); await sleep(400);
-  check('拆掉重滿足同一面牆 → 額度不變（防重複計）', dbg(G).giftCredit === 0.5, 'credit=' + dbg(G).giftCredit);
+  check('拆掉重滿足同一面牆 → 額度不變（防重複計）', dbg(G).giftCredit === expected, 'credit=' + dbg(G).giftCredit + ' expected=' + expected);
   check('延遲期間無禮物送出（雙邊無鎖定燈）', dbg(H).cells.every(c => c !== 3) && dbg(G).cells.every(c => c !== 3));
   check('零錯誤', H.errors.length === 0 && G.errors.length === 0, (H.errors[0] || '') + '|' + (G.errors[0] || ''));
   console.log('==== AKARI-CREDIT: ' + pass + ' passed, ' + fail + ' failed ====');

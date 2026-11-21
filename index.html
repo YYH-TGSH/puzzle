@@ -25068,81 +25068,69 @@ function AkariGame() {
     _useState2 = _slicedToArray(_useState, 2),
     screen = _useState2[0],
     setScreen = _useState2[1]; // home | game
-  var _useState3 = useState(false),
-    _useState4 = _slicedToArray(_useState3, 2),
-    showSizeModal = _useState4[0],
-    setShowSizeModal = _useState4[1];
-  var _useState5 = useState(false),
-    _useState6 = _slicedToArray(_useState5, 2),
-    showTutorial = _useState6[0],
-    setShowTutorial = _useState6[1];
-  var _useState7 = useState(function () {
+  var _useState3 = useState(function () {
       var v = parseInt(platSave().getStr('akari_last_size', '10'), 10);
       return SIZES[v] ? v : 10;
     }),
+    _useState4 = _slicedToArray(_useState3, 2),
+    sizeId = _useState4[0],
+    setSizeId = _useState4[1];
+  var _useState5 = useState(null),
+    _useState6 = _slicedToArray(_useState5, 2),
+    puzzle = _useState6[0],
+    setPuzzle = _useState6[1]; // arrays 形
+  var _useState7 = useState([]),
     _useState8 = _slicedToArray(_useState7, 2),
-    sizeId = _useState8[0],
-    setSizeId = _useState8[1];
-  var _useState9 = useState(null),
+    cells = _useState8[0],
+    setCells = _useState8[1]; // 0 空 1 燈 2 叉
+  var _useState9 = useState('ready'),
     _useState10 = _slicedToArray(_useState9, 2),
-    puzzle = _useState10[0],
-    setPuzzle = _useState10[1]; // arrays 形
-  var _useState11 = useState([]),
+    status = _useState10[0],
+    setStatus = _useState10[1]; // ready | playing | won
+  var _useState11 = useState(false),
     _useState12 = _slicedToArray(_useState11, 2),
-    cells = _useState12[0],
-    setCells = _useState12[1]; // 0 空 1 燈 2 叉
-  var _useState13 = useState('ready'),
+    isDaily = _useState12[0],
+    setIsDaily = _useState12[1];
+  var _useState13 = useState(null),
     _useState14 = _slicedToArray(_useState13, 2),
-    status = _useState14[0],
-    setStatus = _useState14[1]; // ready | playing | won
-  var _useState15 = useState(false),
+    dailyDate = _useState14[0],
+    setDailyDate = _useState14[1];
+  var _useState15 = useState(todayStr()),
     _useState16 = _slicedToArray(_useState15, 2),
-    isDaily = _useState16[0],
-    setIsDaily = _useState16[1];
-  var _useState17 = useState(null),
+    dailySel = _useState16[0],
+    setDailySel = _useState16[1];
+  var _useState17 = useState(0),
     _useState18 = _slicedToArray(_useState17, 2),
-    dailyDate = _useState18[0],
-    setDailyDate = _useState18[1];
-  var _useState19 = useState(todayStr()),
+    elapsed = _useState18[0],
+    setElapsed = _useState18[1];
+  var _useState19 = useState('tap'),
     _useState20 = _slicedToArray(_useState19, 2),
-    dailySel = _useState20[0],
-    setDailySel = _useState20[1];
-  var _useState21 = useState(0),
+    mode = _useState20[0],
+    setMode = _useState20[1]; // tap | cross（PlatBar 模式）
+  var _useState21 = useState(1),
     _useState22 = _slicedToArray(_useState21, 2),
-    elapsed = _useState22[0],
-    setElapsed = _useState22[1];
-  var _useState23 = useState('tap'),
+    zoom = _useState22[0],
+    setZoom = _useState22[1];
+  var _useState23 = useState(null),
     _useState24 = _slicedToArray(_useState23, 2),
-    mode = _useState24[0],
-    setMode = _useState24[1]; // tap | cross（PlatBar 模式）
-  var _useState25 = useState(1),
-    _useState26 = _slicedToArray(_useState25, 2),
-    zoom = _useState26[0],
-    setZoom = _useState26[1];
-  var _useState27 = useState(false),
-    _useState28 = _slicedToArray(_useState27, 2),
-    showRules = _useState28[0],
-    setShowRules = _useState28[1];
-  var _useState29 = useState(null),
-    _useState30 = _slicedToArray(_useState29, 2),
-    winInfo = _useState30[0],
-    setWinInfo = _useState30[1]; // {secs, isDaily, dateStr}
-  var _useState31 = useState(function () {
+    winInfo = _useState24[0],
+    setWinInfo = _useState24[1]; // {secs, isDaily, dateStr}
+  var _useState25 = useState(function () {
       try {
         return platAudio().isMuted();
       } catch (e) {
         return false;
       }
     }),
-    _useState32 = _slicedToArray(_useState31, 2),
-    muted = _useState32[0],
-    setMuted = _useState32[1];
-  var _useState33 = useState(function () {
+    _useState26 = _slicedToArray(_useState25, 2),
+    muted = _useState26[0],
+    setMuted = _useState26[1];
+  var _useState27 = useState(function () {
       return readDailyStreak();
     }),
-    _useState34 = _slicedToArray(_useState33, 2),
-    streakInfo = _useState34[0],
-    setStreakInfo = _useState34[1];
+    _useState28 = _slicedToArray(_useState27, 2),
+    streakInfo = _useState28[0],
+    setStreakInfo = _useState28[1];
   var screenRef = useRef(screen);
   screenRef.current = screen;
   var sizeIdRef = useRef(sizeId);
@@ -25157,6 +25145,8 @@ function AkariGame() {
   var startedAtRef = useRef(null);
   var isDailyRef = useRef(false);
   isDailyRef.current = isDaily;
+  var dailySelRef = useRef(dailySel);
+  dailySelRef.current = dailySel;
   var dailyDateRef = useRef(null);
   dailyDateRef.current = dailyDate;
   var zoomRef = useRef(1);
@@ -25176,67 +25166,73 @@ function AkariGame() {
   };
   var downRef = useRef(null); // {idx, trk, painting:bool}
   var platBarRef = useRef(null);
+  var platHomeRef = useRef(null); // PlatHome 掛載點（框架層 F1）
+  var platTopRef = useRef(null); // PlatTopCard 掛載點（框架層 F1）
+  var _useState29 = useState(null),
+    _useState30 = _slicedToArray(_useState29, 2),
+    ptcSlot = _useState30[0],
+    setPtcSlot = _useState30[1]; // PlatTopCard 遊戲槽節點（portal 用）
   var newBulbRef = useRef(-1);
   // ---------- 多人狀態 ----------
   var myId = akariUid();
-  var _useState35 = useState(false),
+  var _useState31 = useState(false),
+    _useState32 = _slicedToArray(_useState31, 2),
+    mpOn = _useState32[0],
+    setMpOn = _useState32[1];
+  var _useState33 = useState('waiting'),
+    _useState34 = _slicedToArray(_useState33, 2),
+    mpPhase = _useState34[0],
+    setMpPhase = _useState34[1]; // waiting | countdown | playing | done
+  var _useState35 = useState([]),
     _useState36 = _slicedToArray(_useState35, 2),
-    mpOn = _useState36[0],
-    setMpOn = _useState36[1];
-  var _useState37 = useState('waiting'),
+    players = _useState36[0],
+    setPlayers = _useState36[1];
+  var _useState37 = useState({}),
     _useState38 = _slicedToArray(_useState37, 2),
-    mpPhase = _useState38[0],
-    setMpPhase = _useState38[1]; // waiting | countdown | playing | done
-  var _useState39 = useState([]),
+    godBoards = _useState38[0],
+    setGodBoards = _useState38[1];
+  var _useState39 = useState(null),
     _useState40 = _slicedToArray(_useState39, 2),
-    players = _useState40[0],
-    setPlayers = _useState40[1];
-  var _useState41 = useState({}),
+    raceFinal = _useState40[0],
+    setRaceFinal = _useState40[1];
+  var _useState41 = useState(null),
     _useState42 = _slicedToArray(_useState41, 2),
-    godBoards = _useState42[0],
-    setGodBoards = _useState42[1];
+    myOutcome = _useState42[0],
+    setMyOutcome = _useState42[1]; // 'finished'
   var _useState43 = useState(null),
     _useState44 = _slicedToArray(_useState43, 2),
-    raceFinal = _useState44[0],
-    setRaceFinal = _useState44[1];
+    cdNum = _useState44[0],
+    setCdNum = _useState44[1];
   var _useState45 = useState(null),
     _useState46 = _slicedToArray(_useState45, 2),
-    myOutcome = _useState46[0],
-    setMyOutcome = _useState46[1]; // 'finished'
-  var _useState47 = useState(null),
-    _useState48 = _slicedToArray(_useState47, 2),
-    cdNum = _useState48[0],
-    setCdNum = _useState48[1];
-  var _useState49 = useState(null),
-    _useState50 = _slicedToArray(_useState49, 2),
-    itemToast = _useState50[0],
-    setItemToast = _useState50[1];
-  var _useState51 = useState({
+    itemToast = _useState46[0],
+    setItemToast = _useState46[1];
+  var _useState47 = useState({
       trap: 0
     }),
+    _useState48 = _slicedToArray(_useState47, 2),
+    myItems = _useState48[0],
+    setMyItems = _useState48[1];
+  var _useState49 = useState(0),
+    _useState50 = _slicedToArray(_useState49, 2),
+    outageUntil = _useState50[0],
+    setOutageUntil = _useState50[1];
+  var _useState51 = useState(null),
     _useState52 = _slicedToArray(_useState51, 2),
-    myItems = _useState52[0],
-    setMyItems = _useState52[1];
-  var _useState53 = useState(0),
+    specUid = _useState52[0],
+    setSpecUid = _useState52[1];
+  var _useState53 = useState(false),
     _useState54 = _slicedToArray(_useState53, 2),
-    outageUntil = _useState54[0],
-    setOutageUntil = _useState54[1];
-  var _useState55 = useState(null),
+    myReadySt = _useState54[0],
+    setMyReadySt = _useState54[1];
+  var _useState55 = useState(false),
     _useState56 = _slicedToArray(_useState55, 2),
-    specUid = _useState56[0],
-    setSpecUid = _useState56[1];
-  var _useState57 = useState(false),
+    leaveArm = _useState56[0],
+    setLeaveArm = _useState56[1];
+  var _useState57 = useState(0),
     _useState58 = _slicedToArray(_useState57, 2),
-    myReadySt = _useState58[0],
-    setMyReadySt = _useState58[1];
-  var _useState59 = useState(false),
-    _useState60 = _slicedToArray(_useState59, 2),
-    leaveArm = _useState60[0],
-    setLeaveArm = _useState60[1];
-  var _useState61 = useState(0),
-    _useState62 = _slicedToArray(_useState61, 2),
-    waitTick = _useState62[0],
-    setWaitTick = _useState62[1];
+    waitTick = _useState58[0],
+    setWaitTick = _useState58[1];
   var mpRef = useRef({
     on: false,
     isHost: false,
@@ -25359,13 +25355,11 @@ function AkariGame() {
     setElapsed(0);
     startedAtRef.current = null;
     setWinInfo(null);
-    setShowRules(false);
     setZoom(1);
     setScreen('game');
   }
   function startSolo(szId) {
     var spec = SIZES[szId] || SIZES[10];
-    setShowSizeModal(false);
     var slot = preGenRef.current;
     if (slot && slot.sizeId === spec.id && slot.puzzle) {
       preGenRef.current = null;
@@ -26195,7 +26189,6 @@ function AkariGame() {
     startedAtRef.current = startAt;
     setElapsed(0);
     setWinInfo(null);
-    setShowRules(false);
     setZoom(1);
     setScreen('game');
   }
@@ -26799,6 +26792,171 @@ function AkariGame() {
     });
   });
 
+  // ---------- 框架層 F1：PlatHome / PlatTopCard / PlatSetup / PlatTutorial（殼單一實作、本款只給 config 與內容） ----------
+  function openAkariSetup() {
+    if (!window.PlatSetup) return;
+    window.PlatSetup.show({
+      accent: ACCENT,
+      title: '🎮 選盤面大小',
+      subtitle: '選好就直接開局',
+      instant: true,
+      mode: 'list',
+      options: SIZE_IDS.map(function (id) {
+        return {
+          id: id,
+          label: SIZES[id].name + (id === sizeIdRef.current ? '（上次選的）' : '')
+        };
+      }),
+      selectedId: sizeIdRef.current,
+      onStart: function onStart(id) {
+        var nid = Number(id);
+        setSizeId(nid);
+        platSave().setStr('akari_last_size', String(nid));
+        startSolo(nid);
+      }
+    });
+  }
+  function openAkariTutorial() {
+    if (!window.PlatTutorial) return;
+    var cell = 'w-8 h-8 flex items-center justify-center rounded-[4px] border border-amber-200 bg-[#f1f5f9] text-base';
+    var steps = [{
+      html: '<div class="font-black text-slate-700 mb-2">1️⃣ 燈照直線，撞牆就停</div><div class="flex gap-[3px] justify-center"><div class="' + cell + ' akari-teach-cell" style="animation-delay:0.5s"></div><div class="' + cell + ' akari-teach-cell" style="animation-delay:0.35s"></div><div class="' + cell + '" style="background:#fbbf24">💡</div><div class="' + cell + ' akari-teach-cell" style="animation-delay:0.35s"></div><div class="' + cell + ' akari-teach-cell" style="animation-delay:0.5s"></div><div class="w-8 h-8 flex items-center justify-center rounded-[4px] bg-slate-800"></div><div class="' + cell + '"></div></div>',
+      caption: '在空格放燈泡，整行整列都會亮起來，直到被黑牆擋住。目標是讓每一格都被照亮。'
+    }, {
+      html: '<div class="font-black text-slate-700 mb-2">2️⃣ 兩盞燈不能互相照到</div><div class="flex gap-[3px] justify-center"><div class="' + cell + ' akari-teach-clash" style="background:#fbbf24">💡</div><div class="' + cell + '" style="background:#fee2e2"></div><div class="' + cell + '" style="background:#fee2e2"></div><div class="' + cell + ' akari-teach-clash" style="background:#fbbf24">💡</div></div>',
+      caption: '同一行／列、中間沒有牆隔開的兩盞燈會互相照到——不行。要用牆把燈隔開。'
+    }, {
+      html: '<div class="font-black text-slate-700 mb-2">3️⃣ 數字牆：旁邊的燈要剛剛好</div><div class="flex gap-[3px] justify-center items-center"><div class="' + cell + '" style="background:#fef3c7"></div><div class="' + cell + '" style="background:#fbbf24">💡</div><div class="' + cell + '" style="background:#fef3c7"></div></div><div class="flex gap-[3px] justify-center items-center mt-[3px]"><div class="' + cell + '" style="background:#fbbf24">💡</div><div class="' + cell + ' akari-teach-ok font-black" style="background:#1e293b;color:#fbbf24">2</div><div class="' + cell + '"></div></div>',
+      caption: '牆上的數字是它上下左右緊鄰的燈數。剛好等於時數字會變綠。點按格子循環：燈 → 叉（先做記號）→ 空白。'
+    }];
+    window.PlatTutorial.show({
+      accent: ACCENT,
+      title: '💡 怎麼玩美術燈',
+      steps: steps
+    });
+  }
+  var platHomeCfgStable = useRef(null);
+  if (!platHomeCfgStable.current) platHomeCfgStable.current = {
+    accent: ACCENT,
+    titleChars: ['美', '術', '燈'],
+    enName: 'Akari Light Up',
+    onAction: function onAction(name) {
+      if (name === 'solo') openAkariSetup();else if (name === 'daily') startDaily(dailySelRef.current);else if (name === 'prev') setDailySel(shiftDate(dailySelRef.current, -1));else if (name === 'next') setDailySel(shiftDate(dailySelRef.current, 1));else if (name === 'cal') openDailyCal();else if (name === 'tutorial') openAkariTutorial();else if (name === 'lobby') {
+        if (window.PLAT_show) window.PLAT_show('home');
+      }
+    }
+  };
+  useEffect(function () {
+    // PlatHome 自我修復 attach（比照 PlatBar v1.55.1：無依賴、每次 render 檢查）
+    if (typeof window === 'undefined' || typeof window.PlatHome === 'undefined') return;
+    if (window.__PLAT_NET && window.__PLAT_NET.inMatch && window.__PLAT_NET.inMatch !== 'akari') return;
+    if (screen !== 'home') {
+      if (window.PlatHome.isAttached() && window.PlatHome._el() === platHomeRef.current) window.PlatHome.detach(platHomeRef.current);
+      return;
+    }
+    var el = platHomeRef.current;
+    if (el) {
+      if (window.PlatHome._el() !== el || !window.PlatHome._elConnected()) window.PlatHome.attach(el, platHomeCfgStable.current);
+    }
+  });
+  useEffect(function () {
+    if (typeof window === 'undefined' || typeof window.PlatHome === 'undefined' || !window.PlatHome.isAttached()) return;
+    if (screen !== 'home') return;
+    var recs = readDailyRecords();
+    var secs = recs[dailySel];
+    window.PlatHome.update({
+      dailyDate: dailySel,
+      dailyIsToday: dailySel === todayStr(),
+      dailyDone: !!secs,
+      canPrev: dailySel > '2026-01-01',
+      canNext: dailySel < todayStr(),
+      streak: streakInfo.count || 0,
+      bestText: secs ? String(Math.floor(secs / 60)).padStart(2, '0') + ':' + String(secs % 60).padStart(2, '0') : null,
+      inPlatform: !!window.__PLAT_PLATFORM
+    });
+  });
+  var platTopCfgStable = useRef(null);
+  if (!platTopCfgStable.current) platTopCfgStable.current = {
+    accent: ACCENT,
+    logo: '💡',
+    name: '美術燈',
+    frame: true,
+    rulesHtml: '① 在空格放燈，燈會照亮同行同列、直到撞牆。② 所有空格都要被照亮。③ 任何兩盞燈不能互相照到。④ 數字牆上下左右的燈數要剛好等於數字。點按循環：燈 → 叉（記號）→ 空白；按住拖曳可連續塗叉。',
+    onAction: function onAction(name) {
+      if (name === 'mute') {
+        var m = platAudio().toggleMuted();
+        setMuted(!!m);
+      } else if (name === 'leave-home') {
+        genTokenRef.current++;
+        if (window.PlatGenerating) window.PlatGenerating.end();
+        setScreen('home');
+        setPuzzle(null);
+        puzzleRef.current = null;
+      } else if (name === 'leave-lobby') requestLobby();else if (name === 'leave-leave') leaveMatch();else if (name === 'leave-forceend') {
+        if (window.__PLAT_TOURN_FORCEEND) window.__PLAT_TOURN_FORCEEND();
+      }
+    }
+  };
+  useEffect(function () {
+    // PlatTopCard 自我修復 attach＋槽位同步
+    if (typeof window === 'undefined' || typeof window.PlatTopCard === 'undefined') return;
+    if (window.__PLAT_NET && window.__PLAT_NET.inMatch && window.__PLAT_NET.inMatch !== 'akari') return;
+    if (screen !== 'game') {
+      if (window.PlatTopCard.isAttached() && window.PlatTopCard._el() === platTopRef.current) window.PlatTopCard.detach(platTopRef.current);
+      if (ptcSlot) setPtcSlot(null);
+      return;
+    }
+    var el = platTopRef.current;
+    if (el) {
+      if (window.PlatTopCard._el() !== el || !window.PlatTopCard._elConnected()) window.PlatTopCard.attach(el, platTopCfgStable.current);
+      var slot = window.PlatTopCard.getSlot();
+      if (slot !== ptcSlot) setPtcSlot(slot);
+    }
+  });
+  useEffect(function () {
+    if (typeof window === 'undefined' || typeof window.PlatTopCard === 'undefined' || !window.PlatTopCard.isAttached()) return;
+    if (screen !== 'game') return;
+    var P2 = puzzleRef.current ? arraysToSets(puzzleRef.current) : null;
+    var total = P2 ? P2.solution.size : 0;
+    var correct = 0;
+    if (P2) {
+      cellsRef.current.forEach(function (cv, i) {
+        if ((cv === 1 || cv === 3) && P2.solution.has(i)) correct++;
+      });
+    }
+    window.PlatTopCard.update({
+      leaveIcon: mpOn ? '🔌' : '🏠',
+      leaveLabel: mpOn ? '退出' : '主選單',
+      modeChip: mpOn ? '⚔️ 競速對戰' : null,
+      dailyChip: !mpOn && isDaily && dailyDate ? '每日 ' + dailyDate.slice(5) + (dailyDate !== todayStr() ? ' 補玩' : '') : null,
+      specLabel: '⚙️ ' + (isDaily ? '每日一題 ' + (puzzle ? SIZES[puzzle.w]["short"] : '') : puzzle ? SIZES[puzzle.w].name : ''),
+      specClickable: false,
+      statText: '💡 ' + correct + '/' + total,
+      timerText: String(Math.floor(elapsed / 60)).padStart(2, '0') + ':' + String(elapsed % 60).padStart(2, '0'),
+      muted: muted,
+      players: mpOn ? players.filter(function (p) {
+        return !p.pending;
+      }).map(function (p) {
+        var g = godBoards[p.id] || {
+          progress: p.id === myId ? 0 : 0,
+          state: 'playing'
+        };
+        var pct = Math.floor((p.id === myId ? total ? correct / total : 0 : g.progress || 0) * 100);
+        return {
+          key: p.id,
+          name: p.name,
+          color: p.color,
+          isMe: p.id === myId,
+          text: p.spectator ? '👁️' : g.state === 'finished' ? '🏁' : pct + '%'
+        };
+      }) : null,
+      leaveMenu: {
+        mode: mpOn ? 'mp' : 'solo',
+        canForceEnd: !!(mpOn && typeof window.__PLAT_TOURN_CAN_FORCEEND === 'function' && window.__PLAT_TOURN_CAN_FORCEEND())
+      }
+    });
+  });
+
   // ---------- 斷電到期（復電提示＋重繪） ----------
   useEffect(function () {
     if (!outageUntil) return;
@@ -27092,87 +27250,37 @@ function AkariGame() {
 
   // ---------- 畫面 ----------
   if (screen === 'home') {
+    // 主畫面由殼 PlatHome 單一實作渲染（框架層 F1）；無殼環境（獨立開啟）才用下方最小備援
     return /*#__PURE__*/React.createElement("div", {
-      className: "min-h-screen flex flex-col items-center justify-center p-4 py-10"
+      key: "akari-home",
+      className: "min-h-screen flex flex-col"
     }, /*#__PURE__*/React.createElement("div", {
-      className: "w-full max-w-md"
+      ref: platHomeRef,
+      className: "flex-1 flex flex-col min-h-screen"
+    }), typeof window !== 'undefined' && !window.PlatHome && /*#__PURE__*/React.createElement("div", {
+      className: "fixed inset-0 flex flex-col items-center justify-center gap-4 p-4"
     }, /*#__PURE__*/React.createElement("div", {
-      className: "text-center mb-8"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "text-7xl mb-3"
-    }, "\uD83D\uDCA1"), /*#__PURE__*/React.createElement("h1", {
-      className: "text-4xl md:text-5xl font-black text-slate-800 tracking-wider mb-2"
-    }, "\u7F8E\u8853\u71C8"), /*#__PURE__*/React.createElement("p", {
-      className: "text-amber-600 font-bold"
-    }, "Akari \u2014 \u9EDE\u4EAE\u6BCF\u4E00\u683C\uFF0C\u4E00\u76DE\u71C8\u90FD\u4E0D\u80FD\u7167\u5230\u53E6\u4E00\u76DE")), /*#__PURE__*/React.createElement("div", {
-      className: "space-y-4"
-    }, /*#__PURE__*/React.createElement("button", {
+      className: "text-6xl"
+    }, "\uD83D\uDCA1"), /*#__PURE__*/React.createElement("div", {
+      className: "font-black text-3xl text-slate-800"
+    }, "\u7F8E\u8853\u71C8 Akari"), /*#__PURE__*/React.createElement("button", {
       onClick: function onClick() {
-        return setShowSizeModal(true);
+        return startSolo(sizeId);
       },
-      className: "plat-btn-hard w-full py-4 bg-amber-400 border-4 border-slate-800 rounded-2xl font-black text-2xl text-slate-900 shadow-[4px_4px_0px_rgba(30,41,59,1)]"
+      className: "plat-btn-hard px-6 py-3 bg-amber-400 border-4 border-slate-800 rounded-xl font-black text-xl"
     }, "\uD83C\uDFAE \u55AE\u6A5F\u6311\u6230"), /*#__PURE__*/React.createElement("button", {
       onClick: function onClick() {
         return startDaily(todayStr());
       },
-      className: "plat-btn-hard w-full py-4 bg-white border-4 border-slate-800 rounded-2xl font-black text-2xl text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)]"
-    }, "\u2600\uFE0F \u6BCF\u65E5\u4E00\u984C", streakInfo.count > 0 && streakInfo.last && (streakInfo.last === todayStr() || streakInfo.last === shiftDate(todayStr(), -1)) ? '　🔥 ' + streakInfo.count + ' 天' : ''), /*#__PURE__*/React.createElement("button", {
-      onClick: openDailyCal,
-      className: "plat-btn-hard w-full py-2.5 bg-amber-50 border-[3px] border-slate-800 rounded-xl font-black text-base text-slate-600 shadow-[3px_3px_0px_rgba(30,41,59,1)]"
-    }, "\uD83D\uDCC5 ", todayStr(), "\uFF08\u9EDE\u958B\u6708\u66C6\u56DE\u88DC\uFF09"), /*#__PURE__*/React.createElement("button", {
-      onClick: function onClick() {
-        return setShowTutorial(true);
-      },
-      className: "plat-btn-hard w-full py-4 bg-white border-4 border-slate-800 rounded-2xl font-black text-2xl text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)]"
-    }, "\uD83D\uDCD6 \u73A9\u6CD5\u6559\u5B78"), /*#__PURE__*/React.createElement("button", {
-      onClick: function onClick() {
-        if (window.PLAT_show) window.PLAT_show('home');
-      },
-      className: "plat-btn-hard w-full py-4 bg-[#60a5fa] border-4 border-slate-800 rounded-2xl font-black text-2xl text-white shadow-[4px_4px_0px_rgba(30,41,59,1)]"
-    }, "\uD83C\uDFE0 \u56DE\u5927\u5EF3")), /*#__PURE__*/React.createElement("p", {
-      className: "text-center text-slate-400 text-xs mt-8"
-    }, "\u4E09\u78DA\u76CA\u667A", window.PLAT_VERSION ? ' v' + window.PLAT_VERSION : '', "\u30FB\u7F8E\u8853\u71C8")), showSizeModal && /*#__PURE__*/React.createElement("div", {
-      className: "fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4",
-      onClick: function onClick() {
-        return setShowSizeModal(false);
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "bg-white rounded-3xl border-4 border-slate-800 p-6 w-full max-w-sm shadow-[6px_6px_0px_rgba(30,41,59,1)]",
-      onClick: function onClick(e) {
-        return e.stopPropagation();
-      }
-    }, /*#__PURE__*/React.createElement("h2", {
-      className: "text-2xl font-black text-slate-800 mb-1 text-center"
-    }, "\u9078\u76E4\u9762\u5927\u5C0F"), /*#__PURE__*/React.createElement("p", {
-      className: "text-center text-slate-500 text-sm font-bold mb-4"
-    }, "\u9078\u597D\u5C31\u76F4\u63A5\u958B\u5C40"), /*#__PURE__*/React.createElement("div", {
-      className: "space-y-3"
-    }, SIZE_IDS.map(function (id) {
-      return /*#__PURE__*/React.createElement("button", {
-        key: id,
-        onClick: function onClick() {
-          setSizeId(id);
-          platSave().setStr('akari_last_size', String(id));
-          startSolo(id);
-        },
-        className: "plat-btn-hard w-full py-3.5 border-[3px] border-slate-800 rounded-xl font-black text-xl shadow-[3px_3px_0px_rgba(30,41,59,1)]" + (sizeId === id ? " bg-amber-400 text-slate-900" : " bg-white text-slate-800")
-      }, SIZES[id].name, sizeId === id ? '（上次選的）' : '');
-    })), /*#__PURE__*/React.createElement("button", {
-      onClick: function onClick() {
-        return setShowSizeModal(false);
-      },
-      className: "plat-btn-hard w-full mt-4 py-2.5 bg-slate-100 border-[3px] border-slate-800 rounded-xl font-black text-slate-600"
-    }, "\u53D6\u6D88"))), showTutorial && /*#__PURE__*/React.createElement(Tutorial, {
-      onClose: function onClose() {
-        return setShowTutorial(false);
-      }
-    }));
+      className: "plat-btn-hard px-6 py-3 bg-white border-4 border-slate-800 rounded-xl font-black text-xl"
+    }, "\uD83D\uDCC5 \u6BCF\u65E5\u4E00\u984C")));
   }
   if (screen === 'mp') {
     var M = mpRef.current;
     var szName = (SIZES[M.sizeId] || SIZES[10]).name;
     if (!M.tourn) {
       return /*#__PURE__*/React.createElement("div", {
+        key: "akari-mp",
         className: "min-h-screen w-full flex flex-col items-center p-4 relative"
       }, /*#__PURE__*/React.createElement("div", {
         className: "flex-1 flex items-center justify-center w-full"
@@ -27206,6 +27314,7 @@ function AkariGame() {
     });
     var tInfo = M.tournInfo || {};
     return /*#__PURE__*/React.createElement("div", {
+      key: "akari-mp",
       className: "min-h-screen w-full flex flex-col items-center p-4 relative"
     }, /*#__PURE__*/React.createElement("div", {
       className: "flex-1 flex items-center justify-center w-full"
@@ -27263,6 +27372,7 @@ function AkariGame() {
   var cellPxBase = puzzle ? Math.max(24, Math.min(52, Math.floor((Math.min(window.innerWidth || 400, 560) - 24) / puzzle.w))) : 36;
   var cellPx = Math.round(cellPxBase * zoom);
   return /*#__PURE__*/React.createElement("div", {
+    key: "akari-game",
     className: "min-h-screen flex flex-col items-center p-2 md:p-4 pb-28"
   }, /*#__PURE__*/React.createElement("div", {
     className: "w-full",
@@ -27270,92 +27380,34 @@ function AkariGame() {
       maxWidth: puzzle ? cellPx * puzzle.w + 24 + 'px' : '560px'
     }
   }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-white border-[3px] border-slate-800 rounded-2xl shadow-[3px_3px_0px_rgba(30,41,59,1)] px-3 py-2 mb-3"
+    ref: platTopRef,
+    className: "w-full"
+  }), ptcSlot && ReactDOM.createPortal( /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-2 flex-wrap"
-  }, mpOn ? /*#__PURE__*/React.createElement("button", {
-    onClick: requestLobby,
-    className: "plat-btn-hard bg-slate-100 px-2.5 py-1 rounded-lg border-2 border-slate-800 font-black text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)]"
-  }, "\u2190 \u56DE\u7B49\u5F85\u5BA4") : /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      genTokenRef.current++;
-      if (window.PlatGenerating) window.PlatGenerating.end();
-      setScreen('home');
-      setPuzzle(null);
-      puzzleRef.current = null;
-    },
-    className: "plat-btn-hard bg-slate-100 px-2.5 py-1 rounded-lg border-2 border-slate-800 font-black text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)]"
-  }, "\u2190 \u4E3B\u9078\u55AE"), mpOn && /*#__PURE__*/React.createElement("span", {
-    className: "bg-amber-400 text-slate-900 px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] whitespace-nowrap shrink-0"
-  }, "\u2694\uFE0F \u7AF6\u901F\u5C0D\u6230"), /*#__PURE__*/React.createElement("span", {
-    className: "bg-white px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] whitespace-nowrap shrink-0"
-  }, "\u2699\uFE0F ", isDaily ? '每日一題 ' + spec["short"] : spec.name), /*#__PURE__*/React.createElement("span", {
-    className: "font-black text-slate-700 text-sm md:text-base tabular-nums"
-  }, "\u23F1 ", mm, ":", ss), /*#__PURE__*/React.createElement("span", {
-    className: "font-black text-amber-600 text-sm md:text-base"
-  }, "\uD83D\uDCA1 ", correct, "/", P ? P.solution.size : 0), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      var m = platAudio().toggleMuted();
-      setMuted(!!m);
-    },
-    className: "plat-btn-hard bg-white w-8 h-8 rounded-lg border-2 border-slate-800 shadow-[1px_1px_0px_rgba(30,41,59,1)]",
-    title: "\u975C\u97F3\u5207\u63DB"
-  }, muted ? '🔇' : '🔊'), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setShowRules(function (r) {
-        return !r;
-      });
-    },
-    className: "plat-btn-hard bg-white px-2.5 py-1 rounded-lg border-2 border-slate-800 font-black text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] ml-auto"
-  }, "\uD83D\uDCD6 \u898F\u5247", showRules ? ' ▴' : ' ▾')), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-2 mt-2"
+    className: "flex-1 h-3.5 bg-white/80 border-2 border-slate-800 rounded-full overflow-hidden"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "flex-1 h-3.5 bg-slate-100 border-2 border-slate-800 rounded-full overflow-hidden"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "h-full bg-amber-400 transition-all duration-300",
+    className: "h-full bg-slate-800 transition-all duration-300",
     style: {
       width: Math.round(progress * 100) + '%'
     }
   })), /*#__PURE__*/React.createElement("span", {
-    className: "font-black text-xs text-slate-500 whitespace-nowrap"
-  }, "\u9032\u5EA6 ", Math.round(progress * 100), "%\u30FB\u7167\u4EAE ", litPct, "%")), showRules && /*#__PURE__*/React.createElement("div", {
-    className: "mt-2 pt-2 border-t-2 border-dashed border-slate-200 text-sm font-bold text-slate-600 leading-relaxed"
-  }, "\u2460 \u5728\u7A7A\u683C\u653E\u71C8\uFF0C\u71C8\u6703\u7167\u4EAE\u540C\u884C\u540C\u5217\u3001\u76F4\u5230\u649E\u7246\u3002\u2461 \u6240\u6709\u7A7A\u683C\u90FD\u8981\u88AB\u7167\u4EAE\u3002\u2462 \u4EFB\u4F55\u5169\u76DE\u71C8\u4E0D\u80FD\u4E92\u76F8\u7167\u5230\u3002\u2463 \u6578\u5B57\u7246\u4E0A\u4E0B\u5DE6\u53F3\u7684\u71C8\u6578\u8981\u525B\u597D\u7B49\u65BC\u6578\u5B57\u3002\u9EDE\u6309\u5FAA\u74B0\uFF1A\u71C8 \u2192 \u53C9\uFF08\u8A18\u865F\uFF09\u2192 \u7A7A\u767D\uFF1B\u6309\u4F4F\u62D6\u66F3\u53EF\u9023\u7E8C\u5857\u53C9\u3002"), mpOn && /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-1.5 mt-2 flex-wrap"
-  }, players.filter(function (p) {
-    return !p.pending;
-  }).map(function (p) {
-    var g = godBoards[p.id] || {
-      progress: p.id === myId ? progress : 0,
-      state: 'playing'
-    };
-    var pct = Math.floor((p.id === myId ? progress : g.progress || 0) * 100);
-    return /*#__PURE__*/React.createElement("span", {
-      key: p.id,
-      className: "flex items-center gap-1 bg-slate-50 border-2 border-slate-800 rounded-full pl-1 pr-2 py-0.5 font-black text-[11px] text-slate-700"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "w-3 h-3 rounded-full border border-slate-800",
-      style: {
-        background: p.color
-      }
-    }), /*#__PURE__*/React.createElement("span", {
-      className: "max-w-[5.5rem] truncate"
-    }, p.name, p.id === myId ? '（你）' : ''), /*#__PURE__*/React.createElement("span", null, p.spectator ? '👁️' : g.state === 'finished' ? '🏁' : pct + '%'));
-  }), itemsLive() && !iAmSpecRef.current && !myOutcome && mpPhase === 'playing' && /*#__PURE__*/React.createElement("span", {
-    className: "ml-auto flex items-center gap-1.5"
+    className: "font-black text-xs text-slate-900 whitespace-nowrap"
+  }, "\u9032\u5EA6 ", Math.round(progress * 100), "%\u30FB\u7167\u4EAE ", litPct, "%")), mpOn && itemsLive() && !iAmSpecRef.current && !myOutcome && mpPhase === 'playing' && /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-1.5 mt-1.5 justify-end"
   }, /*#__PURE__*/React.createElement("span", {
-    className: "font-black text-[11px] text-amber-600",
+    className: "font-black text-[11px] text-slate-900",
     title: "\u6578\u5B57\u7246\u6B63\u78BA\u6EFF\u8DB3\u7D2F\u7A4D\u7684\u79AE\u7269\u984D\u5EA6\uFF08\u6EFF 1 \u81EA\u52D5\u9001\u8F03\u5F31\u7684\u5C0D\u624B\uFF09"
   }, "\uD83C\uDF81 \u984D\u5EA6 ", giftCreditRef.current.toFixed(1)), /*#__PURE__*/React.createElement("button", {
     onClick: fireTrap,
     disabled: (myItems.trap || 0) <= 0,
     className: "plat-btn-hard px-2 py-0.5 bg-violet-100 border-2 border-slate-800 rounded-full font-black text-[11px] text-violet-800 shadow-[1px_1px_0px_rgba(30,41,59,1)] disabled:opacity-40 disabled:shadow-none",
     title: "\u65B7\u96FB\u9677\u9631\uFF1A\u8B93\u4E00\u4F4D\u5C0D\u624B\u7684\u71C8\u5149\u6688\u6D88\u5931 5 \u79D2"
-  }, "\u26A1 \u65B7\u96FB \xD7", myItems.trap || 0))), outaged && /*#__PURE__*/React.createElement("div", {
+  }, "\u26A1 \u65B7\u96FB \xD7", myItems.trap || 0)), outaged && /*#__PURE__*/React.createElement("div", {
     className: "mt-2 bg-slate-800 text-amber-300 font-black text-sm rounded-lg px-3 py-1.5 text-center animate-pulse"
   }, "\u26A1 \u65B7\u96FB\u4E2D\u2026\u5149\u6688\u66AB\u6642\u6D88\u5931\uFF08\u71C8\u90FD\u9084\u5728\uFF09"), itemToast && /*#__PURE__*/React.createElement("div", {
-    className: "mt-2 bg-amber-50 border-2 border-amber-400 text-amber-800 font-black text-sm rounded-lg px-3 py-1.5 text-center"
-  }, itemToast)), /*#__PURE__*/React.createElement("div", {
+    className: "mt-2 bg-white/90 border-2 border-slate-800 text-slate-800 font-black text-sm rounded-lg px-3 py-1.5 text-center"
+  }, itemToast)), ptcSlot), /*#__PURE__*/React.createElement("div", {
     className: "akari-board-scroll overflow-auto flex justify-center" + (mpOn && iAmSpecRef.current ? " hidden" : ""),
     onPointerMove: onBoardMove
   }, /*#__PURE__*/React.createElement("div", {
@@ -27499,135 +27551,7 @@ function AkariGame() {
   }, "\uD83C\uDFE0 \u56DE\u4E3B\u9078\u55AE")))), /*#__PURE__*/React.createElement("div", {
     ref: platBarRef,
     className: "fixed bottom-0 left-0 right-0 z-40"
-  }), showTutorial && /*#__PURE__*/React.createElement(Tutorial, {
-    onClose: function onClose() {
-      return setShowTutorial(false);
-    }
   }));
-}
-
-// 教學（卡片式動畫、只教三件事）
-function Tutorial(props) {
-  var cell = 'w-8 h-8 flex items-center justify-center rounded-[4px] border border-amber-200 bg-[#f1f5f9] text-base';
-  return /*#__PURE__*/React.createElement("div", {
-    className: "fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4",
-    onClick: props.onClose
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-white rounded-3xl border-4 border-slate-800 p-5 w-full max-w-md shadow-[6px_6px_0px_rgba(30,41,59,1)] max-h-[92vh] overflow-auto",
-    onClick: function onClick(e) {
-      return e.stopPropagation();
-    }
-  }, /*#__PURE__*/React.createElement("h2", {
-    className: "text-2xl font-black text-slate-800 text-center mb-4"
-  }, "\uD83D\uDCA1 \u600E\u9EBC\u73A9\u7F8E\u8853\u71C8"), /*#__PURE__*/React.createElement("div", {
-    className: "space-y-4"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-amber-50 border-2 border-slate-200 rounded-2xl p-3"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "font-black text-slate-700 mb-2"
-  }, "1\uFE0F\u20E3 \u71C8\u7167\u76F4\u7DDA\uFF0C\u649E\u7246\u5C31\u505C"), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-[3px] justify-center"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: cell + ' akari-teach-cell',
-    style: {
-      animationDelay: '0.5s'
-    }
-  }), /*#__PURE__*/React.createElement("div", {
-    className: cell + ' akari-teach-cell',
-    style: {
-      animationDelay: '0.35s'
-    }
-  }), /*#__PURE__*/React.createElement("div", {
-    className: cell,
-    style: {
-      background: '#fbbf24'
-    }
-  }, "\uD83D\uDCA1"), /*#__PURE__*/React.createElement("div", {
-    className: cell + ' akari-teach-cell',
-    style: {
-      animationDelay: '0.35s'
-    }
-  }), /*#__PURE__*/React.createElement("div", {
-    className: cell + ' akari-teach-cell',
-    style: {
-      animationDelay: '0.5s'
-    }
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "w-8 h-8 flex items-center justify-center rounded-[4px] bg-slate-800"
-  }), /*#__PURE__*/React.createElement("div", {
-    className: cell
-  })), /*#__PURE__*/React.createElement("p", {
-    className: "text-sm font-bold text-slate-500 mt-2"
-  }, "\u5728\u7A7A\u683C\u653E\u71C8\u6CE1\uFF0C\u6574\u884C\u6574\u5217\u90FD\u6703\u4EAE\u8D77\u4F86\uFF0C\u76F4\u5230\u88AB\u9ED1\u7246\u64CB\u4F4F\u3002\u76EE\u6A19\u662F\u8B93\u6BCF\u4E00\u683C\u90FD\u88AB\u7167\u4EAE\u3002")), /*#__PURE__*/React.createElement("div", {
-    className: "bg-amber-50 border-2 border-slate-200 rounded-2xl p-3"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "font-black text-slate-700 mb-2"
-  }, "2\uFE0F\u20E3 \u5169\u76DE\u71C8\u4E0D\u80FD\u4E92\u76F8\u7167\u5230"), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-[3px] justify-center"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: cell + ' akari-teach-clash',
-    style: {
-      background: '#fbbf24'
-    }
-  }, "\uD83D\uDCA1"), /*#__PURE__*/React.createElement("div", {
-    className: cell,
-    style: {
-      background: '#fee2e2'
-    }
-  }), /*#__PURE__*/React.createElement("div", {
-    className: cell,
-    style: {
-      background: '#fee2e2'
-    }
-  }), /*#__PURE__*/React.createElement("div", {
-    className: cell + ' akari-teach-clash',
-    style: {
-      background: '#fbbf24'
-    }
-  }, "\uD83D\uDCA1")), /*#__PURE__*/React.createElement("p", {
-    className: "text-sm font-bold text-slate-500 mt-2"
-  }, "\u540C\u4E00\u884C\uFF0F\u5217\u3001\u4E2D\u9593\u6C92\u6709\u7246\u9694\u958B\u7684\u5169\u76DE\u71C8\u6703\u4E92\u76F8\u7167\u5230\u2014\u2014\u4E0D\u884C\u3002\u8981\u7528\u7246\u628A\u71C8\u9694\u958B\u3002")), /*#__PURE__*/React.createElement("div", {
-    className: "bg-amber-50 border-2 border-slate-200 rounded-2xl p-3"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "font-black text-slate-700 mb-2"
-  }, "3\uFE0F\u20E3 \u6578\u5B57\u7246\uFF1A\u65C1\u908A\u7684\u71C8\u8981\u525B\u525B\u597D"), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-[3px] justify-center items-center"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: cell,
-    style: {
-      background: '#fef3c7'
-    }
-  }), /*#__PURE__*/React.createElement("div", {
-    className: cell,
-    style: {
-      background: '#fbbf24'
-    }
-  }, "\uD83D\uDCA1"), /*#__PURE__*/React.createElement("div", {
-    className: cell,
-    style: {
-      background: '#fef3c7'
-    }
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-[3px] justify-center items-center mt-[3px]"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: cell,
-    style: {
-      background: '#fbbf24'
-    }
-  }, "\uD83D\uDCA1"), /*#__PURE__*/React.createElement("div", {
-    className: cell + ' akari-teach-ok font-black',
-    style: {
-      background: '#1e293b',
-      color: '#fbbf24'
-    }
-  }, "2"), /*#__PURE__*/React.createElement("div", {
-    className: cell
-  })), /*#__PURE__*/React.createElement("p", {
-    className: "text-sm font-bold text-slate-500 mt-2"
-  }, "\u7246\u4E0A\u7684\u6578\u5B57\u662F\u5B83\u4E0A\u4E0B\u5DE6\u53F3\u7DCA\u9130\u7684\u71C8\u6578\u3002\u525B\u597D\u7B49\u65BC\u6642\u6578\u5B57\u6703\u8B8A\u7DA0\u3002\u9EDE\u6309\u683C\u5B50\u5FAA\u74B0\uFF1A\u71C8 \u2192 \u53C9\uFF08\u5148\u505A\u8A18\u865F\uFF09\u2192 \u7A7A\u767D\u3002"))), /*#__PURE__*/React.createElement("button", {
-    onClick: props.onClose,
-    className: "plat-btn-hard w-full mt-4 py-3 bg-amber-400 border-[3px] border-slate-800 rounded-xl font-black text-lg text-slate-900 shadow-[3px_3px_0px_rgba(30,41,59,1)]"
-  }, "\u958B\u59CB\u73A9\uFF01")));
 }
 ReactDOM.createRoot(document.getElementById('akari-root')).render( /*#__PURE__*/React.createElement(window.PlatBoundary, null, React.createElement(AkariGame, null)));
   </script>
@@ -27813,7 +27737,7 @@ ReactDOM.createRoot(document.getElementById('akari-root')).render( /*#__PURE__*/
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.68.0';
+  var PLAT_VERSION = '1.69.0';
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -30150,6 +30074,369 @@ ReactDOM.createRoot(document.getElementById('akari-root')).render( /*#__PURE__*/
     _elConnected: function () { return !!(PB.el && PB.el.isConnected); }, // v1.55.1：遊戲端自我修復 attach 用（掛載節點被卸載重建時 PB.el 會變死節點）
     _debug: function () { return { attached: !!PB.el, inDoc: !!(PB.el && PB.el.isConnected), hasState: !!PB.state, mode0: PB.state && PB.state.modes && PB.state.modes[0] ? PB.state.modes[0].label : null, htmlLen: PB.el ? PB.el.innerHTML.length : -1, zoomOpen: PB.zoomOpen, drawOpen: PB.drawOpen }; }
   };
+  // ---------- 框架層 F1（v1.69.0）：主畫面/頂欄/離開選單/教學/單機設定 由殼單一實作、四款改掛載（使用者裁示：框架層讀取四款，不要四款模擬同款長相） ----------
+  // 模式比照 PlatBar：attach(el,cfg) / update(state) / detach / _elConnected 自我修復；overlay 型（教學/設定/離開選單）比照 PlatCalendar：殼持有單一 overlay 節點、show(cfg)/hide()。
+  // cfg.onAction(name, payload)：遊戲只收動作、不碰 DOM。主題色/標題字/選項/規則內容由遊戲給（被允許的差異）。
+
+  // ===== PlatLeaveMenu：離開選單（結束本局/回等待室/回大廳，文案由 buttons 決定） =====
+  var PLM = { cfg: null, el: null };
+  function plmRender() {
+    if (!PLM.el) return;
+    var cfg = PLM.cfg;
+    if (!cfg) { PLM.el.style.display = 'none'; PLM.el.innerHTML = ''; return; }
+    var h = '<div class="bg-white border-4 border-slate-800 rounded-2xl shadow-[10px_10px_0px_rgba(30,41,59,1)] p-6 w-full max-w-xs text-center animate-popIn" data-plm-card="1">';
+    h += '<div class="font-black text-xl text-slate-800 mb-4">' + pbEsc(cfg.title || '要離開對局嗎？') + '</div>';
+    (cfg.buttons || []).forEach(function (b) {
+      var cls = b.kind === 'danger' ? 'bg-rose-500 text-white' : 'bg-white text-slate-800';
+      h += '<button data-plm="' + pbEsc(b.id) + '" class="plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 ' + cls + ' border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_rgba(30,41,59,1)]">' + pbEsc(b.label) + '</button>';
+    });
+    h += '<button data-plm="cancel" class="w-full py-2 text-slate-400 font-bold hover:text-slate-700">取消</button></div>';
+    PLM.el.innerHTML = h;
+    PLM.el.style.display = 'flex';
+  }
+  function plmClick(e) {
+    if (!PLM.el || !PLM.cfg) return;
+    if (e.target === PLM.el) { window.PlatLeaveMenu.hide(); return; }
+    var t = e.target && e.target.closest ? e.target.closest('[data-plm]') : null;
+    if (!t || !PLM.el.contains(t)) return;
+    var id = t.getAttribute('data-plm'), cfg = PLM.cfg;
+    window.PlatLeaveMenu.hide();
+    if (id !== 'cancel' && cfg.onAction) { try { cfg.onAction(id); } catch (err) {} }
+  }
+  window.PlatLeaveMenu = {
+    show: function (cfg) {
+      if (!PLM.el) {
+        PLM.el = document.createElement('div');
+        PLM.el.id = 'plat-leave-menu';
+        PLM.el.className = 'fixed inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-[2px] p-4';
+        PLM.el.style.zIndex = '95'; PLM.el.style.display = 'none';
+        PLM.el.setAttribute('data-plm-root', '1');
+        PLM.el.addEventListener('click', plmClick);
+        document.body.appendChild(PLM.el);
+      }
+      PLM.cfg = cfg || {};
+      plmRender();
+    },
+    hide: function () { PLM.cfg = null; plmRender(); },
+    isShown: function () { return !!PLM.cfg; },
+    _debug: function () { return { shown: !!PLM.cfg, btns: PLM.cfg ? (PLM.cfg.buttons || []).length : 0 }; }
+  };
+
+  // ===== PlatTutorial：步進教學殼（固定高度步進卡、上/下一頁、頁點、關閉；遊戲只給 steps 內容） =====
+  var PTU = { cfg: null, el: null, step: 0 };
+  function ptuRender() {
+    if (!PTU.el) return;
+    var cfg = PTU.cfg;
+    if (!cfg) { PTU.el.style.display = 'none'; PTU.el.innerHTML = ''; return; }
+    var steps = cfg.steps || [], i = Math.min(PTU.step, steps.length - 1), st = steps[i] || { html: '', caption: '' };
+    var ac = cfg.accent || '#ffcc00';
+    var h = '<div class="bg-[#fffaf0] border-4 border-slate-800 rounded-2xl shadow-[10px_10px_0px_rgba(30,41,59,1)] max-w-lg w-full max-h-[92vh] overflow-y-auto p-6 relative" data-ptu-card="1">';
+    h += '<button data-ptu="close" class="plat-btn-hard plat-btn-hard-2 absolute top-3 right-3 w-9 h-9 bg-white border-[3px] border-slate-800 rounded-full font-black shadow-[2px_2px_0px_rgba(30,41,59,1)] z-10">✕</button>';
+    h += '<h3 class="text-2xl font-black text-slate-800 inline-block pb-1 mb-5" style="border-bottom:4px solid ' + ac + '">' + pbEsc(cfg.title || '❓ 玩法教學') + '</h3>';
+    h += '<div class="h-[400px] flex flex-col justify-center bg-white border-[3px] border-slate-800 rounded-xl p-4 mb-4 shadow-[4px_4px_0px_rgba(30,41,59,1)]" data-ptu-step="' + i + '"><div class="flex flex-col items-center justify-center mb-3">' + (st.html || '') + '</div><p class="text-center font-bold text-slate-700">' + pbEsc(st.caption || '') + '</p></div>';
+    h += '<div class="flex justify-center gap-2 mb-5">' + steps.map(function (_, di) { return '<div class="w-2.5 h-2.5 rounded-full border-2 border-slate-800" style="background:' + (di === i ? ac : '#ffffff') + '"></div>'; }).join('') + '</div>';
+    h += '<div class="flex gap-3">';
+    h += i > 0 ? '<button data-ptu="prev" class="plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-white text-slate-800">上一步</button>' : '<div class="flex-1"></div>';
+    h += '<button data-ptu="close" class="plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-white text-slate-400">跳過</button>';
+    h += i < steps.length - 1 ? '<button data-ptu="next" class="plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] text-slate-900" style="background:' + ac + '">下一步</button>' : '<button data-ptu="done" class="plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-emerald-400 text-slate-900">開始遊戲 🎮</button>';
+    h += '</div></div>';
+    PTU.el.innerHTML = h;
+    PTU.el.style.display = 'flex';
+  }
+  function ptuClose() { var cfg = PTU.cfg; PTU.cfg = null; ptuRender(); if (cfg && cfg.onClose) { try { cfg.onClose(); } catch (e) {} } }
+  function ptuClick(e) {
+    if (!PTU.el || !PTU.cfg) return;
+    if (e.target === PTU.el) { ptuClose(); return; }
+    var t = e.target && e.target.closest ? e.target.closest('[data-ptu]') : null;
+    if (!t || !PTU.el.contains(t)) return;
+    var k = t.getAttribute('data-ptu');
+    if (k === 'prev') { PTU.step = Math.max(0, PTU.step - 1); ptuRender(); }
+    else if (k === 'next') { PTU.step = Math.min((PTU.cfg.steps || []).length - 1, PTU.step + 1); ptuRender(); }
+    else if (k === 'close' || k === 'done') ptuClose();
+  }
+  window.PlatTutorial = {
+    show: function (cfg) {
+      if (!PTU.el) {
+        PTU.el = document.createElement('div');
+        PTU.el.id = 'plat-tutorial';
+        PTU.el.className = 'fixed inset-0 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4';
+        PTU.el.style.zIndex = '120'; PTU.el.style.display = 'none';
+        PTU.el.setAttribute('data-ptu-root', '1');
+        PTU.el.addEventListener('click', ptuClick);
+        document.body.appendChild(PTU.el);
+      }
+      PTU.cfg = cfg || {}; PTU.step = 0;
+      ptuRender();
+    },
+    hide: function () { PTU.cfg = null; ptuRender(); },
+    isShown: function () { return !!PTU.cfg; },
+    _debug: function () { return { shown: !!PTU.cfg, step: PTU.step, steps: PTU.cfg ? (PTU.cfg.steps || []).length : 0 }; }
+  };
+
+  // ===== PlatSetup：單機設定殼（modal＋選項組 list/seg＋開始/取消；instant=true 時點選項即開始） =====
+  var PSE = { cfg: null, el: null, sel: null };
+  function pseRender() {
+    if (!PSE.el) return;
+    var cfg = PSE.cfg;
+    if (!cfg) { PSE.el.style.display = 'none'; PSE.el.innerHTML = ''; return; }
+    var ac = cfg.accent || '#ffcc00', opts = cfg.options || [];
+    var h = '<div class="bg-[#fffaf0] border-4 border-slate-800 rounded-2xl p-6 shadow-[10px_10px_0px_rgba(30,41,59,1)] w-full max-w-md animate-popIn" data-pse-card="1">';
+    h += '<h2 class="text-2xl font-black text-slate-800 mb-2 inline-block pb-1" style="border-bottom:4px solid ' + ac + '">' + pbEsc(cfg.title || '⚙️ 設定') + '</h2>';
+    if (cfg.subtitle) h += '<p class="text-sm font-bold text-slate-600 mb-4">' + pbEsc(cfg.subtitle) + '</p>';
+    if (cfg.mode === 'seg') {
+      h += '<div class="flex bg-white border-[3px] border-slate-800 rounded-xl overflow-hidden font-black mb-4" data-pse-seg="1">';
+      opts.forEach(function (o) {
+        var on = String(o.id) === String(PSE.sel);
+        h += '<button data-pse-opt="' + pbEsc(o.id) + '" class="flex-1 px-2 py-3 text-base" style="' + (on ? 'background:' + ac + ';color:#0f172a' : 'color:#64748b') + '">' + pbEsc(o.label) + '</button>';
+      });
+      h += '</div>';
+    } else {
+      h += '<div class="flex flex-col gap-2 mb-4">';
+      opts.forEach(function (o) {
+        var on = String(o.id) === String(PSE.sel);
+        h += '<button data-pse-opt="' + pbEsc(o.id) + '" class="plat-btn-hard plat-btn-hard-3 w-full text-left px-4 py-3 border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_rgba(30,41,59,1)]" style="' + (on ? 'background:' + ac + ';color:#0f172a' : 'background:#ffffff;color:#1e293b') + '">' + pbEsc(o.label) + (o.sub ? '<span class="block text-xs font-bold opacity-70 mt-0.5">' + pbEsc(o.sub) + '</span>' : '') + '</button>';
+      });
+      h += '</div>';
+    }
+    if (!cfg.instant) h += '<button data-pse="start" class="plat-btn-hard w-full py-3 mb-2 border-4 border-slate-800 rounded-xl font-black text-lg text-slate-900 shadow-[4px_4px_0px_rgba(30,41,59,1)]" style="background:' + ac + '">' + pbEsc(cfg.confirmText || '▶ 開始') + '</button>';
+    h += '<button data-pse="cancel" class="plat-btn-hard w-full py-3 bg-white border-4 border-slate-800 rounded-xl font-black text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)]">取消</button>';
+    h += '</div>';
+    PSE.el.innerHTML = h;
+    PSE.el.style.display = 'flex';
+  }
+  function pseDone(start) {
+    var cfg = PSE.cfg, sel = PSE.sel;
+    PSE.cfg = null; pseRender();
+    if (!cfg) return;
+    if (start && cfg.onStart) { try { cfg.onStart(sel); } catch (e) {} }
+    else if (!start && cfg.onCancel) { try { cfg.onCancel(); } catch (e) {} }
+  }
+  function pseClick(e) {
+    if (!PSE.el || !PSE.cfg) return;
+    if (e.target === PSE.el) { pseDone(false); return; }
+    var t = e.target && e.target.closest ? e.target.closest('[data-pse-opt],[data-pse]') : null;
+    if (!t || !PSE.el.contains(t)) return;
+    var opt = t.getAttribute('data-pse-opt');
+    if (opt != null) {
+      var found = (PSE.cfg.options || []).filter(function (o) { return String(o.id) === String(opt); })[0];
+      PSE.sel = found ? found.id : opt;
+      if (PSE.cfg.instant) pseDone(true); else pseRender();
+      return;
+    }
+    var k = t.getAttribute('data-pse');
+    if (k === 'start') pseDone(true);
+    else if (k === 'cancel') pseDone(false);
+  }
+  window.PlatSetup = {
+    show: function (cfg) {
+      if (!PSE.el) {
+        PSE.el = document.createElement('div');
+        PSE.el.id = 'plat-setup';
+        PSE.el.className = 'fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4';
+        PSE.el.style.zIndex = '70'; PSE.el.style.display = 'none';
+        PSE.el.setAttribute('data-pse-root', '1');
+        PSE.el.addEventListener('click', pseClick);
+        document.body.appendChild(PSE.el);
+      }
+      PSE.cfg = cfg || {}; PSE.sel = PSE.cfg.selectedId;
+      pseRender();
+    },
+    hide: function () { PSE.cfg = null; pseRender(); },
+    isShown: function () { return !!PSE.cfg; },
+    _debug: function () { return { shown: !!PSE.cfg, sel: PSE.sel }; }
+  };
+
+  // ===== PlatHome：主畫面（紙卡＋字磚標題＋虛線英文徽章＋按鈕組＋◀日期▶列＋連勝/最佳＋Copyright 頁尾） =====
+  // state: { dailyDate, dailyIsToday, dailyDone, canPrev, canNext, streak, bestText, inPlatform }
+  var PH = { el: null, cfg: null, state: null, lastJson: null, unsub: null };
+  function phAct(name) { if (PH.cfg && PH.cfg.onAction) { try { PH.cfg.onAction(name); } catch (e) {} } }
+  function phDockHtml(ac) {
+    var dock = window.PlatDock;
+    if (!dock || !dock.isActive()) return '';
+    var ds = dock.getState();
+    var dbtn = 'position:relative;display:flex;align-items:center;justify-content:center;padding:6px 10px;border-radius:12px;font-size:17px;line-height:1;background:transparent;border:none;cursor:pointer';
+    var h = '<div class="flex items-center gap-0.5 md:gap-1 bg-slate-800 p-1 rounded-2xl border-2 border-slate-800 shadow-inner">';
+    h += '<button data-ph="dock-chat" title="聊天室" style="' + dbtn + (ds.chatOpen ? ';background:' + ac : '') + '">💬' + (ds.unread > 0 && !ds.chatOpen ? '<span style="position:absolute;top:1px;right:1px;min-width:15px;height:15px;padding:0 3px;border-radius:9999px;background:#ef4444;color:#fff;font-size:9px;font-weight:900;display:flex;align-items:center;justify-content:center;border:1.5px solid #1e293b">' + ds.unread + '</span>' : '') + '</button>';
+    h += '<button data-ph="dock-video" title="視訊" style="' + dbtn + (ds.videoOn ? ';background:' + ac : '') + '">' + (ds.videoOn ? '📹' : '🎥') + '</button>';
+    if (ds.videoOn) h += '<button data-ph="dock-mic" title="麥克風" style="' + dbtn + (!ds.micMuted ? ';background:' + ac : '') + '">' + (ds.micMuted ? '🔇' : '🎤') + '</button>';
+    if (ds.videoOn || ds.remoteCount > 0) h += '<button data-ph="dock-speaker" title="喇叭" style="' + dbtn + (ds.speakerOn ? ';background:' + ac : '') + '">' + (ds.speakerOn ? '🔊' : '🔈') + '</button>';
+    return h + '</div>';
+  }
+  function phRender() {
+    if (!PH.el || !PH.cfg) return;
+    var cfg = PH.cfg, st = PH.state || {}, ac = cfg.accent || '#ffcc00';
+    var rots = ['rotate-3', '-rotate-2', 'rotate-2', '-rotate-3'];
+    var bricks = (cfg.titleChars || []).map(function (ch, i) {
+      return '<span class="inline-block px-4 py-2 border-4 border-slate-800 rounded-xl transform ' + rots[i % rots.length] + ' shadow-[4px_4px_0px_rgba(30,41,59,1)]" style="background:' + ac + '">' + pbEsc(ch) + '</span>';
+    }).join('');
+    var h = '<div class="flex-1 flex flex-col justify-center w-full max-w-md items-center">';
+    h += '<div class="bg-[#fffaf0] border-4 border-slate-800 p-10 rounded-xl shadow-[10px_10px_0px_rgba(30,41,59,1)] w-full text-center relative transform -rotate-1 z-10" data-phome-card="1">';
+    h += '<h1 class="text-6xl font-black text-slate-800 mb-6 tracking-widest flex justify-center gap-3">' + bricks + '</h1>';
+    h += '<div class="inline-block border-[3px] border-dashed border-slate-800 rounded-xl px-6 py-2 mb-8 bg-white shadow-[4px_4px_0px_rgba(30,41,59,1)] transform rotate-2"><p class="text-slate-800 font-black text-xl tracking-widest uppercase italic">' + pbEsc(cfg.enName || '') + '</p></div>';
+    h += '<div class="flex flex-col gap-5">';
+    h += '<button data-ph="solo" class="plat-btn-hard w-full py-4 bg-white border-4 border-slate-800 rounded-xl font-black text-xl text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)] transform rotate-1">👤 單機挑戰</button>';
+    h += '<button data-ph="daily" class="plat-btn-hard w-full py-4 border-4 border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[4px_4px_0px_rgba(30,41,59,1)] transform rotate-1" style="background:' + ac + '">📅 每日一題' + (!st.dailyIsToday && st.dailyDate ? '（' + pbEsc(String(st.dailyDate).slice(5)) + '）' : '') + (st.dailyDone ? ' ✓' : '') + '</button>';
+    h += '<div class="flex items-center justify-center gap-2 flex-wrap">';
+    h += '<button data-ph="prev" ' + (st.canPrev ? '' : 'disabled ') + 'class="plat-btn-hard plat-btn-hard-2 w-9 h-9 bg-white border-[3px] border-slate-800 rounded-lg font-black shadow-[2px_2px_0px_rgba(30,41,59,1)] disabled:opacity-30">◀</button>';
+    h += '<button data-ph="cal" class="plat-btn-hard plat-btn-hard-2 border-[3px] border-slate-800 rounded-lg px-2 py-1.5 font-black bg-white text-sm text-slate-800 shadow-[2px_2px_0px_rgba(30,41,59,1)]">📅 ' + pbEsc(st.dailyDate || '') + '</button>';
+    h += '<button data-ph="next" ' + (st.canNext ? '' : 'disabled ') + 'class="plat-btn-hard plat-btn-hard-2 w-9 h-9 bg-white border-[3px] border-slate-800 rounded-lg font-black shadow-[2px_2px_0px_rgba(30,41,59,1)] disabled:opacity-30">▶</button>';
+    h += '<span class="font-black text-sm text-orange-600">🔥 連續 ' + (st.streak || 0) + ' 天</span>';
+    if (st.bestText) h += '<span class="font-black text-sm text-emerald-600">最佳 ' + pbEsc(st.bestText) + '</span>';
+    h += '</div>';
+    h += '<button data-ph="tutorial" class="plat-btn-hard w-full py-4 bg-white border-4 border-slate-800 rounded-xl font-black text-xl text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)] transform -rotate-1">❓ 玩法教學</button>';
+    if (st.inPlatform) h += '<div class="flex items-center gap-2"><button data-ph="lobby" class="plat-btn-hard flex-1 py-3 bg-sky-400 border-4 border-slate-800 rounded-xl font-black text-lg text-slate-900 shadow-[4px_4px_0px_rgba(30,41,59,1)]">🏠 回大廳</button>' + phDockHtml(ac) + '</div>';
+    h += '</div></div></div>';
+    h += '<div class="shrink-0 pb-4 text-slate-800 font-black text-sm opacity-60 tracking-wider z-10">Copyright © 2026 葉大帥. All rights reserved. (v' + pbEsc(window.PLAT_VERSION || '') + ')</div>';
+    PH.el.innerHTML = h;
+  }
+  function phClick(e) {
+    var t = e.target && e.target.closest ? e.target.closest('[data-ph]') : null;
+    if (!t || !PH.el.contains(t) || t.disabled) return;
+    var k = t.getAttribute('data-ph');
+    if (k === 'dock-chat' && window.PlatDock) window.PlatDock.toggleChat();
+    else if (k === 'dock-video' && window.PlatDock) window.PlatDock.toggleVideo();
+    else if (k === 'dock-mic' && window.PlatDock) window.PlatDock.toggleMic();
+    else if (k === 'dock-speaker' && window.PlatDock) window.PlatDock.toggleSpeaker();
+    else phAct(k);
+  }
+  window.PlatHome = {
+    attach: function (el, cfg) {
+      if (!el) return;
+      if (PH.el && PH.el !== el) window.PlatHome.detach(PH.el);
+      PH.el = el; PH.cfg = cfg || {}; PH.lastJson = null;
+      el.setAttribute('data-phome', '1');
+      el.removeEventListener('click', phClick);
+      el.addEventListener('click', phClick);
+      if (!PH.unsub && window.PlatDock) PH.unsub = window.PlatDock.subscribe(function () { phRender(); });
+      phRender();
+    },
+    update: function (state) {
+      if (!state) return;
+      var j = null;
+      try { j = JSON.stringify(state); } catch (e) {}
+      if (j && j === PH.lastJson && PH.state) { PH.state = state; return; }
+      PH.lastJson = j; PH.state = state;
+      phRender();
+    },
+    detach: function (el) {
+      if (!PH.el || (el && el !== PH.el)) return;
+      PH.el.removeEventListener('click', phClick);
+      PH.el.innerHTML = '';
+      PH.el = null; PH.cfg = null; PH.state = null; PH.lastJson = null;
+      if (PH.unsub) { PH.unsub(); PH.unsub = null; }
+    },
+    isAttached: function () { return !!PH.el; },
+    _el: function () { return PH.el; },
+    _elConnected: function () { return !!(PH.el && PH.el.isConnected); },
+    _debug: function () { return { attached: !!PH.el, inDoc: !!(PH.el && PH.el.isConnected), hasState: !!PH.state, htmlLen: PH.el ? PH.el.innerHTML.length : -1 }; }
+  };
+
+  // ===== PlatTopCard：對局頂欄控制卡（卡框＋第一列＋規則 Collapse＋玩家晶片列＋遊戲槽） =====
+  // cfg: { accent, logo, name, rulesHtml, frame(bool:獨立卡框), onAction(name) }
+  // state: { leaveLabel, modeChip, dailyChip, specLabel, specClickable, statText, timerText, muted, players:[{key,name,color,isMe,text}], leaveMenu:{mode,canForceEnd} }
+  // 骨架在 attach 建一次（槽位節點恆存，update 只重繪 row1/chips 區，遊戲以 createPortal 塞槽）
+  var PTC = { el: null, cfg: null, state: null, lastJson: null, rulesOpen: false, slot: null };
+  function ptcAct(name) { if (PTC.cfg && PTC.cfg.onAction) { try { PTC.cfg.onAction(name); } catch (e) {} } }
+  function ptcSkeleton() {
+    if (!PTC.el || !PTC.cfg) return;
+    var cfg = PTC.cfg, ac = cfg.accent || '#ffcc00';
+    var frameCls = cfg.frame ? ' border-[3px] rounded-xl shadow-[3px_3px_0px_rgba(30,41,59,1)] mb-3' : '';
+    PTC.el.innerHTML = '<div class="border-b-[3px] border-slate-800 px-2 md:px-4 py-1.5 flex flex-col gap-1.5 relative z-50' + frameCls + '" style="background:' + ac + '" data-ptc-band="1">'
+      + '<div data-ptc-region="row1"></div>'
+      + '<div class="plat-collapse-y w-full" data-ptc-region="ruleswrap"><div class="bg-white border-[3px] border-slate-800 rounded-xl p-2 md:p-3 text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)]"><h3 class="text-sm md:text-base font-black mb-1 inline-block pb-0.5" style="border-bottom:3px solid ' + ac + '">📜 遊戲規則</h3><div class="text-xs md:text-sm leading-relaxed font-bold">' + (cfg.rulesHtml || '') + '</div></div></div>'
+      + '<div data-ptc-region="chips"></div>'
+      + '<div data-ptc-slot="1"></div></div>';
+    PTC.slot = PTC.el.querySelector('[data-ptc-slot]');
+    ptcRenderRegions();
+  }
+  function ptcRenderRegions() {
+    if (!PTC.el || !PTC.cfg) return;
+    var st = PTC.state || {}, cfg = PTC.cfg;
+    var row1 = PTC.el.querySelector('[data-ptc-region="row1"]');
+    if (row1) {
+      var hbtn = 'plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-white border-2 border-slate-800 rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)] flex items-center gap-1 text-slate-800 shrink-0';
+      var h = '<div class="flex items-center justify-between gap-2 w-full overflow-x-auto hide-scrollbar pb-0.5">';
+      h += '<div class="flex items-center gap-1.5 flex-nowrap shrink-0">';
+      h += '<button data-ptc="leave" class="' + hbtn + '" title="離開對局">' + pbEsc(st.leaveIcon || '🔌') + '<span class="hidden sm:inline ml-1">' + pbEsc(st.leaveLabel || '退出') + '</span></button>';
+      h += '<h1 class="font-black tracking-tight uppercase text-base md:text-2xl text-slate-900 flex items-center gap-1 shrink-0">' + pbEsc(cfg.logo || '') + '<span class="hidden sm:inline">' + pbEsc(cfg.name || '') + '</span></h1>';
+      if (st.dailyChip) h += '<div class="flex items-center gap-1 bg-emerald-500 text-white px-1.5 py-0.5 rounded font-black shadow-[2px_2px_0px_rgba(0,0,0,0.4)] text-[10px] md:text-sm whitespace-nowrap shrink-0">📅 ' + pbEsc(st.dailyChip) + '</div>';
+      if (st.modeChip) h += '<span class="bg-emerald-400 text-slate-900 px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] whitespace-nowrap shrink-0">' + pbEsc(st.modeChip) + '</span>';
+      if (st.specLabel) {
+        var specCls = 'px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] whitespace-nowrap shrink-0 bg-white text-slate-800';
+        h += st.specClickable ? '<button data-ptc="spec" class="plat-btn-hard plat-btn-hard-1 ' + specCls + '">' + pbEsc(st.specLabel) + '</button>' : '<span class="' + specCls + '">' + pbEsc(st.specLabel) + '</span>';
+      }
+      if (st.statText) h += '<span class="font-black text-slate-900 text-sm md:text-base whitespace-nowrap shrink-0">' + pbEsc(st.statText) + '</span>';
+      h += '</div>';
+      h += '<div class="flex items-center gap-1.5 flex-nowrap shrink-0">';
+      h += '<div class="flex items-center gap-1 bg-[#1e293b] text-white px-1.5 py-0.5 rounded font-mono font-bold shadow-[2px_2px_0px_rgba(0,0,0,0.4)] text-[10px] md:text-sm whitespace-nowrap shrink-0">⏱ ' + pbEsc(st.timerText || '00:00') + '</div>';
+      h += '<button data-ptc="mute" class="' + hbtn + '" title="靜音切換">' + (st.muted ? '🔇' : '🔊') + '</button>';
+      h += '<button data-ptc="rules" class="shrink-0 flex px-1.5 py-0.5 bg-[#1e293b] text-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(0,0,0,0.3)] items-center gap-1 whitespace-nowrap">' + (PTC.rulesOpen ? '🔼 縮小面板' : '🔽 展開規則') + '</button>';
+      h += '</div></div>';
+      row1.innerHTML = h;
+    }
+    var rw = PTC.el.querySelector('[data-ptc-region="ruleswrap"]');
+    if (rw) rw.classList.toggle('open', !!PTC.rulesOpen);
+    var chips = PTC.el.querySelector('[data-ptc-region="chips"]');
+    if (chips) {
+      if (st.players && st.players.length) {
+        chips.innerHTML = '<div class="flex items-center gap-1.5 flex-wrap">' + st.players.map(function (p) {
+          return '<span class="flex items-center gap-1 bg-slate-50 border-2 border-slate-800 rounded-full pl-1 pr-2 py-0.5 font-black text-[11px] text-slate-700"><span class="w-3 h-3 rounded-full border border-slate-800" style="background:' + pbEsc(p.color || '#ccc') + '"></span><span class="max-w-[5.5rem] truncate">' + pbEsc(p.name) + (p.isMe ? '（你）' : '') + '</span><span>' + pbEsc(p.text || '') + '</span></span>';
+        }).join('') + '</div>';
+        chips.style.display = '';
+      } else { chips.innerHTML = ''; chips.style.display = 'none'; }
+    }
+  }
+  function ptcOpenLeave() {
+    var st = PTC.state || {}, lm = st.leaveMenu || { mode: 'mp' };
+    var btns = [];
+    if (lm.mode === 'solo') {
+      btns.push({ id: 'home', label: '🏠 回主選單' });
+    } else {
+      if (lm.canForceEnd) btns.push({ id: 'forceend', label: '⏹️ 結束本局（錦標賽）', kind: 'danger' });
+      btns.push({ id: 'lobby', label: '🏁 回等待室' });
+      btns.push({ id: 'leave', label: '🚪 退出（回大廳）' });
+    }
+    if (window.PlatLeaveMenu) window.PlatLeaveMenu.show({ title: '要離開對局嗎？', buttons: btns, onAction: function (id) { ptcAct('leave-' + id); } });
+  }
+  function ptcClick(e) {
+    var t = e.target && e.target.closest ? e.target.closest('[data-ptc]') : null;
+    if (!t || !PTC.el.contains(t)) return;
+    var k = t.getAttribute('data-ptc');
+    if (k === 'rules') { PTC.rulesOpen = !PTC.rulesOpen; ptcRenderRegions(); }
+    else if (k === 'leave') ptcOpenLeave();
+    else ptcAct(k);
+  }
+  window.PlatTopCard = {
+    attach: function (el, cfg) {
+      if (!el) return;
+      if (PTC.el && PTC.el !== el) window.PlatTopCard.detach(PTC.el);
+      PTC.el = el; PTC.cfg = cfg || {}; PTC.lastJson = null; PTC.rulesOpen = false;
+      el.setAttribute('data-ptc', '1');
+      el.removeEventListener('click', ptcClick);
+      el.addEventListener('click', ptcClick);
+      ptcSkeleton();
+    },
+    update: function (state) {
+      if (!state) return;
+      var j = null;
+      try { j = JSON.stringify(state); } catch (e) {}
+      if (j && j === PTC.lastJson && PTC.state) { PTC.state = state; return; }
+      PTC.lastJson = j; PTC.state = state;
+      ptcRenderRegions();
+    },
+    detach: function (el) {
+      if (!PTC.el || (el && el !== PTC.el)) return;
+      PTC.el.removeEventListener('click', ptcClick);
+      PTC.el.innerHTML = '';
+      PTC.el = null; PTC.cfg = null; PTC.state = null; PTC.lastJson = null; PTC.slot = null; PTC.rulesOpen = false;
+    },
+    getSlot: function () { return PTC.slot; },
+    isAttached: function () { return !!PTC.el; },
+    _el: function () { return PTC.el; },
+    _elConnected: function () { return !!(PTC.el && PTC.el.isConnected); },
+    _debug: function () { return { attached: !!PTC.el, inDoc: !!(PTC.el && PTC.el.isConnected), hasState: !!PTC.state, hasSlot: !!PTC.slot, rulesOpen: PTC.rulesOpen }; }
+  };
+
   // ---------- 共用等待室 PlatRoom（兩款遊戲的多人等待室由殼渲染同一張卡） ----------
   // 遊戲負責：留掛載點、attach(cfg)、update(state)、把自己的「對局設定」JSX 用
   // ReactDOM.createPortal 塞進 PlatRoom.getSlot() 的設定槽（殼不碰那個節點）。

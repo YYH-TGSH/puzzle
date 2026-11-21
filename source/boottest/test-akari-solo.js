@@ -29,7 +29,7 @@ function ok(c, label) { if (c) { pass++; console.log('✅', label); } else { fai
   // 單機（預設/上次尺寸 10×10＝預生成尺寸）→ 命中
   ok(clickBtn(b => b.textContent.includes('單機挑戰')), '點單機挑戰');
   await sleep(300);
-  ok(clickBtn(b => b.textContent.includes('10×10')), '選 10×10');
+  ok(clickBtn(b => b.textContent.includes('10×10'), d.querySelector('#plat-setup')), '選 10×10（PlatSetup 殼 overlay）');
   const cellEls = () => [...root().querySelectorAll('button[data-cell]')];
   const cellEl = i => root().querySelector('button[data-cell="' + i + '"]'); // 以 data-cell 定位（牆是 div、button 序≠格序）
   const boardCells = () => { const g = [...root().querySelectorAll('div')].find(el => (el.className || '').includes('inline-grid')); return g ? g.childElementCount : 0; }; // 牆是 div、空格是 button：以盤面格總數計
@@ -84,8 +84,13 @@ function ok(c, label) { if (c) { pass++; console.log('✅', label); } else { fai
   await waitFor(() => root().querySelector('h1'), 5000, 'home2');
   ok(clickBtn(b => b.textContent.includes('玩法教學')), '開教學');
   await sleep(300);
-  ok([...root().querySelectorAll('div')].filter(el => (el.textContent || '').includes('燈照直線') || (el.textContent || '').includes('數字牆')).length >= 2, '教學三卡齊備');
-  ok(clickBtn(b => b.textContent.includes('開始玩')), '關教學');
+  const tut = () => d.querySelector('#plat-tutorial');
+  ok(!!(tut() && (tut().textContent || '').includes('燈照直線')), '教學第 1 頁（PlatTutorial 殼 overlay）');
+  ok(clickBtn(b => b.textContent.includes('下一步'), tut()), '教學下一步→第 2 頁');
+  ok(!!(tut() && (tut().textContent || '').includes('互相照到')), '教學第 2 頁');
+  ok(clickBtn(b => b.textContent.includes('下一步'), tut()), '教學下一步→第 3 頁');
+  ok(!!(tut() && (tut().textContent || '').includes('數字牆')), '教學第 3 頁');
+  ok(clickBtn(b => b.textContent.includes('開始遊戲'), tut()), '關教學');
   await sleep(200);
   // 每日：開局 → 同題確定性（重進比對）→ 完賽 → 紀錄/連勝
   ok(clickBtn(b => b.textContent.includes('每日一題')), '點每日一題');
