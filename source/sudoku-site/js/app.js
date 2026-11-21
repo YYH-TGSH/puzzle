@@ -93,6 +93,13 @@ function SudokuGame() {
 
     const [strokes, setStrokes] = useState([]);
     const [history, setHistory] = useState([]);
+    const [future, setFuture] = useState([]); // redo 堆疊（v1.75.0，比照美術燈）
+    const coopHistRef = useRef([]);   // 合作模式專用歷史：只記自己的動作（逐格 prev/next 群組），undo 只撤自己的（比照美術燈合作語意）
+    const coopFutureRef = useRef([]);
+    const coopApplyingRef = useRef(false); // 自己 undo/redo 套用中：syncState diff hook 不重記
+    const [coopHistLen, setCoopHistLen] = useState(0);
+    const dbgRef = useRef({ hist: 0, future: 0, ghostProgress: {}, isWon: false, isSpectator: false }); // debug 鏡像：hooks 以 [] 註冊、閉包凍結，state 一律經 ref 讀（v1.75.0 套件抓到）
+    const [coopFutureLen, setCoopFutureLen] = useState(0);
     const [isWon, setIsWon] = useState(false);
     const [hideVictoryModal, setHideVictoryModal] = useState(false);
     const resultsDismissRef = useRef(null); // PlatResults 關閉標記（記 matchPhase：同 phase 內關了不再彈，phase 變了——如結算——再彈）
@@ -1501,6 +1508,20 @@ function SudokuGame() {
     useEffect(() => { maybeConvertLastOne(); }, [brawlWinners]);
 
     const syncState = (partial, shouldBroadcast = true, fromRemote = false) => {
+        if (partial.cells !== undefined && !fromRemote && !coopApplyingRef.current && engineRef.current === 'peerjs' && !stateRef.current.isBrawlMode && stateRef.current.matchPhase === 'playing') {
+            // 合作模式歷史（v1.75.0）：本地輸入造成的盤面差異＝自己的動作；系統揭示格（禮物）不入帳、不可撤
+            const preB = stateRef.current.cells || [], postB = partial.cells || [];
+            if (preB.length && preB.length === postB.length) {
+                const entries = [];
+                for (let ci = 0; ci < preB.length; ci++) {
+                    const a = preB[ci], b = postB[ci];
+                    if (!a || !b || a === b) continue;
+                    if (a.isSystemRevealed || b.isSystemRevealed) continue;
+                    if (a.value !== b.value || (a.owner || null) !== (b.owner || null) || JSON.stringify(a.drafts || []) !== JSON.stringify(b.drafts || [])) entries.push({ idx: ci, prev: a, next: b });
+                }
+                if (entries.length) { coopHistRef.current.push(entries); if (coopHistRef.current.length > 200) coopHistRef.current.splice(0, coopHistRef.current.length - 200); coopFutureRef.current = []; setCoopHistLen(coopHistRef.current.length); setCoopFutureLen(0); }
+            }
+        }
         if (partial.matchToken) matchTokenRef.current = partial.matchToken;
         else if (isHostRef.current && partial.isGenerating === true) matchTokenRef.current = Math.random().toString(36).slice(2, 10); // 房主開新局鑄代幣
         if (partial.cells !== undefined) setCells(partial.cells);
@@ -1709,7 +1730,7 @@ function SudokuGame() {
         // 只有玩家自己填上的數字能被長按清除，題目或收禮系統填的不能清
         if (target.isGiven || target.isSystemRevealed || target.value === null) return;
 
-        if (engineRef.current === 'none') setHistory(past => [...past.slice(past.length > 25 ? 1 : 0), cur]);
+        recordUndo(cur);
 
         const nextCells = [...cur];
         nextCells[targetIdx] = { ...target, value: null, owner: null };
@@ -1905,7 +1926,7 @@ function SudokuGame() {
         } while (changed);
 
         if (stateChanged) {
-            if (engineRef.current === 'none') setHistory(past => [...past.slice(past.length > 25 ? 1 : 0), currentCells]);
+            recordUndo(currentCells);
             if (currentCells.every(c => c.value !== null)) syncState({ selectedChar: null }, !isBrawlMode); else showToast(`✅ 自動填入 ${char} 成功！`);
         } else { showToast(`💡 目前找不到必定為 ${char} 的空格了`); }
         isAutoFillingRef.current = false; syncState({ isAutoFilling: false, selectedChar: null }, !isBrawlMode);
@@ -1928,7 +1949,7 @@ function SudokuGame() {
             if (rowChanged) { currentCells = newRowCells; if (isBrawlMode) syncState({ localCells: currentCells }, false); else syncState({ cells: currentCells }); await new Promise(r => setTimeout(r, 40)); }
         }
 
-        if (stateChanged) { if (engineRef.current === 'none') setHistory(past => [...past.slice(past.length > 25 ? 1 : 0), currentCells]); showToast(`✏️ 已將 ${char} 標記至所有安全的空格中`); } else { showToast(`💡 沒有更多安全的空格可以標記 ${char} 了`); }
+        if (stateChanged) { recordUndo(currentCells); showToast(`✏️ 已將 ${char} 標記至所有安全的空格中`); } else { showToast(`💡 沒有更多安全的空格可以標記 ${char} 了`); }
         isAutoFillingRef.current = false; syncState({ isAutoFilling: false, selectedChar: null }, !isBrawlMode);
     };
 
@@ -1984,7 +2005,7 @@ function SudokuGame() {
             }
         } while (passChanged && !currentCells.every(c => c.value !== null));
 
-        if (stateChanged) { if (engineRef.current === 'none') { setHistory(past => [...past.slice(past.length > 25 ? 1 : 0), currentCells]); } if (currentCells.every(c => c.value !== null)) { syncState({ selectedChar: null }, !isBrawlMode); } else { showToast(`🚀 全自動循環填寫完畢！\n共幫您填入了 ${totalFilled} 格。`); } }
+        if (stateChanged) { recordUndo(currentCells); if (currentCells.every(c => c.value !== null)) { syncState({ selectedChar: null }, !isBrawlMode); } else { showToast(`🚀 全自動循環填寫完畢！\n共幫您填入了 ${totalFilled} 格。`); } }
         else { showToast(`💡 目前已經找不到必定能填寫的空格了`); syncState({ selectedChar: null }, !isBrawlMode); }
         isAutoFillingRef.current = false; syncState({ isAutoFilling: false, selectedChar: null }, !isBrawlMode);
     };
@@ -2137,7 +2158,7 @@ function SudokuGame() {
         if (target.isGiven || target.isSystemRevealed) return;
         if (isCellFrozen(cellId)) { try { platAudio().play('error'); } catch (e) {} frozenToast('填'); return; } // 凍結拒填＝error（v1.65.5 孤兒裁示：與數橋被拒一致、推翻 v1.64.0 規格的靜音）
 
-        if (engineRef.current === 'none') setHistory(past => [...past.slice(past.length > 25 ? 1 : 0), cur]);
+        recordUndo(cur);
 
         const nextCells = [...cur]; let nextCell = { ...target };
 
@@ -2193,7 +2214,7 @@ function SudokuGame() {
         const currentActive = isBrawlMode ? localCells : cells;
         const resetCells = currentActive.map(c => ({ ...c, value: (c.isGiven || c.isSystemRevealed) ? c.value : null, drafts: [], owner: null }));
         syncState({ cells: resetCells, localCells: resetCells, strokes: [], startTime: Date.now() });
-        if (engineRef.current === 'none') setHistory([]);
+        resetUndo();
         setIsWon(false); setEndTime(null); setSelectedChar(null);
         showToast("🔄 盤面已重置！");
     };
@@ -2212,7 +2233,7 @@ function SudokuGame() {
             if (!isHostRef.current && connRef.current) { connRef.current.send({ type: 'LEAVE', uid: myId }); const pToKill = peerRef.current; setTimeout(() => { if (pToKill) { try { pToKill.destroy(); } catch (e) {} } if (peerRef.current === pToKill) peerRef.current = null; }, 100); }
             else if (peerRef.current) { peerRef.current.destroy(); peerRef.current = null; }
         }
-        switchToOffline(); setScreen('home'); setIsWon(false); setEndTime(null); setHistory([]);
+        switchToOffline(); setScreen('home'); setIsWon(false); setEndTime(null); resetUndo();
     };
 
     const handlePlayerColorChange = (playerId, newColor) => {
@@ -2242,20 +2263,67 @@ function SudokuGame() {
         }
         showToast("✅ 暱稱修改成功！");
     };
-    const handleUndo = () => {
-        if (history.length === 0 || isWon || (engineRef.current !== 'none' && !isBrawlMode)) return;
-        setHistory(past => {
-            const newPast = [...past];
-            const lastState = newPast.pop();
-            if (isBrawlMode) {
-                setLocalCells(lastState);
-                syncState({ localCells: lastState }, false);
-            } else {
-                setCells(lastState);
-                syncState({ cells: lastState });
+    // ===== undo/redo（v1.75.0，比照美術燈語意）=====
+    // 單機/大亂鬥（自己的盤）：整盤快照堆疊；合作（共用盤）：逐格動作群組、只撤自己的、被夥伴改過的跳過。
+    // 防農場：里程碑 lastMilestoneRef 高水位＋禮物額度 completedRegionsRef 記憶集合皆只升不降、undo 不重置 → 重放不重複入帳（查核結論，套件實測）。
+    const isCoopMp = () => engineRef.current === 'peerjs' && !stateRef.current.isBrawlMode;
+    const recordUndo = (board) => { if (isCoopMp()) return; setHistory(past => [...past.slice(past.length > 25 ? 1 : 0), board]); setFuture([]); };
+    const resetUndo = () => { setHistory([]); setFuture([]); coopHistRef.current = []; coopFutureRef.current = []; setCoopHistLen(0); setCoopFutureLen(0); };
+    const coopCellEq = (a, b) => !!a && !!b && a.value === b.value && (a.owner || null) === (b.owner || null) && JSON.stringify(a.drafts || []) === JSON.stringify(b.drafts || []);
+    const coopUndo = () => {
+        const H = coopHistRef.current; if (!H.length) return;
+        const entries = H[H.length - 1];
+        coopHistRef.current = H.slice(0, -1); setCoopHistLen(coopHistRef.current.length);
+        const cur = stateRef.current.cells || []; const next = cur.slice(); const applied = [];
+        for (let k = entries.length - 1; k >= 0; k--) { const en = entries[k]; if (coopCellEq(cur[en.idx], en.next)) { next[en.idx] = en.prev; applied.push(en); } }
+        if (!applied.length) return; // 整組都被夥伴改過：跳過（群組已消耗，比照美術燈）
+        coopFutureRef.current.push(applied); setCoopFutureLen(coopFutureRef.current.length);
+        coopApplyingRef.current = true; syncState({ cells: next }); coopApplyingRef.current = false;
+    };
+    const coopRedo = () => {
+        const F = coopFutureRef.current; if (!F.length) return;
+        const entries = F[F.length - 1];
+        coopFutureRef.current = F.slice(0, -1); setCoopFutureLen(coopFutureRef.current.length);
+        const cur = stateRef.current.cells || []; const next = cur.slice(); const applied = [];
+        for (let k = 0; k < entries.length; k++) { const en = entries[k]; if (coopCellEq(cur[en.idx], en.prev)) { next[en.idx] = en.next; applied.push(en); } }
+        if (!applied.length) return;
+        coopHistRef.current.push(applied); setCoopHistLen(coopHistRef.current.length);
+        coopApplyingRef.current = true; syncState({ cells: next }); coopApplyingRef.current = false;
+    };
+    const applySnapshot = (board) => {
+        // 系統揭示格（禮物）只進不退：還原快照時以現行盤面的揭示格覆寫同格，避免 undo 把別人送的禮物格吞掉（比照美術燈鎖定燈覆寫）
+        const overlaySys = (snap, curB) => snap.map((c, i) => (curB && curB[i] && curB[i].isSystemRevealed && !c.isSystemRevealed) ? curB[i] : c);
+        if (stateRef.current.isBrawlMode) {
+            const pre = stateRef.current.localCells; const b2 = overlaySys(board, pre);
+            setLocalCells(b2); syncState({ localCells: b2 }, false);
+            // 進度隨還原同步（v1.75.0 補）：逐格 diff 廣播 GHOST_SOLVED（還原值，清空＝null），對手進度條/上帝視角才會跟著退（原本只有填/擦有廣播，undo 沒有）
+            if (engineRef.current === 'peerjs' && pre && b2) {
+                const me = playersListRef.current.find(p => p.id === myId);
+                const color = me ? me.color : myColorRef.current;
+                b2.forEach((c, i) => { const pv = pre[i] ? pre[i].value : null; if (pv !== c.value) { const msg = { type: 'GHOST_SOLVED', uid: myId, color: color, cellId: c.id, id: Math.random().toString(36).substring(2, 11), value: c.value }; if (isHostRef.current) connsRef.current.forEach(cn => { if (cn.open) { try { cn.send(msg); } catch (e) {} } }); else if (connRef.current) { try { connRef.current.send(msg); } catch (e) {} } } });
             }
-            return newPast;
-        });
+        }
+        else { const b2 = overlaySys(board, stateRef.current.cells); setCells(b2); syncState({ cells: b2 }); }
+    };
+    const handleUndo = () => {
+        if (isWon || isSpectator) return;
+        if (isCoopMp()) { coopUndo(); return; }
+        if (history.length === 0) return;
+        const lastState = history[history.length - 1];
+        const curBoard = stateRef.current.isBrawlMode ? stateRef.current.localCells : stateRef.current.cells;
+        setFuture(f => [...f, curBoard]);
+        setHistory(past => past.slice(0, -1));
+        applySnapshot(lastState);
+    };
+    const handleRedo = () => {
+        if (isWon || isSpectator) return;
+        if (isCoopMp()) { coopRedo(); return; }
+        if (future.length === 0) return;
+        const nextState = future[future.length - 1];
+        const curBoard = stateRef.current.isBrawlMode ? stateRef.current.localCells : stateRef.current.cells;
+        setHistory(past => [...past.slice(past.length > 25 ? 1 : 0), curBoard]);
+        setFuture(f => f.slice(0, -1));
+        applySnapshot(nextState);
     };
 
 
@@ -2508,7 +2576,7 @@ function SudokuGame() {
             generateDailySudoku(dateStr, setGenProgress).then(newData => {
                 const initCells = JSON.parse(JSON.stringify(newData.cells));
                 syncState({ sizeId: 9, diffId: 'medium', levelData: newData, cells: initCells, localCells: initCells, strokes: [], startTime: Date.now(), isBrawlMode: false, winner: null, matchEndTime: null, solutionGrid: null, isGenerating: false, selectedChar: null, keyMapping: newData.sizeDef.chars, finishViewMode: 'my' }, true);
-                setIsWon(false); setHistory([]); setEndTime(null); setHideVictoryModal(false); setSelectedChar(null); setGenProgress("");
+                setIsWon(false); resetUndo(); setEndTime(null); setHideVictoryModal(false); setSelectedChar(null); setGenProgress("");
             });
         }, 100);
     };
@@ -2667,7 +2735,7 @@ function SudokuGame() {
             let solution = null; if (isGR) solution = getSolutionGrid(newData.cells, newData.sizeDef);
             const initLocalCells = JSON.parse(JSON.stringify(newData.cells));
             syncState({ sizeId: sId, diffId: dId, levelData: newData, cells: initLocalCells, localCells: initLocalCells, strokes: [], startTime: Date.now(), isBrawlMode: isBrawl, winner: null, matchEndTime: null, solutionGrid: solution, isGenerating: false, selectedChar: null, keyMapping: newData.sizeDef.chars, finishViewMode: 'my' }, true);
-            setIsWon(false); setHistory([]); if (sId !== sizeId) { setZoomLevel(1); setZoomModeIdx(0); }
+            setIsWon(false); resetUndo(); if (sId !== sizeId) { setZoomLevel(1); setZoomModeIdx(0); }
             setEndTime(null); setHideVictoryModal(false); setSelectedChar(null); setGenProgress("");
         };
         const abortCurrentGen = () => { // PlatGenerating 返回：作廢待套用（單機回設定 modal；房主不發 INIT 並全員回房間頁、房間不變）
@@ -2722,6 +2790,7 @@ function SudokuGame() {
             if (me) connRef.current.send({ type: me.isReady ? 'REQ_UNREADY' : 'REQ_READY', targetId: myId });
         }
     };
+    useEffect(() => { dbgRef.current = { hist: history.length, future: future.length, ghostProgress: ghostProgress, isWon: isWon, isSpectator: isSpectator }; }, [history, future, ghostProgress, isWon, isSpectator]); // debug 鏡像（放在所有 state 宣告之後，避免 TDZ）
     // ===== 平台 Phase C 接入：殼 launch 時自動進多人（免重打暱稱/房號） =====
     useEffect(() => {
         if (!window.__PLAT_PLATFORM) return;
@@ -2733,6 +2802,7 @@ function SudokuGame() {
                 lastWinInfoRef.current = null; winResentRef.current = 0; // 補送 effect 的彈藥也要清：舊 GHOST_I_WON 帶進新局會被殼記成新局完賽（錦標賽記錯分）
                 setBrawlWinners([]); setHideVictoryModal(false);
                 resultsDismissRef.current = null; setResultsDismissedUi(false); setLeaveArm(false);
+                resetUndo(); // v1.75.0：進新房間先清 undo/redo 堆疊（開新局/回座/離房重置，比照美術燈）
                 setMatchPhase('waiting'); stateRef.current = { ...stateRef.current, matchPhase: 'waiting' };
                 setPlatTournLock(!!sess.tourn); platTournLockRef.current = !!sess.tourn;
                 tournRosterRef.current = (sess.tourn && sess.tourn.roster) || null;
@@ -2787,6 +2857,7 @@ function SudokuGame() {
                     }, 500);
                 }
             },
+            debug: () => ({ engine: engineRef.current, brawl: stateRef.current.isBrawlMode, phase: stateRef.current.matchPhase, cells: stateRef.current.cells, localCells: stateRef.current.localCells, hist: dbgRef.current.hist, future: dbgRef.current.future, coopHist: coopHistRef.current.length, coopFuture: coopFutureRef.current.length, milestone: lastMilestoneRef.current, giftCredit: giftCreditRef.current, ghostProgress: dbgRef.current.ghostProgress, myWeapons: stateRef.current.myWeapons, players: playersListRef.current, isWon: dbgRef.current.isWon, isSpectator: dbgRef.current.isSpectator, brawlWinners: stateRef.current.brawlWinners }),
             exit: () => { setPlatTournLock(false); platTournLockRef.current = false; tournRosterRef.current = null; setPlatHub(false); platHubRef.current = false; platSessRef.current = null; setTournRoundInfo(null); tournWaitSinceRef.current = null; if (hubStartTimerRef.current) { clearInterval(hubStartTimerRef.current); hubStartTimerRef.current = null; } handleGoHome(); },
             migrate: (amHost, sess) => {
                 // 房主接管：以目前對局狀態原地重建連線（房主 open handler 有 isMigrating 續局邏輯）
@@ -3588,7 +3659,8 @@ function SudokuGame() {
                         )}
                         <div className="flex gap-1.5 items-center ml-auto shrink-0">
                             <button onClick={handlePlayAgain} disabled={isMultiplayer && !isHost} className="plat-btn-hard plat-btn-hard-2 px-1.5 py-1 md:px-3 md:py-1.5 bg-blue-500 text-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[2px_2px_0px_#1e293b] disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1 shrink-0" title="新題">🎲<span className="hidden sm:inline">新題</span></button>
-                            <button onClick={handleUndo} disabled={history.length === 0 || isWon || (isMultiplayer && !isBrawlMode)} className="plat-btn-hard plat-btn-hard-2 px-1.5 py-1 md:px-3 md:py-1.5 bg-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[2px_2px_0px_#1e293b] disabled:opacity-50 disabled:shadow-none flex items-center gap-1 text-[#1e293b] shrink-0" title="復原">↩️<span className="hidden sm:inline">復原</span></button>
+                            <button data-sudoku-undo onClick={handleUndo} disabled={isWon || isSpectator || (isMultiplayer && !isBrawlMode ? coopHistLen === 0 : history.length === 0)} className="plat-btn-hard plat-btn-hard-2 px-1.5 py-1 md:px-3 md:py-1.5 bg-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[2px_2px_0px_#1e293b] disabled:opacity-50 disabled:shadow-none flex items-center gap-1 text-[#1e293b] shrink-0" title="復原">↩️<span className="hidden sm:inline">復原</span></button>
+                            <button data-sudoku-redo onClick={handleRedo} disabled={isWon || isSpectator || (isMultiplayer && !isBrawlMode ? coopFutureLen === 0 : future.length === 0)} className="plat-btn-hard plat-btn-hard-2 px-1.5 py-1 md:px-3 md:py-1.5 bg-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[2px_2px_0px_#1e293b] disabled:opacity-50 disabled:shadow-none flex items-center gap-1 text-[#1e293b] shrink-0" title="重做">↪<span className="hidden sm:inline">重做</span></button>
                             <button onClick={handleReset} className="plat-btn-hard plat-btn-hard-2 px-1.5 py-1 md:px-3 md:py-1.5 bg-red-500 text-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1 shrink-0" title="重置">🔄<span className="hidden sm:inline">重置</span></button>
                             <button onClick={() => setShowSaveModal(true)} className="plat-btn-hard plat-btn-hard-2 px-1.5 py-1 md:px-3 md:py-1.5 bg-blue-500 text-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1 shrink-0" title="存檔/讀檔">💾<span className="hidden sm:inline">存檔</span></button>
                         </div>

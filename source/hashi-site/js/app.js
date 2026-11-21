@@ -400,6 +400,12 @@ function platAudio() {
       const [strokes, setStrokes] = useState([]);
 
       const [history, setHistory] = useState([]);
+      const [future, setFuture] = useState([]); // redo 堆疊（v1.75.0，比照美術燈）
+      const coopHistRef = useRef([]);   // 合作專用歷史：只記自己的動作（逐橋 prev/next），undo 只撤自己的（比照美術燈合作語意）
+      const coopFutureRef = useRef([]);
+      const [coopHistLen, setCoopHistLen] = useState(0);
+      const [coopFutureLen, setCoopFutureLen] = useState(0);
+      const dbgRef = useRef({ hist: 0, future: 0, coopHist: 0, coopFuture: 0, raceProgress: {}, isWon: false }); // debug 鏡像（同數獨：hooks [] 閉包凍結，state 經 ref 讀）
       const [isWon, setIsWon] = useState(false);
       const isWonRef = useRef(false);
       useEffect(() => { isWonRef.current = isWon; }, [isWon]);
@@ -635,6 +641,7 @@ function platAudio() {
       const [brawlBoards, setBrawlBoards] = useState({});
       const brawlBoardsRef = useRef({});
       useEffect(() => { brawlBoardsRef.current = brawlBoards; }, [brawlBoards]);
+      useEffect(() => { dbgRef.current = { hist: history.length, future: future.length, coopHist: coopHistLen, coopFuture: coopFutureLen, raceProgress: raceProgress, isWon: isWon, screen: screen }; }, [history, future, coopHistLen, coopFutureLen, raceProgress, isWon, screen]); // debug 鏡像（元件頂層、所有 state 宣告之後）
       // 🎮 統一多人框架：等待室 + 大亂鬥設定 + 本局選手名單
       const [roomOpen, setRoomOpen] = useState(false);
       const [brawlSettings, setBrawlSettings] = useState({ sizeId: 2, itemsEnabled: true, godNumbers: true });
@@ -1951,13 +1958,7 @@ function platAudio() {
           }
         }
 
-        if (engineRef.current === 'none') {
-            setHistory(past => {
-                const newPast = [...past, cur];
-                if (newPast.length > 25) return newPast.slice(newPast.length - 25);
-                return newPast;
-            });
-        }
+        recordUndo(cur); // v1.75.0：單機/競速記整盤快照（coop 跳過，改記逐橋動作）
 
         const oldTotal = target.count + (target.draftCount || 0);
 
@@ -1987,6 +1988,11 @@ function platAudio() {
         });
 
         const newB = nextBridges.find(b => b.id === bId);
+        if (isCoopMpH()) { // 合作歷史：記自己這一步（點按/拖曳都收斂到本函式一次呼叫＝一步）
+            coopHistRef.current.push({ bId: bId, prev: { count: target.count, draftCount: target.draftCount || 0 }, next: { count: newB.count, draftCount: newB.draftCount || 0 } });
+            if (coopHistRef.current.length > 200) coopHistRef.current.splice(0, coopHistRef.current.length - 200);
+            coopFutureRef.current = []; setCoopHistLen(coopHistRef.current.length); setCoopFutureLen(0);
+        }
         const newTotal = newB.count + (newB.draftCount || 0);
         if (newTotal !== oldTotal) {
             try { platAudio().play('place'); } catch (e) {} // 架橋 commit（新增/增減）＝place；草稿轉實線總數不變不播（守恆舊行為）（PlatAudio，v1.64.0）
@@ -2282,17 +2288,58 @@ function platAudio() {
         }
       });
 
+      // ===== undo/redo（v1.75.0，比照美術燈語意）=====
+      // 單機/競速（自己的盤）：整盤快照堆疊，還原走 raceAwareSync（競速只改本地＋進度隨還原同步下降）；
+      // 合作（共用盤）：逐橋動作、只撤自己的、被夥伴改過或已被禮物鎖定的跳過。
+      // 防農場：里程碑 milestonesRef 記憶集合＋禮物額度 hashiGiftUnitsRef 高水位皆只升不降、undo 不重置 → 重放不重複入帳（查核結論，套件實測）。
+      const isCoopMpH = () => engineRef.current === 'peerjs' && mpModeRef.current === 'coop';
+      const recordUndo = (board) => { if (isCoopMpH()) return; setHistory(past => { const np = [...past, board]; if (np.length > 25) return np.slice(np.length - 25); return np; }); setFuture([]); };
+      const resetUndo = () => { setHistory([]); setFuture([]); coopHistRef.current = []; coopFutureRef.current = []; setCoopHistLen(0); setCoopFutureLen(0); };
+      const overlayLocked = (snap) => { // 禮物鎖定橋只進不退：還原快照時以現行盤面的鎖定橋覆寫，避免 undo 把禮物橋吞掉（比照美術燈鎖定燈）
+        const curB = stateRef.current.bridges || []; const byId = {}; curB.forEach(b => { byId[b.id] = b; });
+        return snap.map(b => { const cb = byId[b.id]; return (cb && cb.locked && !b.locked) ? cb : b; });
+      };
       const handleUndo = () => {
-        if (history.length === 0 || isWon || engineRef.current !== 'none') return;
+        if (isWon) return;
+        if (isCoopMpH()) {
+            const H = coopHistRef.current; if (!H.length) return;
+            const en = H[H.length - 1];
+            coopHistRef.current = H.slice(0, -1); setCoopHistLen(coopHistRef.current.length);
+            const curB = stateRef.current.bridges || []; const cur = curB.find(b => b.id === en.bId);
+            if (!cur || cur.locked || cur.count !== en.next.count || (cur.draftCount || 0) !== en.next.draftCount) return; // 被夥伴改過/已鎖定：跳過（已消耗）
+            coopFutureRef.current.push(en); setCoopFutureLen(coopFutureRef.current.length);
+            raceAwareSync({ bridges: curB.map(b => b.id === en.bId ? { ...b, count: en.prev.count, draftCount: en.prev.draftCount, owner: (en.prev.count > 0 || en.prev.draftCount > 0) ? myId : null } : b) });
+            return;
+        }
+        if (history.length === 0) return;
         const previousState = history[history.length - 1];
-        syncState({ bridges: previousState });
+        setFuture(f => [...f, stateRef.current.bridges]);
         setHistory(past => past.slice(0, -1));
+        raceAwareSync({ bridges: overlayLocked(previousState) });
+      };
+      const handleRedo = () => {
+        if (isWon) return;
+        if (isCoopMpH()) {
+            const F = coopFutureRef.current; if (!F.length) return;
+            const en = F[F.length - 1];
+            coopFutureRef.current = F.slice(0, -1); setCoopFutureLen(coopFutureRef.current.length);
+            const curB = stateRef.current.bridges || []; const cur = curB.find(b => b.id === en.bId);
+            if (!cur || cur.locked || cur.count !== en.prev.count || (cur.draftCount || 0) !== en.prev.draftCount) return;
+            coopHistRef.current.push(en); setCoopHistLen(coopHistRef.current.length);
+            raceAwareSync({ bridges: curB.map(b => b.id === en.bId ? { ...b, count: en.next.count, draftCount: en.next.draftCount, owner: (en.next.count > 0 || en.next.draftCount > 0) ? myId : null } : b) });
+            return;
+        }
+        if (future.length === 0) return;
+        const nextState = future[future.length - 1];
+        setHistory(past => { const np = [...past, stateRef.current.bridges]; if (np.length > 25) return np.slice(np.length - 25); return np; });
+        setFuture(f => f.slice(0, -1));
+        raceAwareSync({ bridges: overlayLocked(nextState) });
       };
 
       const handleReset = () => {
         const empty = HASHI_PUZZLE.generateEmptyBridges(randomLevelData);
         raceAwareSync({ bridges: empty, strokes: [], showSolution: false, startTime: Date.now() });
-        if (engineRef.current === 'none') setHistory([]);
+        resetUndo();
         setIsWon(false); setEndTime(null);
         resetWinMeta();
       };
@@ -2311,7 +2358,7 @@ function platAudio() {
             const newRandomData = HASHI_PUZZLE.generateUniqueHashi(targetLevelDef);
             const empty = HASHI_PUZZLE.generateEmptyBridges(newRandomData);
             syncState({ levelId: currentLevelId, randomLevelData: newRandomData, bridges: empty, strokes: [], showSolution: false, startTime: Date.now() });
-            setIsWon(false); setHistory([]); setEndTime(null); setHideVictoryModal(false);
+            setIsWon(false); resetUndo(); setEndTime(null); setHideVictoryModal(false);
             resetWinMeta();
             setBoardFadeKey(k => k + 1); scheduleFitZoom();
             setIsGenerating(false);
@@ -2390,7 +2437,7 @@ function platAudio() {
             const applyData = (newRandomData) => {
                 const empty = HASHI_PUZZLE.generateEmptyBridges(newRandomData);
                 syncState({ levelId: newLevelId, randomLevelData: newRandomData, bridges: empty, strokes: [], showSolution: false, startTime: Date.now() });
-                setIsWon(false); setHistory([]); setEndTime(null);
+                setIsWon(false); resetUndo(); setEndTime(null);
                 resetWinMeta();
                 setBoardFadeKey(k => k + 1); scheduleFitZoom();
                 setIsGenerating(false);
@@ -2420,7 +2467,7 @@ function platAudio() {
               const empty = HASHI_PUZZLE.generateEmptyBridges(newRandomData);
 
               syncState({ levelId: 'custom', randomLevelData: newRandomData, bridges: empty, strokes: [], showSolution: false, startTime: Date.now() });
-              setIsWon(false); setHistory([]); setEndTime(null);
+              setIsWon(false); resetUndo(); setEndTime(null);
             resetWinMeta();
               setBoardFadeKey(k => k + 1); scheduleFitZoom();
               setIsGenerating(false);
@@ -2523,7 +2570,7 @@ function platAudio() {
         setRandomLevelData(data);
         setBridges(empty);
         setStrokes([]);
-        setHistory([]);
+        resetUndo();
         setShowSolution(false);
         setStartTime(Date.now());
         setIsWon(false); setEndTime(null); setHideVictoryModal(false);
@@ -2783,6 +2830,7 @@ function platAudio() {
         if (!PLAT_MODE) return;
         window.__PLAT_HOOKS_hashi = {
           enter: (sess) => {
+            resetUndo(); // v1.75.0：進新房間先清 undo/redo 堆疊（開新局/回座/離房重置，比照美術燈）
             platSessRef.current = sess; // hub 模式：代表色以殼 sess.color 為準（enter 在連線建立前執行，先把我的顏色釘住，重複呼叫以最後一次為準）
             const hcEnter = hubPlatColor();
             if (hcEnter) myColorRef.current = hcEnter;
@@ -2854,6 +2902,7 @@ function platAudio() {
               }, 500);
             }
           },
+          debug: () => ({ engine: engineRef.current, mpMode: mpModeRef.current, raceState: raceStateRef.current, bridges: stateRef.current.bridges, hist: dbgRef.current.hist, future: dbgRef.current.future, coopHist: dbgRef.current.coopHist, coopFuture: dbgRef.current.coopFuture, milestones: Object.assign({}, milestonesRef.current), giftCredit: hashiGiftCreditRef.current, giftUnits: hashiGiftUnitsRef.current, myItems: (myItemsRef.current || []).slice(), raceProgress: dbgRef.current.raceProgress, isWon: dbgRef.current.isWon, screen: dbgRef.current.screen, level: stateRef.current.randomLevelData }),
           exit: () => { platSessRef.current = null; setPlatTournLock(false); tournRosterRef.current = null; setPlatHub(false); platHubRef.current = false; setTournRoundInfo(null); tournWaitSinceRef.current = null; if (hubStartTimerRef.current) { clearInterval(hubStartTimerRef.current); hubStartTimerRef.current = null; } handleGoHome(); },
           migrate: (amHost, sess) => {
             platSessRef.current = sess; // 接管也以最後帶入的 sess 為準（hub 代表色同 enter）
@@ -3295,7 +3344,7 @@ function platAudio() {
                if (peerRef.current) { peerRef.current.destroy(); peerRef.current = null; }
             }
         }
-        switchToOffline(); setScreen('home'); setIsWon(false); setEndTime(null); setHistory([]);
+        switchToOffline(); setScreen('home'); setIsWon(false); setEndTime(null); resetUndo();
         setIsDailyMode(false); isDailyModeRef.current = false;
         setRaceState('idle'); raceStateRef.current = 'idle';
         setRaceWaiting(false); setRaceResult(null); setRaceCountdown(null); setRaceProgress({});
@@ -3445,7 +3494,7 @@ function platAudio() {
         setCurrentLevelId(payload.levelId || 2);
         setShowSolution(false);
         setStrokes([]);
-        setHistory([]);
+        resetUndo();
         setStartTime(startAt);
         setEndTime(null);
         setIsWon(false); setHideVictoryModal(false);
@@ -3942,7 +3991,8 @@ function platAudio() {
                 <div className="flex gap-1 md:gap-2 flex-wrap items-center ml-auto">
                   {!isWon && hasSolution && !showSolution && !inRace && (<button onClick={handleShowSolution} className="plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-green-400 text-[#1e293b] border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1" title="解答">💡<span className="hidden sm:inline">解答</span></button>)}
                   {!isDailyMode && !inRace && (<button onClick={handleRegenerateRandom} className="plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-blue-500 text-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1" title="新題">🎲<span className="hidden sm:inline">新題</span></button>)}
-                  {!isMultiplayer && (<button onClick={handleUndo} disabled={history.length === 0 || isWon} className="plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)] disabled:opacity-50 disabled:shadow-none flex items-center gap-1 text-[#1e293b]" title="復原">↩️<span className="hidden sm:inline">復原</span></button>)}
+                  <button data-hashi-undo onClick={handleUndo} disabled={isWon || (isMultiplayer && mpMode === 'coop' ? coopHistLen === 0 : history.length === 0)} className="plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)] disabled:opacity-50 disabled:shadow-none flex items-center gap-1 text-[#1e293b]" title="復原">↩️<span className="hidden sm:inline">復原</span></button>
+                  <button data-hashi-redo onClick={handleRedo} disabled={isWon || (isMultiplayer && mpMode === 'coop' ? coopFutureLen === 0 : future.length === 0)} className="plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)] disabled:opacity-50 disabled:shadow-none flex items-center gap-1 text-[#1e293b]" title="重做">↪<span className="hidden sm:inline">重做</span></button>
                   <button onClick={handleReset} className="plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-red-500 text-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1" title="重置">🔄<span className="hidden sm:inline">重置</span></button>
                   <button onClick={() => setShowSaveModal(true)} className="plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-blue-500 text-white border-2 border-[#1e293b] rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_#1e293b] flex items-center gap-1" title="存檔/讀檔">💾<span className="hidden sm:inline">存檔</span></button>
                 </div>

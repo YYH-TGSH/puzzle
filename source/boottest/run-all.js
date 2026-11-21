@@ -76,6 +76,8 @@ const SUITES = [
   ['test-tourn-cards.js', {}], // 錦標賽卡片式選關（v1.74.0）
   ['test-akari-coop.js', {}], // 美術燈合作模式（v1.74.0）
   ['test-akari-coopresume.js', {}], // 美術燈合作回座（v1.74.0）
+  ['test-sudoku-undoredo.js', {}], // 數獨 undo/redo＋防農場（v1.75.0）
+  ['test-hashi-undoredo.js', {}], // 數橋 undo/redo＋防農場（v1.75.0）
 ];
 
 const filter = process.argv[2] || '';
