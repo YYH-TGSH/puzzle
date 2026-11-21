@@ -1,19 +1,19 @@
 /* 美術燈 Akari 專屬樣式（平台整合：body 規則由 build 抽出改掛 data-view） */
 
-.akari-board-scroll { scrollbar-width: thin; scrollbar-color: #f59e0b #fef3c7; }
+.akari-board-scroll { scrollbar-width: thin; scrollbar-color: #3b82f6 #dbeafe; }
 .akari-board-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
-.akari-board-scroll::-webkit-scrollbar-thumb { background: #f59e0b; border-radius: 3px; }
-.akari-board-scroll::-webkit-scrollbar-track { background: #fef3c7; }
+.akari-board-scroll::-webkit-scrollbar-thumb { background: #3b82f6; border-radius: 3px; }
+.akari-board-scroll::-webkit-scrollbar-track { background: #dbeafe; }
 
 /* 教學動畫：燈照直線（格子依序亮起） */
-@keyframes akariTeachLight { 0%, 12% { background: #f1f5f9; } 22%, 78% { background: #fde68a; } 88%, 100% { background: #f1f5f9; } }
+@keyframes akariTeachLight { 0%, 12% { background: #f1f5f9; } 22%, 78% { background: #bfdbfe; } 88%, 100% { background: #f1f5f9; } }
 .akari-teach-cell { animation: akariTeachLight 2.4s ease-in-out infinite; }
 /* 教學動畫：兩燈互照（紅框脈動） */
 @keyframes akariTeachClash { 0%, 100% { box-shadow: inset 0 0 0 2px #e2e8f0; } 50% { box-shadow: inset 0 0 0 3px #ef4444; } }
 .akari-teach-clash { animation: akariTeachClash 1.2s ease-in-out infinite; }
 /* 教學動畫：數字牆滿足（綠光一閃循環） */
-@keyframes akariTeachOk { 0%, 55% { background: #1e293b; color: #fbbf24; } 70%, 90% { background: #14532d; color: #bbf7d0; } 100% { background: #1e293b; color: #fbbf24; } }
+@keyframes akariTeachOk { 0%, 55% { background: #1e293b; color: #60a5fa; } 70%, 90% { background: #14532d; color: #bbf7d0; } 100% { background: #1e293b; color: #60a5fa; } }
 .akari-teach-ok { animation: akariTeachOk 2.4s ease-in-out infinite; }
 /* 放燈時的光暈呼吸 */
-@keyframes akariBulbGlow { 0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.45); } 100% { box-shadow: 0 0 14px 4px rgba(245, 158, 11, 0); } }
+@keyframes akariBulbGlow { 0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.45); } 100% { box-shadow: 0 0 14px 4px rgba(59, 130, 246, 0); } }
 .akari-bulb-new { animation: akariBulbGlow 0.45s ease-out 1; }

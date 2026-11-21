@@ -178,7 +178,7 @@
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.69.0';
+  var PLAT_VERSION = '1.70.0';
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -1030,7 +1030,7 @@
     return Net.hub;
   }
   function hubSaveCfg() { var H = ensureHub(); try { storeSet('plat_hub_cfg', JSON.stringify(H.cfg)); } catch (e) {} }
-  function hubAccent() { return Net.roomTab === 'tourn' ? '#f59e0b' : (Net.armed.game === 'hashi' ? '#4ade80' : (Net.armed.game === 'mines' ? '#f97316' : (Net.armed.game === 'akari' ? '#f59e0b' : '#ffcc00'))); }
+  function hubAccent() { return Net.roomTab === 'tourn' ? '#f59e0b' : (Net.armed.game === 'hashi' ? '#4ade80' : (Net.armed.game === 'mines' ? '#f97316' : (Net.armed.game === 'akari' ? '#3b82f6' : '#ffcc00'))); }
   function hubGameMode(game) { var H = ensureHub(); return H.cfg[game].mode; }
   function hubStateBroadcast() { platBroadcast({ kind: 'hubstate', ready: ensureHub().ready, spec: ensureHub().spec }); }
   function hubCfgBroadcast(game) { platBroadcast({ kind: 'hubcfg', game: game, cfg: ensureHub().cfg[game] }); }
@@ -2564,17 +2564,18 @@
   };
 
   // ===== PlatTutorial：步進教學殼（固定高度步進卡、上/下一頁、頁點、關閉；遊戲只給 steps 內容） =====
-  var PTU = { cfg: null, el: null, step: 0 };
+  // step: { html, caption } 或 { mount(el, {setCaption}), caption }（互動示範用 mount 自行渲染進內容區；節點由殼快取、換頁不重掛，show 時清快取重掛）
+  var PTU = { cfg: null, el: null, step: 0, cache: {} };
   function ptuRender() {
     if (!PTU.el) return;
     var cfg = PTU.cfg;
-    if (!cfg) { PTU.el.style.display = 'none'; PTU.el.innerHTML = ''; return; }
+    if (!cfg) { PTU.el.style.display = 'none'; PTU.el.innerHTML = ''; PTU.cache = {}; return; }
     var steps = cfg.steps || [], i = Math.min(PTU.step, steps.length - 1), st = steps[i] || { html: '', caption: '' };
     var ac = cfg.accent || '#ffcc00';
     var h = '<div class="bg-[#fffaf0] border-4 border-slate-800 rounded-2xl shadow-[10px_10px_0px_rgba(30,41,59,1)] max-w-lg w-full max-h-[92vh] overflow-y-auto p-6 relative" data-ptu-card="1">';
     h += '<button data-ptu="close" class="plat-btn-hard plat-btn-hard-2 absolute top-3 right-3 w-9 h-9 bg-white border-[3px] border-slate-800 rounded-full font-black shadow-[2px_2px_0px_rgba(30,41,59,1)] z-10">✕</button>';
     h += '<h3 class="text-2xl font-black text-slate-800 inline-block pb-1 mb-5" style="border-bottom:4px solid ' + ac + '">' + pbEsc(cfg.title || '❓ 玩法教學') + '</h3>';
-    h += '<div class="h-[400px] flex flex-col justify-center bg-white border-[3px] border-slate-800 rounded-xl p-4 mb-4 shadow-[4px_4px_0px_rgba(30,41,59,1)]" data-ptu-step="' + i + '"><div class="flex flex-col items-center justify-center mb-3">' + (st.html || '') + '</div><p class="text-center font-bold text-slate-700">' + pbEsc(st.caption || '') + '</p></div>';
+    h += '<div class="h-[400px] flex flex-col justify-center bg-white border-[3px] border-slate-800 rounded-xl p-4 mb-4 shadow-[4px_4px_0px_rgba(30,41,59,1)]" data-ptu-step="' + i + '"><div class="flex flex-col items-center justify-center mb-3" data-ptu-content="1"></div><p class="text-center font-bold text-slate-700" data-ptu-cap="1">' + pbEsc(st.caption || '') + '</p></div>';
     h += '<div class="flex justify-center gap-2 mb-5">' + steps.map(function (_, di) { return '<div class="w-2.5 h-2.5 rounded-full border-2 border-slate-800" style="background:' + (di === i ? ac : '#ffffff') + '"></div>'; }).join('') + '</div>';
     h += '<div class="flex gap-3">';
     h += i > 0 ? '<button data-ptu="prev" class="plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-white text-slate-800">上一步</button>' : '<div class="flex-1"></div>';
@@ -2583,6 +2584,21 @@
     h += '</div></div>';
     PTU.el.innerHTML = h;
     PTU.el.style.display = 'flex';
+    var holder = PTU.el.querySelector('[data-ptu-content]');
+    if (holder) {
+      if (typeof st.mount === 'function') {
+        var node = PTU.cache[i];
+        if (!node) {
+          node = document.createElement('div');
+          node.className = 'flex flex-col items-center justify-center w-full';
+          PTU.cache[i] = node;
+          try { st.mount(node, { setCaption: function (txt) { if (PTU.cfg === cfg && PTU.step === i) { var cap = PTU.el.querySelector('[data-ptu-cap]'); if (cap) cap.textContent = txt; } } }); } catch (e) {}
+        }
+        holder.appendChild(node);
+      } else {
+        holder.innerHTML = st.html || '';
+      }
+    }
   }
   function ptuClose() { var cfg = PTU.cfg; PTU.cfg = null; ptuRender(); if (cfg && cfg.onClose) { try { cfg.onClose(); } catch (e) {} } }
   function ptuClick(e) {
@@ -2606,16 +2622,31 @@
         PTU.el.addEventListener('click', ptuClick);
         document.body.appendChild(PTU.el);
       }
-      PTU.cfg = cfg || {}; PTU.step = 0;
+      PTU.cfg = cfg || {}; PTU.step = 0; PTU.cache = {};
       ptuRender();
     },
-    hide: function () { PTU.cfg = null; ptuRender(); },
+    hide: function () { PTU.cfg = null; PTU.cache = {}; ptuRender(); },
     isShown: function () { return !!PTU.cfg; },
     _debug: function () { return { shown: !!PTU.cfg, step: PTU.step, steps: PTU.cfg ? (PTU.cfg.steps || []).length : 0 }; }
   };
 
   // ===== PlatSetup：單機設定殼（modal＋選項組 list/seg＋開始/取消；instant=true 時點選項即開始） =====
-  var PSE = { cfg: null, el: null, sel: null };
+  // cfg.custom（可選）：{ label, fields:[{key,label,min,max}], values:{}, validate(vals)->{values,note,startText} }
+  // 自訂區塊：展開式數字欄位，validate 由遊戲提供（clamp/提示/開始鈕文案）；開始走 onStart('custom', validatedValues)
+  var PSE = { cfg: null, el: null, sel: null, cust: null, custOpen: false };
+  function pseCustValidated() {
+    var cfg = PSE.cfg, cu = cfg && cfg.custom;
+    if (!cu) return null;
+    var raw = Object.assign({}, PSE.cust || {});
+    if (typeof cu.validate === 'function') { try { return cu.validate(raw) || { values: raw }; } catch (e) { return { values: raw }; } }
+    return { values: raw };
+  }
+  function pseCustRefresh() { // 輸入時只就地更新提示與開始鈕文案（不整卡重繪，避免輸入框失焦）
+    if (!PSE.el || !PSE.cfg || !PSE.cfg.custom) return;
+    var v = pseCustValidated(); if (!v) return;
+    var note = PSE.el.querySelector('[data-pse-cust-note]'); if (note) note.textContent = v.note || '';
+    var btn = PSE.el.querySelector('[data-pse="cust-start"]'); if (btn) btn.textContent = v.startText || '▶ 開始';
+  }
   function pseRender() {
     if (!PSE.el) return;
     var cfg = PSE.cfg;
@@ -2639,17 +2670,29 @@
       });
       h += '</div>';
     }
+    if (cfg.custom) {
+      var cu = cfg.custom, v = pseCustValidated() || { values: {} };
+      h += '<div class="w-full bg-white border-[3px] border-slate-800 rounded-xl px-4 py-3 shadow-[3px_3px_0px_rgba(30,41,59,1)] mb-4" data-pse-cust="1">';
+      h += '<button data-pse="cust-toggle" class="w-full flex items-center justify-between font-black text-xl text-slate-800"><span>' + pbEsc(cu.label || '⚙️ 自訂') + '</span><span class="text-sm text-slate-400">' + (PSE.custOpen ? '▾ 收起' : '▸ 展開') + '</span></button>';
+      h += '<div class="plat-collapse-y' + (PSE.custOpen ? ' open' : '') + '"><div><div class="mt-3 flex flex-col gap-2">';
+      (cu.fields || []).forEach(function (f) {
+        h += '<label class="flex items-center justify-between font-bold text-slate-600 text-sm">' + pbEsc(f.label) + '<input data-pse-field="' + pbEsc(f.key) + '" type="number"' + (f.min != null ? ' min="' + f.min + '"' : '') + (f.max != null ? ' max="' + f.max + '"' : '') + ' value="' + pbEsc(PSE.cust && PSE.cust[f.key] != null ? PSE.cust[f.key] : '') + '" class="w-24 bg-white border-2 border-slate-800 rounded-lg p-1.5 font-black text-slate-800 text-center outline-none" /></label>';
+      });
+      h += '<div class="text-xs font-semibold text-slate-400 leading-relaxed" data-pse-cust-note="1">' + pbEsc(v.note || '') + '</div>';
+      h += '<button data-pse="cust-start" class="plat-btn-hard plat-btn-hard-3 w-full py-3 border-[3px] border-slate-800 rounded-xl font-black text-lg text-slate-900 shadow-[3px_3px_0px_rgba(30,41,59,1)]" style="background:' + ac + '">' + pbEsc(v.startText || '▶ 開始') + '</button>';
+      h += '</div></div></div></div>';
+    }
     if (!cfg.instant) h += '<button data-pse="start" class="plat-btn-hard w-full py-3 mb-2 border-4 border-slate-800 rounded-xl font-black text-lg text-slate-900 shadow-[4px_4px_0px_rgba(30,41,59,1)]" style="background:' + ac + '">' + pbEsc(cfg.confirmText || '▶ 開始') + '</button>';
     h += '<button data-pse="cancel" class="plat-btn-hard w-full py-3 bg-white border-4 border-slate-800 rounded-xl font-black text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)]">取消</button>';
     h += '</div>';
     PSE.el.innerHTML = h;
     PSE.el.style.display = 'flex';
   }
-  function pseDone(start) {
+  function pseDone(start, custValues) {
     var cfg = PSE.cfg, sel = PSE.sel;
-    PSE.cfg = null; pseRender();
+    PSE.cfg = null; PSE.cust = null; PSE.custOpen = false; pseRender();
     if (!cfg) return;
-    if (start && cfg.onStart) { try { cfg.onStart(sel); } catch (e) {} }
+    if (start && cfg.onStart) { try { cfg.onStart(custValues ? 'custom' : sel, custValues); } catch (e) {} }
     else if (!start && cfg.onCancel) { try { cfg.onCancel(); } catch (e) {} }
   }
   function pseClick(e) {
@@ -2667,6 +2710,16 @@
     var k = t.getAttribute('data-pse');
     if (k === 'start') pseDone(true);
     else if (k === 'cancel') pseDone(false);
+    else if (k === 'cust-toggle') { PSE.custOpen = !PSE.custOpen; pseRender(); }
+    else if (k === 'cust-start') { var v = pseCustValidated(); pseDone(true, v ? v.values : {}); }
+  }
+  function pseInput(e) {
+    if (!PSE.el || !PSE.cfg || !PSE.cfg.custom) return;
+    var t = e.target && e.target.closest ? e.target.closest('[data-pse-field]') : null;
+    if (!t || !PSE.el.contains(t)) return;
+    if (!PSE.cust) PSE.cust = {};
+    PSE.cust[t.getAttribute('data-pse-field')] = t.value;
+    pseCustRefresh();
   }
   window.PlatSetup = {
     show: function (cfg) {
@@ -2677,12 +2730,15 @@
         PSE.el.style.zIndex = '70'; PSE.el.style.display = 'none';
         PSE.el.setAttribute('data-pse-root', '1');
         PSE.el.addEventListener('click', pseClick);
+        PSE.el.addEventListener('input', pseInput);
         document.body.appendChild(PSE.el);
       }
       PSE.cfg = cfg || {}; PSE.sel = PSE.cfg.selectedId;
+      PSE.cust = PSE.cfg.custom ? Object.assign({}, PSE.cfg.custom.values || {}) : null;
+      PSE.custOpen = false;
       pseRender();
     },
-    hide: function () { PSE.cfg = null; pseRender(); },
+    hide: function () { PSE.cfg = null; PSE.cust = null; PSE.custOpen = false; pseRender(); },
     isShown: function () { return !!PSE.cfg; },
     _debug: function () { return { shown: !!PSE.cfg, sel: PSE.sel }; }
   };
@@ -2850,8 +2906,9 @@
   window.PlatTopCard = {
     attach: function (el, cfg) {
       if (!el) return;
+      var keepRules = PTC.rulesOpen; // rulesOpen 跨 attach 保留：遊戲以 setRulesOpen 預設開合（單機展開/多人收合），detach 的重置不吞它
       if (PTC.el && PTC.el !== el) window.PlatTopCard.detach(PTC.el);
-      PTC.el = el; PTC.cfg = cfg || {}; PTC.lastJson = null; PTC.rulesOpen = false;
+      PTC.el = el; PTC.cfg = cfg || {}; PTC.lastJson = null; PTC.rulesOpen = keepRules;
       el.setAttribute('data-ptc', '1');
       el.removeEventListener('click', ptcClick);
       el.addEventListener('click', ptcClick);
@@ -2872,10 +2929,41 @@
       PTC.el = null; PTC.cfg = null; PTC.state = null; PTC.lastJson = null; PTC.slot = null; PTC.rulesOpen = false;
     },
     getSlot: function () { return PTC.slot; },
+    setRulesOpen: function (open) { PTC.rulesOpen = !!open; if (PTC.el) ptcRenderRegions(); },
     isAttached: function () { return !!PTC.el; },
     _el: function () { return PTC.el; },
     _elConnected: function () { return !!(PTC.el && PTC.el.isConnected); },
     _debug: function () { return { attached: !!PTC.el, inDoc: !!(PTC.el && PTC.el.isConnected), hasState: !!PTC.state, hasSlot: !!PTC.slot, rulesOpen: PTC.rulesOpen }; }
+  };
+
+  // ===== PlatFrame：對局外框（殼持有；框架修正批 v1.70.0） =====
+  // 定版形狀對照數獨/數橋對局框：w-full max-w-[1200px]、紙面、border-4、硬陰影、rounded-xl；
+  // 內部兩區：[data-pframe-top]（PlatTopCard 以 frame:false 併入——band 只剩 border-b、不再是獨立浮卡）
+  // ＋[data-pframe-body]（遊戲以 portal 放盤面與盤下元件）。cfg: { paper }（框紙色，各款色調：
+  // 數獨 #fffaf0／數橋 #f6fdf6／美術燈 #f4f9ff）。F1 的教訓同樣適用：遊戲端 attach 走無依賴自我修復 effect。
+  var PF = { el: null, top: null, body: null };
+  window.PlatFrame = {
+    attach: function (el, cfg) {
+      if (!el) return;
+      if (PF.el && PF.el !== el) window.PlatFrame.detach(PF.el);
+      PF.el = el;
+      el.innerHTML = '<div data-pframe="1" class="w-full max-w-[1200px] mx-auto rounded-xl border-4 border-slate-800 shadow-[10px_10px_0px_rgba(30,41,59,1)] flex flex-col relative z-10 overflow-hidden" style="background:' + ((cfg && cfg.paper) || '#fffaf0') + '">'
+        + '<div data-pframe-top="1"></div>'
+        + '<div data-pframe-body="1" class="flex-1 w-full px-2 py-2 md:px-4 md:py-3"></div></div>';
+      PF.top = el.querySelector('[data-pframe-top]');
+      PF.body = el.querySelector('[data-pframe-body]');
+    },
+    detach: function (el) {
+      if (!PF.el || (el && el !== PF.el)) return;
+      PF.el.innerHTML = '';
+      PF.el = null; PF.top = null; PF.body = null;
+    },
+    getTop: function () { return PF.top; },
+    getBody: function () { return PF.body; },
+    isAttached: function () { return !!PF.el; },
+    _el: function () { return PF.el; },
+    _elConnected: function () { return !!(PF.el && PF.el.isConnected); },
+    _debug: function () { return { attached: !!PF.el, inDoc: !!(PF.el && PF.el.isConnected), hasTop: !!PF.top, hasBody: !!PF.body }; }
   };
 
   // ---------- 共用等待室 PlatRoom（兩款遊戲的多人等待室由殼渲染同一張卡） ----------

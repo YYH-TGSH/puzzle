@@ -79,7 +79,7 @@ function platTapNew(opts) {
 }
 
 // ---------- 常數 ----------
-const ACCENT = '#f59e0b';
+const ACCENT = '#3b82f6'; // 主題色（2026-11-21 使用者裁示改藍：原琥珀與數獨黃太近）
 const SIZES = {
   7: { id: 7, w: 7, h: 7, wallTarget: 0.20, stripRatio: 0.5, name: '7×7・小', short: '7×7' },
   10: { id: 10, w: 10, h: 10, wallTarget: 0.22, stripRatio: 0.5, name: '10×10・中', short: '10×10' },
@@ -138,7 +138,9 @@ function AkariGame() {
   const downRef = useRef(null); // {idx, trk, painting:bool}
   const platBarRef = useRef(null);
   const platHomeRef = useRef(null); // PlatHome 掛載點（框架層 F1）
-  const platTopRef = useRef(null); // PlatTopCard 掛載點（框架層 F1）
+  const platFrameRef = useRef(null); // PlatFrame 掛載點（框架修正批 v1.70.0：對局外框改殼持有）
+  const [frameBody, setFrameBody] = useState(null); // PlatFrame 內容區節點（盤面 portal 用）
+  const [ptcEl, setPtcEl] = useState(null); // PlatTopCard 掛載點＝外框頂區節點
   const [ptcSlot, setPtcSlot] = useState(null); // PlatTopCard 遊戲槽節點（portal 用）
   const newBulbRef = useRef(-1);
   // ---------- 多人狀態 ----------
@@ -864,13 +866,13 @@ function AkariGame() {
   }
   function openAkariTutorial() {
     if (!window.PlatTutorial) return;
-    const cell = 'w-8 h-8 flex items-center justify-center rounded-[4px] border border-amber-200 bg-[#f1f5f9] text-base';
+    const cell = 'w-8 h-8 flex items-center justify-center rounded-[4px] border border-blue-200 bg-[#f1f5f9] text-base';
     const steps = [
-      { html: '<div class="font-black text-slate-700 mb-2">1️⃣ 燈照直線，撞牆就停</div><div class="flex gap-[3px] justify-center"><div class="' + cell + ' akari-teach-cell" style="animation-delay:0.5s"></div><div class="' + cell + ' akari-teach-cell" style="animation-delay:0.35s"></div><div class="' + cell + '" style="background:#fbbf24">💡</div><div class="' + cell + ' akari-teach-cell" style="animation-delay:0.35s"></div><div class="' + cell + ' akari-teach-cell" style="animation-delay:0.5s"></div><div class="w-8 h-8 flex items-center justify-center rounded-[4px] bg-slate-800"></div><div class="' + cell + '"></div></div>',
+      { html: '<div class="font-black text-slate-700 mb-2">1️⃣ 燈照直線，撞牆就停</div><div class="flex gap-[3px] justify-center"><div class="' + cell + ' akari-teach-cell" style="animation-delay:0.5s"></div><div class="' + cell + ' akari-teach-cell" style="animation-delay:0.35s"></div><div class="' + cell + '" style="background:#60a5fa">💡</div><div class="' + cell + ' akari-teach-cell" style="animation-delay:0.35s"></div><div class="' + cell + ' akari-teach-cell" style="animation-delay:0.5s"></div><div class="w-8 h-8 flex items-center justify-center rounded-[4px] bg-slate-800"></div><div class="' + cell + '"></div></div>',
         caption: '在空格放燈泡，整行整列都會亮起來，直到被黑牆擋住。目標是讓每一格都被照亮。' },
-      { html: '<div class="font-black text-slate-700 mb-2">2️⃣ 兩盞燈不能互相照到</div><div class="flex gap-[3px] justify-center"><div class="' + cell + ' akari-teach-clash" style="background:#fbbf24">💡</div><div class="' + cell + '" style="background:#fee2e2"></div><div class="' + cell + '" style="background:#fee2e2"></div><div class="' + cell + ' akari-teach-clash" style="background:#fbbf24">💡</div></div>',
+      { html: '<div class="font-black text-slate-700 mb-2">2️⃣ 兩盞燈不能互相照到</div><div class="flex gap-[3px] justify-center"><div class="' + cell + ' akari-teach-clash" style="background:#60a5fa">💡</div><div class="' + cell + '" style="background:#fee2e2"></div><div class="' + cell + '" style="background:#fee2e2"></div><div class="' + cell + ' akari-teach-clash" style="background:#60a5fa">💡</div></div>',
         caption: '同一行／列、中間沒有牆隔開的兩盞燈會互相照到——不行。要用牆把燈隔開。' },
-      { html: '<div class="font-black text-slate-700 mb-2">3️⃣ 數字牆：旁邊的燈要剛剛好</div><div class="flex gap-[3px] justify-center items-center"><div class="' + cell + '" style="background:#fef3c7"></div><div class="' + cell + '" style="background:#fbbf24">💡</div><div class="' + cell + '" style="background:#fef3c7"></div></div><div class="flex gap-[3px] justify-center items-center mt-[3px]"><div class="' + cell + '" style="background:#fbbf24">💡</div><div class="' + cell + ' akari-teach-ok font-black" style="background:#1e293b;color:#fbbf24">2</div><div class="' + cell + '"></div></div>',
+      { html: '<div class="font-black text-slate-700 mb-2">3️⃣ 數字牆：旁邊的燈要剛剛好</div><div class="flex gap-[3px] justify-center items-center"><div class="' + cell + '" style="background:#dbeafe"></div><div class="' + cell + '" style="background:#60a5fa">💡</div><div class="' + cell + '" style="background:#dbeafe"></div></div><div class="flex gap-[3px] justify-center items-center mt-[3px]"><div class="' + cell + '" style="background:#60a5fa">💡</div><div class="' + cell + ' akari-teach-ok font-black" style="background:#1e293b;color:#60a5fa">2</div><div class="' + cell + '"></div></div>',
         caption: '牆上的數字是它上下左右緊鄰的燈數。剛好等於時數字會變綠。點按格子循環：燈 → 叉（先做記號）→ 空白。' }
     ];
     window.PlatTutorial.show({ accent: ACCENT, title: '💡 怎麼玩美術燈', steps: steps });
@@ -910,7 +912,7 @@ function AkariGame() {
   });
   const platTopCfgStable = useRef(null);
   if (!platTopCfgStable.current) platTopCfgStable.current = {
-    accent: ACCENT, logo: '💡', name: '美術燈', frame: true,
+    accent: ACCENT, logo: '💡', name: '美術燈', frame: false, // v1.70.0：band 併入 PlatFrame 外框（只剩 border-b），不再是獨立浮卡
     rulesHtml: '① 在空格放燈，燈會照亮同行同列、直到撞牆。② 所有空格都要被照亮。③ 任何兩盞燈不能互相照到。④ 數字牆上下左右的燈數要剛好等於數字。點按循環：燈 → 叉（記號）→ 空白；按住拖曳可連續塗叉。',
     onAction: (name) => {
       if (name === 'mute') { const m = platAudio().toggleMuted(); setMuted(!!m); }
@@ -920,11 +922,24 @@ function AkariGame() {
       else if (name === 'leave-forceend') { if (window.__PLAT_TOURN_FORCEEND) window.__PLAT_TOURN_FORCEEND(); }
     }
   };
-  useEffect(() => { // PlatTopCard 自我修復 attach＋槽位同步
+  const platFrameCfgStable = useRef(null);
+  if (!platFrameCfgStable.current) platFrameCfgStable.current = { paper: '#f4f9ff' }; // 外框紙色（藍調紙面，隨改藍裁示）
+  useEffect(() => { // PlatFrame 自我修復 attach（先於 PlatTopCard effect 宣告：同輪先建框、再掛頂欄）
+    if (typeof window === 'undefined' || typeof window.PlatFrame === 'undefined') return;
+    if (window.__PLAT_NET && window.__PLAT_NET.inMatch && window.__PLAT_NET.inMatch !== 'akari') return;
+    if (screen !== 'game') { if (window.PlatFrame.isAttached()) window.PlatFrame.detach(); if (frameBody) setFrameBody(null); if (ptcEl) setPtcEl(null); return; }
+    const el = platFrameRef.current;
+    if (el) {
+      if (window.PlatFrame._el() !== el || !window.PlatFrame._elConnected()) window.PlatFrame.attach(el, platFrameCfgStable.current);
+      const b = window.PlatFrame.getBody(); if (b !== frameBody) setFrameBody(b);
+      const t = window.PlatFrame.getTop(); if (t !== ptcEl) setPtcEl(t);
+    }
+  });
+  useEffect(() => { // PlatTopCard 自我修復 attach＋槽位同步（掛載點＝外框頂區）
     if (typeof window === 'undefined' || typeof window.PlatTopCard === 'undefined') return;
     if (window.__PLAT_NET && window.__PLAT_NET.inMatch && window.__PLAT_NET.inMatch !== 'akari') return;
-    if (screen !== 'game') { if (window.PlatTopCard.isAttached() && window.PlatTopCard._el() === platTopRef.current) window.PlatTopCard.detach(platTopRef.current); if (ptcSlot) setPtcSlot(null); return; }
-    const el = platTopRef.current;
+    if (screen !== 'game') { if (window.PlatTopCard.isAttached() && window.PlatTopCard._el() === ptcEl) window.PlatTopCard.detach(ptcEl); if (ptcSlot) setPtcSlot(null); return; }
+    const el = ptcEl;
     if (el) {
       if (window.PlatTopCard._el() !== el || !window.PlatTopCard._elConnected()) window.PlatTopCard.attach(el, platTopCfgStable.current);
       const slot = window.PlatTopCard.getSlot();
@@ -1074,7 +1089,7 @@ function AkariGame() {
           <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 p-4">
             <div className="text-6xl">💡</div>
             <div className="font-black text-3xl text-slate-800">美術燈 Akari</div>
-            <button onClick={() => startSolo(sizeId)} className="plat-btn-hard px-6 py-3 bg-amber-400 border-4 border-slate-800 rounded-xl font-black text-xl">🎮 單機挑戰</button>
+            <button onClick={() => startSolo(sizeId)} className="plat-btn-hard px-6 py-3 bg-blue-400 border-4 border-slate-800 rounded-xl font-black text-xl">🎮 單機挑戰</button>
             <button onClick={() => startDaily(todayStr())} className="plat-btn-hard px-6 py-3 bg-white border-4 border-slate-800 rounded-xl font-black text-xl">📅 每日一題</button>
           </div>
         )}
@@ -1125,7 +1140,7 @@ function AkariGame() {
             {!players.length && <p className="font-bold text-slate-400 text-center py-2">連線中…</p>}
           </div>
           {myEntryW && !myEntryW.pending && !myEntryW.spectator && (
-            <button onClick={toggleMyReady} className={"plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 rounded-xl border-[3px] border-slate-800 font-black text-lg shadow-[3px_3px_0px_rgba(30,41,59,1)]" + (myReadySt ? ' bg-amber-400 text-slate-900' : ' bg-white text-slate-500')}>{myReadySt ? '✅ 已準備（點擊取消）' : '✋ 準備好了'}</button>
+            <button onClick={toggleMyReady} className={"plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 rounded-xl border-[3px] border-slate-800 font-black text-lg shadow-[3px_3px_0px_rgba(30,41,59,1)]" + (myReadySt ? ' bg-blue-400 text-slate-900' : ' bg-white text-slate-500')}>{myReadySt ? '✅ 已準備（點擊取消）' : '✋ 準備好了'}</button>
           )}
           {M.isHost ? (
             <div>
@@ -1146,10 +1161,9 @@ function AkariGame() {
   const cellPx = Math.round(cellPxBase * zoom);
   return (
     <div key="akari-game" className="min-h-screen flex flex-col items-center p-2 md:p-4 pb-28">
-      <div className="w-full" style={{ maxWidth: puzzle ? (cellPx * puzzle.w + 24) + 'px' : '560px' }}>
-        {/* 頂欄控制卡：殼 PlatTopCard 單一實作（框架層 F1）；本款內容（進度條/道具/橫幅）以 portal 塞進殼的遊戲槽 */}
-        <div ref={platTopRef} className="w-full"></div>
-        {ptcSlot && ReactDOM.createPortal((
+      {/* 對局外框：殼 PlatFrame 單一實作（v1.70.0）——頂欄 PlatTopCard 掛外框頂區（band 併入外框）、盤面 portal 進外框內容區；頂欄與盤面同框同寬 */}
+      <div ref={platFrameRef} className="w-full"></div>
+      {ptcSlot && ReactDOM.createPortal((
           <div>
             <div className="flex items-center gap-2">
               <div className="flex-1 h-3.5 bg-white/80 border-2 border-slate-800 rounded-full overflow-hidden">
@@ -1163,13 +1177,15 @@ function AkariGame() {
                 <button onClick={fireTrap} disabled={(myItems.trap || 0) <= 0} className="plat-btn-hard px-2 py-0.5 bg-violet-100 border-2 border-slate-800 rounded-full font-black text-[11px] text-violet-800 shadow-[1px_1px_0px_rgba(30,41,59,1)] disabled:opacity-40 disabled:shadow-none" title="斷電陷阱：讓一位對手的燈光暈消失 5 秒">⚡ 斷電 ×{myItems.trap || 0}</button>
               </div>
             )}
-            {outaged && <div className="mt-2 bg-slate-800 text-amber-300 font-black text-sm rounded-lg px-3 py-1.5 text-center animate-pulse">⚡ 斷電中…光暈暫時消失（燈都還在）</div>}
+            {outaged && <div className="mt-2 bg-slate-800 text-blue-300 font-black text-sm rounded-lg px-3 py-1.5 text-center animate-pulse">⚡ 斷電中…光暈暫時消失（燈都還在）</div>}
             {itemToast && <div className="mt-2 bg-white/90 border-2 border-slate-800 text-slate-800 font-black text-sm rounded-lg px-3 py-1.5 text-center">{itemToast}</div>}
           </div>
         ), ptcSlot)}
+      {frameBody && ReactDOM.createPortal((
+        <div className="w-full flex flex-col items-center">
         {/* 盤面 */}
-        <div className={"akari-board-scroll overflow-auto flex justify-center" + (mpOn && iAmSpecRef.current ? " hidden" : "")} onPointerMove={onBoardMove}>
-          <div className="inline-grid gap-[3px] p-[6px] bg-amber-100 border-[3px] border-slate-800 rounded-2xl" style={{ gridTemplateColumns: 'repeat(' + (puzzle ? puzzle.w : 10) + ', ' + cellPx + 'px)' }}>
+        <div className={"akari-board-scroll overflow-auto flex justify-center w-full" + (mpOn && iAmSpecRef.current ? " hidden" : "")} onPointerMove={onBoardMove}>
+          <div className="inline-grid gap-[3px] p-[6px] bg-blue-100 border-[3px] border-slate-800 rounded-2xl" style={{ gridTemplateColumns: 'repeat(' + (puzzle ? puzzle.w : 10) + ', ' + cellPx + 'px)' }}>
             {puzzle && cells.map((cv, i) => {
               const isWall = P.walls.has(i);
               if (isWall) {
@@ -1177,7 +1193,7 @@ function AkariGame() {
                 const nst = n != null ? numState.get(i) : null;
                 return (
                   <div key={i} className="flex items-center justify-center bg-slate-800 rounded-[4px] font-black select-none" style={{ width: cellPx, height: cellPx, fontSize: Math.round(cellPx * 0.5) }}>
-                    {n != null ? <span style={{ color: nst === 'ok' ? '#4ade80' : (nst === 'over' ? '#f87171' : '#fbbf24') }}>{n}</span> : null}
+                    {n != null ? <span style={{ color: nst === 'ok' ? '#4ade80' : (nst === 'over' ? '#f87171' : '#60a5fa') }}>{n}</span> : null}
                   </div>
                 );
               }
@@ -1185,8 +1201,8 @@ function AkariGame() {
               return (
                 <button key={i} data-cell={i}
                   onPointerDown={e => onCellDown(i, e)} onPointerUp={e => onCellUp(i, e)} onClick={() => onCellClick(i)}
-                  className={"relative flex items-center justify-center rounded-[4px] border select-none touch-none" + (bad ? " border-red-500" : " border-amber-200") + (isBulb && newBulbRef.current === i ? " akari-bulb-new" : "")}
-                  style={{ width: cellPx, height: cellPx, fontSize: Math.round(cellPx * 0.52), background: (isBulb || isLocked) ? '#fbbf24' : (lit ? '#fef3c7' : '#ffffff'), boxShadow: bad ? 'inset 0 0 0 2px #ef4444' : (isLocked ? 'inset 0 0 0 2px #b45309, 0 0 10px 2px rgba(245,158,11,0.55)' : (isBulb && !outaged ? '0 0 10px 2px rgba(245,158,11,0.55)' : 'none')) }}>
+                  className={"relative flex items-center justify-center rounded-[4px] border select-none touch-none" + (bad ? " border-red-500" : " border-blue-200") + (isBulb && newBulbRef.current === i ? " akari-bulb-new" : "")}
+                  style={{ width: cellPx, height: cellPx, fontSize: Math.round(cellPx * 0.52), background: (isBulb || isLocked) ? '#60a5fa' : (lit ? '#dbeafe' : '#ffffff'), boxShadow: bad ? 'inset 0 0 0 2px #ef4444' : (isLocked ? 'inset 0 0 0 2px #1d4ed8, 0 0 10px 2px rgba(59,130,246,0.55)' : (isBulb && !outaged ? '0 0 10px 2px rgba(59,130,246,0.55)' : 'none')) }}>
                   {(isBulb || isLocked) ? '💡' : (isCross ? <span className="text-slate-400 font-black">✕</span> : '')}
                   {isLocked && <span className="absolute bottom-0 right-0 leading-none" style={{ fontSize: Math.max(9, Math.round(cellPx * 0.3)) }}>🔒</span>}
                 </button>
@@ -1195,13 +1211,13 @@ function AkariGame() {
           </div>
         </div>
         {mpOn && (myOutcome || iAmSpecRef.current) && puzzle && (
-          <div className="mt-4 bg-white border-[3px] border-slate-800 rounded-2xl shadow-[3px_3px_0px_rgba(30,41,59,1)] p-4">
+          <div className="mt-4 w-full max-w-[560px] bg-white border-[3px] border-slate-800 rounded-2xl shadow-[3px_3px_0px_rgba(30,41,59,1)] p-4">
             <div className="font-black text-slate-800 mb-2">👁️ 觀戰（點選手看他的盤面）</div>
             <div className="flex gap-1.5 flex-wrap mb-3">
               {players.filter(p => !p.spectator && !p.pending && p.id !== myId).map(p => {
                 const g = godBoards[p.id] || { progress: 0, state: 'playing' };
                 return (
-                  <button key={p.id} onClick={() => setSpecUid(p.id)} className={"plat-btn-hard px-2.5 py-1 rounded-full border-2 border-slate-800 font-black text-xs shadow-[1px_1px_0px_rgba(30,41,59,1)]" + (specUid === p.id ? " bg-amber-400 text-slate-900" : " bg-white text-slate-700")}>
+                  <button key={p.id} onClick={() => setSpecUid(p.id)} className={"plat-btn-hard px-2.5 py-1 rounded-full border-2 border-slate-800 font-black text-xs shadow-[1px_1px_0px_rgba(30,41,59,1)]" + (specUid === p.id ? " bg-blue-400 text-slate-900" : " bg-white text-slate-700")}>
                     <span className="inline-block w-2.5 h-2.5 rounded-full border border-slate-800 mr-1" style={{ background: p.color }}></span>{p.name}・{g.state === 'finished' ? '🏁' : Math.floor((g.progress || 0) * 100) + '%'}
                   </button>
                 );
@@ -1209,11 +1225,11 @@ function AkariGame() {
             </div>
             {specUid && godBoards[specUid] && typeof godBoards[specUid].cells === 'string' && P && (
               <div className="flex justify-center">
-                <div className="inline-grid gap-[2px] p-[4px] bg-amber-100 border-2 border-slate-800 rounded-xl" style={{ gridTemplateColumns: 'repeat(' + puzzle.w + ', 18px)' }}>
+                <div className="inline-grid gap-[2px] p-[4px] bg-blue-100 border-2 border-slate-800 rounded-xl" style={{ gridTemplateColumns: 'repeat(' + puzzle.w + ', 18px)' }}>
                   {godBoards[specUid].cells.split('').map((ch, i) => {
-                    if (P.walls.has(i)) { const n = P.numbers.has(i) ? P.numbers.get(i) : null; return <div key={i} className="flex items-center justify-center bg-slate-800 rounded-[3px] font-black text-amber-300" style={{ width: 18, height: 18, fontSize: 10 }}>{n != null ? n : ''}</div>; }
+                    if (P.walls.has(i)) { const n = P.numbers.has(i) ? P.numbers.get(i) : null; return <div key={i} className="flex items-center justify-center bg-slate-800 rounded-[3px] font-black text-blue-300" style={{ width: 18, height: 18, fontSize: 10 }}>{n != null ? n : ''}</div>; }
                     const v = Number(ch);
-                    return <div key={i} className="flex items-center justify-center rounded-[3px] border border-amber-200" style={{ width: 18, height: 18, fontSize: 11, background: (v === 1 || v === 3) ? '#fbbf24' : '#ffffff', boxShadow: v === 3 ? 'inset 0 0 0 2px #b45309' : 'none' }}>{v === 1 || v === 3 ? '💡' : (v === 2 ? <span className="text-slate-400 font-black">✕</span> : '')}</div>;
+                    return <div key={i} className="flex items-center justify-center rounded-[3px] border border-blue-200" style={{ width: 18, height: 18, fontSize: 11, background: (v === 1 || v === 3) ? '#60a5fa' : '#ffffff', boxShadow: v === 3 ? 'inset 0 0 0 2px #1d4ed8' : 'none' }}>{v === 1 || v === 3 ? '💡' : (v === 2 ? <span className="text-slate-400 font-black">✕</span> : '')}</div>;
                   })}
                 </div>
               </div>
@@ -1222,18 +1238,19 @@ function AkariGame() {
           </div>
         )}
         {status === 'won' && winInfo && !mpOn && (
-          <div className="mt-4 bg-white border-[3px] border-slate-800 rounded-2xl shadow-[3px_3px_0px_rgba(30,41,59,1)] p-4 text-center">
+          <div className="mt-4 w-full max-w-[560px] bg-white border-[3px] border-slate-800 rounded-2xl shadow-[3px_3px_0px_rgba(30,41,59,1)] p-4 text-center">
             <div className="text-3xl font-black text-slate-800 mb-1">🎉 全盤點亮！</div>
             <div className="font-bold text-slate-500 mb-3">{winInfo.isDaily ? '每日一題 ' + (winInfo.dateStr || '') + ' ' : ''}用時 {String(Math.floor(winInfo.secs / 60)).padStart(2, '0')}:{String(winInfo.secs % 60).padStart(2, '0')}{winInfo.isDaily && winInfo.dateStr === todayStr() && streakInfo.count > 0 ? '・🔥 連勝 ' + streakInfo.count + ' 天' : ''}</div>
             <div className="flex gap-2 justify-center">
-              {!winInfo.isDaily && <button onClick={() => startSolo(sizeId)} className="plat-btn-hard px-5 py-2.5 bg-amber-400 border-[3px] border-slate-800 rounded-xl font-black shadow-[2px_2px_0px_rgba(30,41,59,1)]">🔁 再來一局</button>}
+              {!winInfo.isDaily && <button onClick={() => startSolo(sizeId)} className="plat-btn-hard px-5 py-2.5 bg-blue-400 border-[3px] border-slate-800 rounded-xl font-black shadow-[2px_2px_0px_rgba(30,41,59,1)]">🔁 再來一局</button>}
               <button onClick={() => { setScreen('home'); setPuzzle(null); puzzleRef.current = null; }} className="plat-btn-hard px-5 py-2.5 bg-white border-[3px] border-slate-800 rounded-xl font-black shadow-[2px_2px_0px_rgba(30,41,59,1)]">🏠 回主選單</button>
             </div>
           </div>
         )}
-      </div>
-      {/* PlatBar 掛載點（只在對局畫面） */}
-      <div ref={platBarRef} className="fixed bottom-0 left-0 right-0 z-40"></div>
+        </div>
+      ), frameBody)}
+      {/* PlatBar 掛載點（只在對局畫面）：數獨同款——專屬 fixed 全寬容器包掛載點，不把定位押在掛載點自身（v1.70.0 幾何修正：舊法在 flex 置中根容器裡一旦 utility 未生效就縮成置中窄盒） */}
+      <div className="fixed bottom-0 left-0 right-0 z-[100] pb-safe"><div ref={platBarRef}></div></div>
     </div>
   );
 }

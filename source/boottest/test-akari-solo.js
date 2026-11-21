@@ -49,7 +49,7 @@ function ok(c, label) { if (c) { pass++; console.log('✅', label); } else { fai
   for (let i = 0; i < 100; i++) {
     if (P.walls.has(i)) continue;
     const should = lit.has(i);
-    const isLit = bgOf(i).includes('254, 243, 199') || bgOf(i).includes('251, 191, 36');
+    const isLit = bgOf(i).includes('219, 234, 254') || bgOf(i).includes('96, 165, 250'); // 亮格 #dbeafe／燈格 #60a5fa（2026-11-21 主題改藍）
     if (should !== isLit) { glowOk = false; console.log('  glow mismatch at', i, 'should', should, 'bg', bgOf(i)); break; }
   }
   // 牆後不溢：找一盞解答燈其同列有牆、牆後有格 → 該格必不在 lit 且渲染未亮（已含在逐格比對；此處顯式記錄）

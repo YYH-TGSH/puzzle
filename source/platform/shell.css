@@ -22,6 +22,11 @@ body[data-view="home"] {
 }
 .plat-view { display: none; }
 .plat-view.active { display: block; animation: platViewIn .26s var(--plat-ease-settle); }
+/* 頁面底紙點陣（框架層 F2 起收歸殼持有：圖樣統一 2px 點/12px 間距，色調走 per-view 變數 --plat-dot；
+   未定義的 view＝透明點（該款底紙仍由其 body 規則提供，F3 遷移時再收編）。已收編：地雷、美術燈（美術燈點色隨 2026-11-21 改藍裁示用藍系低調色） */
+.plat-view { background-image: radial-gradient(var(--plat-dot, transparent) 2px, transparent 2px); background-size: 12px 12px; }
+/* #view-mines 的 --plat-dot 待 F2（v1.71.0）刪其 body 底紙段時一併啟用（屆時值 #f7ddba）；v1.70.0 地雷底紙仍由其 body 規則提供、先不掛避免雙重點陣 */
+#view-akari { --plat-dot: #b9cfee; }
 .plat-view.plat-view-out { display: block; opacity: 0; transition: opacity 90ms var(--plat-ease-travel); pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .plat-view.plat-view-out { transition: none; } }
 /* 畫面轉場 Fade Through（美學稽核 V-02）：切換不再瞬斷，舊畫面換新畫面時淡入＋微縮放，約 260ms */

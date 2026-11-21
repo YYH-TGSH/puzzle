@@ -225,7 +225,7 @@ function platTapNew(opts) {
 }
 
 // ---------- 常數 ----------
-var ACCENT = '#f59e0b';
+var ACCENT = '#3b82f6'; // 主題色（2026-11-21 使用者裁示改藍：原琥珀與數獨黃太近）
 var SIZES = {
   7: {
     id: 7,
@@ -416,72 +416,80 @@ function AkariGame() {
   var downRef = useRef(null); // {idx, trk, painting:bool}
   var platBarRef = useRef(null);
   var platHomeRef = useRef(null); // PlatHome 掛載點（框架層 F1）
-  var platTopRef = useRef(null); // PlatTopCard 掛載點（框架層 F1）
+  var platFrameRef = useRef(null); // PlatFrame 掛載點（框架修正批 v1.70.0：對局外框改殼持有）
   var _useState29 = useState(null),
     _useState30 = _slicedToArray(_useState29, 2),
-    ptcSlot = _useState30[0],
-    setPtcSlot = _useState30[1]; // PlatTopCard 遊戲槽節點（portal 用）
+    frameBody = _useState30[0],
+    setFrameBody = _useState30[1]; // PlatFrame 內容區節點（盤面 portal 用）
+  var _useState31 = useState(null),
+    _useState32 = _slicedToArray(_useState31, 2),
+    ptcEl = _useState32[0],
+    setPtcEl = _useState32[1]; // PlatTopCard 掛載點＝外框頂區節點
+  var _useState33 = useState(null),
+    _useState34 = _slicedToArray(_useState33, 2),
+    ptcSlot = _useState34[0],
+    setPtcSlot = _useState34[1]; // PlatTopCard 遊戲槽節點（portal 用）
   var newBulbRef = useRef(-1);
   // ---------- 多人狀態 ----------
   var myId = akariUid();
-  var _useState31 = useState(false),
-    _useState32 = _slicedToArray(_useState31, 2),
-    mpOn = _useState32[0],
-    setMpOn = _useState32[1];
-  var _useState33 = useState('waiting'),
-    _useState34 = _slicedToArray(_useState33, 2),
-    mpPhase = _useState34[0],
-    setMpPhase = _useState34[1]; // waiting | countdown | playing | done
-  var _useState35 = useState([]),
+  var _useState35 = useState(false),
     _useState36 = _slicedToArray(_useState35, 2),
-    players = _useState36[0],
-    setPlayers = _useState36[1];
-  var _useState37 = useState({}),
+    mpOn = _useState36[0],
+    setMpOn = _useState36[1];
+  var _useState37 = useState('waiting'),
     _useState38 = _slicedToArray(_useState37, 2),
-    godBoards = _useState38[0],
-    setGodBoards = _useState38[1];
-  var _useState39 = useState(null),
+    mpPhase = _useState38[0],
+    setMpPhase = _useState38[1]; // waiting | countdown | playing | done
+  var _useState39 = useState([]),
     _useState40 = _slicedToArray(_useState39, 2),
-    raceFinal = _useState40[0],
-    setRaceFinal = _useState40[1];
-  var _useState41 = useState(null),
+    players = _useState40[0],
+    setPlayers = _useState40[1];
+  var _useState41 = useState({}),
     _useState42 = _slicedToArray(_useState41, 2),
-    myOutcome = _useState42[0],
-    setMyOutcome = _useState42[1]; // 'finished'
+    godBoards = _useState42[0],
+    setGodBoards = _useState42[1];
   var _useState43 = useState(null),
     _useState44 = _slicedToArray(_useState43, 2),
-    cdNum = _useState44[0],
-    setCdNum = _useState44[1];
+    raceFinal = _useState44[0],
+    setRaceFinal = _useState44[1];
   var _useState45 = useState(null),
     _useState46 = _slicedToArray(_useState45, 2),
-    itemToast = _useState46[0],
-    setItemToast = _useState46[1];
-  var _useState47 = useState({
+    myOutcome = _useState46[0],
+    setMyOutcome = _useState46[1]; // 'finished'
+  var _useState47 = useState(null),
+    _useState48 = _slicedToArray(_useState47, 2),
+    cdNum = _useState48[0],
+    setCdNum = _useState48[1];
+  var _useState49 = useState(null),
+    _useState50 = _slicedToArray(_useState49, 2),
+    itemToast = _useState50[0],
+    setItemToast = _useState50[1];
+  var _useState51 = useState({
       trap: 0
     }),
-    _useState48 = _slicedToArray(_useState47, 2),
-    myItems = _useState48[0],
-    setMyItems = _useState48[1];
-  var _useState49 = useState(0),
-    _useState50 = _slicedToArray(_useState49, 2),
-    outageUntil = _useState50[0],
-    setOutageUntil = _useState50[1];
-  var _useState51 = useState(null),
     _useState52 = _slicedToArray(_useState51, 2),
-    specUid = _useState52[0],
-    setSpecUid = _useState52[1];
-  var _useState53 = useState(false),
+    myItems = _useState52[0],
+    setMyItems = _useState52[1];
+  var _useState53 = useState(0),
     _useState54 = _slicedToArray(_useState53, 2),
-    myReadySt = _useState54[0],
-    setMyReadySt = _useState54[1];
-  var _useState55 = useState(false),
+    outageUntil = _useState54[0],
+    setOutageUntil = _useState54[1];
+  var _useState55 = useState(null),
     _useState56 = _slicedToArray(_useState55, 2),
-    leaveArm = _useState56[0],
-    setLeaveArm = _useState56[1];
-  var _useState57 = useState(0),
+    specUid = _useState56[0],
+    setSpecUid = _useState56[1];
+  var _useState57 = useState(false),
     _useState58 = _slicedToArray(_useState57, 2),
-    waitTick = _useState58[0],
-    setWaitTick = _useState58[1];
+    myReadySt = _useState58[0],
+    setMyReadySt = _useState58[1];
+  var _useState59 = useState(false),
+    _useState60 = _slicedToArray(_useState59, 2),
+    leaveArm = _useState60[0],
+    setLeaveArm = _useState60[1];
+  var _useState61 = useState(0),
+    _useState62 = _slicedToArray(_useState61, 2),
+    waitTick = _useState62[0],
+    setWaitTick = _useState62[1];
   var mpRef = useRef({
     on: false,
     isHost: false,
@@ -2067,15 +2075,15 @@ function AkariGame() {
   }
   function openAkariTutorial() {
     if (!window.PlatTutorial) return;
-    var cell = 'w-8 h-8 flex items-center justify-center rounded-[4px] border border-amber-200 bg-[#f1f5f9] text-base';
+    var cell = 'w-8 h-8 flex items-center justify-center rounded-[4px] border border-blue-200 bg-[#f1f5f9] text-base';
     var steps = [{
-      html: '<div class="font-black text-slate-700 mb-2">1️⃣ 燈照直線，撞牆就停</div><div class="flex gap-[3px] justify-center"><div class="' + cell + ' akari-teach-cell" style="animation-delay:0.5s"></div><div class="' + cell + ' akari-teach-cell" style="animation-delay:0.35s"></div><div class="' + cell + '" style="background:#fbbf24">💡</div><div class="' + cell + ' akari-teach-cell" style="animation-delay:0.35s"></div><div class="' + cell + ' akari-teach-cell" style="animation-delay:0.5s"></div><div class="w-8 h-8 flex items-center justify-center rounded-[4px] bg-slate-800"></div><div class="' + cell + '"></div></div>',
+      html: '<div class="font-black text-slate-700 mb-2">1️⃣ 燈照直線，撞牆就停</div><div class="flex gap-[3px] justify-center"><div class="' + cell + ' akari-teach-cell" style="animation-delay:0.5s"></div><div class="' + cell + ' akari-teach-cell" style="animation-delay:0.35s"></div><div class="' + cell + '" style="background:#60a5fa">💡</div><div class="' + cell + ' akari-teach-cell" style="animation-delay:0.35s"></div><div class="' + cell + ' akari-teach-cell" style="animation-delay:0.5s"></div><div class="w-8 h-8 flex items-center justify-center rounded-[4px] bg-slate-800"></div><div class="' + cell + '"></div></div>',
       caption: '在空格放燈泡，整行整列都會亮起來，直到被黑牆擋住。目標是讓每一格都被照亮。'
     }, {
-      html: '<div class="font-black text-slate-700 mb-2">2️⃣ 兩盞燈不能互相照到</div><div class="flex gap-[3px] justify-center"><div class="' + cell + ' akari-teach-clash" style="background:#fbbf24">💡</div><div class="' + cell + '" style="background:#fee2e2"></div><div class="' + cell + '" style="background:#fee2e2"></div><div class="' + cell + ' akari-teach-clash" style="background:#fbbf24">💡</div></div>',
+      html: '<div class="font-black text-slate-700 mb-2">2️⃣ 兩盞燈不能互相照到</div><div class="flex gap-[3px] justify-center"><div class="' + cell + ' akari-teach-clash" style="background:#60a5fa">💡</div><div class="' + cell + '" style="background:#fee2e2"></div><div class="' + cell + '" style="background:#fee2e2"></div><div class="' + cell + ' akari-teach-clash" style="background:#60a5fa">💡</div></div>',
       caption: '同一行／列、中間沒有牆隔開的兩盞燈會互相照到——不行。要用牆把燈隔開。'
     }, {
-      html: '<div class="font-black text-slate-700 mb-2">3️⃣ 數字牆：旁邊的燈要剛剛好</div><div class="flex gap-[3px] justify-center items-center"><div class="' + cell + '" style="background:#fef3c7"></div><div class="' + cell + '" style="background:#fbbf24">💡</div><div class="' + cell + '" style="background:#fef3c7"></div></div><div class="flex gap-[3px] justify-center items-center mt-[3px]"><div class="' + cell + '" style="background:#fbbf24">💡</div><div class="' + cell + ' akari-teach-ok font-black" style="background:#1e293b;color:#fbbf24">2</div><div class="' + cell + '"></div></div>',
+      html: '<div class="font-black text-slate-700 mb-2">3️⃣ 數字牆：旁邊的燈要剛剛好</div><div class="flex gap-[3px] justify-center items-center"><div class="' + cell + '" style="background:#dbeafe"></div><div class="' + cell + '" style="background:#60a5fa">💡</div><div class="' + cell + '" style="background:#dbeafe"></div></div><div class="flex gap-[3px] justify-center items-center mt-[3px]"><div class="' + cell + '" style="background:#60a5fa">💡</div><div class="' + cell + ' akari-teach-ok font-black" style="background:#1e293b;color:#60a5fa">2</div><div class="' + cell + '"></div></div>',
       caption: '牆上的數字是它上下左右緊鄰的燈數。剛好等於時數字會變綠。點按格子循環：燈 → 叉（先做記號）→ 空白。'
     }];
     window.PlatTutorial.show({
@@ -2129,7 +2137,8 @@ function AkariGame() {
     accent: ACCENT,
     logo: '💡',
     name: '美術燈',
-    frame: true,
+    frame: false,
+    // v1.70.0：band 併入 PlatFrame 外框（只剩 border-b），不再是獨立浮卡
     rulesHtml: '① 在空格放燈，燈會照亮同行同列、直到撞牆。② 所有空格都要被照亮。③ 任何兩盞燈不能互相照到。④ 數字牆上下左右的燈數要剛好等於數字。點按循環：燈 → 叉（記號）→ 空白；按住拖曳可連續塗叉。',
     onAction: function onAction(name) {
       if (name === 'mute') {
@@ -2146,16 +2155,39 @@ function AkariGame() {
       }
     }
   };
+  var platFrameCfgStable = useRef(null);
+  if (!platFrameCfgStable.current) platFrameCfgStable.current = {
+    paper: '#f4f9ff'
+  }; // 外框紙色（藍調紙面，隨改藍裁示）
   useEffect(function () {
-    // PlatTopCard 自我修復 attach＋槽位同步
+    // PlatFrame 自我修復 attach（先於 PlatTopCard effect 宣告：同輪先建框、再掛頂欄）
+    if (typeof window === 'undefined' || typeof window.PlatFrame === 'undefined') return;
+    if (window.__PLAT_NET && window.__PLAT_NET.inMatch && window.__PLAT_NET.inMatch !== 'akari') return;
+    if (screen !== 'game') {
+      if (window.PlatFrame.isAttached()) window.PlatFrame.detach();
+      if (frameBody) setFrameBody(null);
+      if (ptcEl) setPtcEl(null);
+      return;
+    }
+    var el = platFrameRef.current;
+    if (el) {
+      if (window.PlatFrame._el() !== el || !window.PlatFrame._elConnected()) window.PlatFrame.attach(el, platFrameCfgStable.current);
+      var b = window.PlatFrame.getBody();
+      if (b !== frameBody) setFrameBody(b);
+      var t = window.PlatFrame.getTop();
+      if (t !== ptcEl) setPtcEl(t);
+    }
+  });
+  useEffect(function () {
+    // PlatTopCard 自我修復 attach＋槽位同步（掛載點＝外框頂區）
     if (typeof window === 'undefined' || typeof window.PlatTopCard === 'undefined') return;
     if (window.__PLAT_NET && window.__PLAT_NET.inMatch && window.__PLAT_NET.inMatch !== 'akari') return;
     if (screen !== 'game') {
-      if (window.PlatTopCard.isAttached() && window.PlatTopCard._el() === platTopRef.current) window.PlatTopCard.detach(platTopRef.current);
+      if (window.PlatTopCard.isAttached() && window.PlatTopCard._el() === ptcEl) window.PlatTopCard.detach(ptcEl);
       if (ptcSlot) setPtcSlot(null);
       return;
     }
-    var el = platTopRef.current;
+    var el = ptcEl;
     if (el) {
       if (window.PlatTopCard._el() !== el || !window.PlatTopCard._elConnected()) window.PlatTopCard.attach(el, platTopCfgStable.current);
       var slot = window.PlatTopCard.getSlot();
@@ -2516,7 +2548,7 @@ function AkariGame() {
       onClick: function onClick() {
         return startSolo(sizeId);
       },
-      className: "plat-btn-hard px-6 py-3 bg-amber-400 border-4 border-slate-800 rounded-xl font-black text-xl"
+      className: "plat-btn-hard px-6 py-3 bg-blue-400 border-4 border-slate-800 rounded-xl font-black text-xl"
     }, "\uD83C\uDFAE \u55AE\u6A5F\u6311\u6230"), /*#__PURE__*/React.createElement("button", {
       onClick: function onClick() {
         return startDaily(todayStr());
@@ -2605,7 +2637,7 @@ function AkariGame() {
       className: "font-bold text-slate-400 text-center py-2"
     }, "\u9023\u7DDA\u4E2D\u2026")), myEntryW && !myEntryW.pending && !myEntryW.spectator && /*#__PURE__*/React.createElement("button", {
       onClick: toggleMyReady,
-      className: "plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 rounded-xl border-[3px] border-slate-800 font-black text-lg shadow-[3px_3px_0px_rgba(30,41,59,1)]" + (myReadySt ? ' bg-amber-400 text-slate-900' : ' bg-white text-slate-500')
+      className: "plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 rounded-xl border-[3px] border-slate-800 font-black text-lg shadow-[3px_3px_0px_rgba(30,41,59,1)]" + (myReadySt ? ' bg-blue-400 text-slate-900' : ' bg-white text-slate-500')
     }, myReadySt ? '✅ 已準備（點擊取消）' : '✋ 準備好了'), M.isHost ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("button", {
       disabled: !canStartW,
       onClick: startMatch,
@@ -2624,12 +2656,7 @@ function AkariGame() {
     key: "akari-game",
     className: "min-h-screen flex flex-col items-center p-2 md:p-4 pb-28"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "w-full",
-    style: {
-      maxWidth: puzzle ? cellPx * puzzle.w + 24 + 'px' : '560px'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    ref: platTopRef,
+    ref: platFrameRef,
     className: "w-full"
   }), ptcSlot && ReactDOM.createPortal( /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2"
@@ -2653,14 +2680,16 @@ function AkariGame() {
     className: "plat-btn-hard px-2 py-0.5 bg-violet-100 border-2 border-slate-800 rounded-full font-black text-[11px] text-violet-800 shadow-[1px_1px_0px_rgba(30,41,59,1)] disabled:opacity-40 disabled:shadow-none",
     title: "\u65B7\u96FB\u9677\u9631\uFF1A\u8B93\u4E00\u4F4D\u5C0D\u624B\u7684\u71C8\u5149\u6688\u6D88\u5931 5 \u79D2"
   }, "\u26A1 \u65B7\u96FB \xD7", myItems.trap || 0)), outaged && /*#__PURE__*/React.createElement("div", {
-    className: "mt-2 bg-slate-800 text-amber-300 font-black text-sm rounded-lg px-3 py-1.5 text-center animate-pulse"
+    className: "mt-2 bg-slate-800 text-blue-300 font-black text-sm rounded-lg px-3 py-1.5 text-center animate-pulse"
   }, "\u26A1 \u65B7\u96FB\u4E2D\u2026\u5149\u6688\u66AB\u6642\u6D88\u5931\uFF08\u71C8\u90FD\u9084\u5728\uFF09"), itemToast && /*#__PURE__*/React.createElement("div", {
     className: "mt-2 bg-white/90 border-2 border-slate-800 text-slate-800 font-black text-sm rounded-lg px-3 py-1.5 text-center"
-  }, itemToast)), ptcSlot), /*#__PURE__*/React.createElement("div", {
-    className: "akari-board-scroll overflow-auto flex justify-center" + (mpOn && iAmSpecRef.current ? " hidden" : ""),
+  }, itemToast)), ptcSlot), frameBody && ReactDOM.createPortal( /*#__PURE__*/React.createElement("div", {
+    className: "w-full flex flex-col items-center"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "akari-board-scroll overflow-auto flex justify-center w-full" + (mpOn && iAmSpecRef.current ? " hidden" : ""),
     onPointerMove: onBoardMove
   }, /*#__PURE__*/React.createElement("div", {
-    className: "inline-grid gap-[3px] p-[6px] bg-amber-100 border-[3px] border-slate-800 rounded-2xl",
+    className: "inline-grid gap-[3px] p-[6px] bg-blue-100 border-[3px] border-slate-800 rounded-2xl",
     style: {
       gridTemplateColumns: 'repeat(' + (puzzle ? puzzle.w : 10) + ', ' + cellPx + 'px)'
     }
@@ -2679,7 +2708,7 @@ function AkariGame() {
         }
       }, n != null ? /*#__PURE__*/React.createElement("span", {
         style: {
-          color: nst === 'ok' ? '#4ade80' : nst === 'over' ? '#f87171' : '#fbbf24'
+          color: nst === 'ok' ? '#4ade80' : nst === 'over' ? '#f87171' : '#60a5fa'
         }
       }, n) : null);
     }
@@ -2700,13 +2729,13 @@ function AkariGame() {
       onClick: function onClick() {
         return onCellClick(i);
       },
-      className: "relative flex items-center justify-center rounded-[4px] border select-none touch-none" + (bad ? " border-red-500" : " border-amber-200") + (isBulb && newBulbRef.current === i ? " akari-bulb-new" : ""),
+      className: "relative flex items-center justify-center rounded-[4px] border select-none touch-none" + (bad ? " border-red-500" : " border-blue-200") + (isBulb && newBulbRef.current === i ? " akari-bulb-new" : ""),
       style: {
         width: cellPx,
         height: cellPx,
         fontSize: Math.round(cellPx * 0.52),
-        background: isBulb || isLocked ? '#fbbf24' : lit ? '#fef3c7' : '#ffffff',
-        boxShadow: bad ? 'inset 0 0 0 2px #ef4444' : isLocked ? 'inset 0 0 0 2px #b45309, 0 0 10px 2px rgba(245,158,11,0.55)' : isBulb && !outaged ? '0 0 10px 2px rgba(245,158,11,0.55)' : 'none'
+        background: isBulb || isLocked ? '#60a5fa' : lit ? '#dbeafe' : '#ffffff',
+        boxShadow: bad ? 'inset 0 0 0 2px #ef4444' : isLocked ? 'inset 0 0 0 2px #1d4ed8, 0 0 10px 2px rgba(59,130,246,0.55)' : isBulb && !outaged ? '0 0 10px 2px rgba(59,130,246,0.55)' : 'none'
       }
     }, isBulb || isLocked ? '💡' : isCross ? /*#__PURE__*/React.createElement("span", {
       className: "text-slate-400 font-black"
@@ -2717,7 +2746,7 @@ function AkariGame() {
       }
     }, "\uD83D\uDD12"));
   }))), mpOn && (myOutcome || iAmSpecRef.current) && puzzle && /*#__PURE__*/React.createElement("div", {
-    className: "mt-4 bg-white border-[3px] border-slate-800 rounded-2xl shadow-[3px_3px_0px_rgba(30,41,59,1)] p-4"
+    className: "mt-4 w-full max-w-[560px] bg-white border-[3px] border-slate-800 rounded-2xl shadow-[3px_3px_0px_rgba(30,41,59,1)] p-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "font-black text-slate-800 mb-2"
   }, "\uD83D\uDC41\uFE0F \u89C0\u6230\uFF08\u9EDE\u9078\u624B\u770B\u4ED6\u7684\u76E4\u9762\uFF09"), /*#__PURE__*/React.createElement("div", {
@@ -2734,7 +2763,7 @@ function AkariGame() {
       onClick: function onClick() {
         return setSpecUid(p.id);
       },
-      className: "plat-btn-hard px-2.5 py-1 rounded-full border-2 border-slate-800 font-black text-xs shadow-[1px_1px_0px_rgba(30,41,59,1)]" + (specUid === p.id ? " bg-amber-400 text-slate-900" : " bg-white text-slate-700")
+      className: "plat-btn-hard px-2.5 py-1 rounded-full border-2 border-slate-800 font-black text-xs shadow-[1px_1px_0px_rgba(30,41,59,1)]" + (specUid === p.id ? " bg-blue-400 text-slate-900" : " bg-white text-slate-700")
     }, /*#__PURE__*/React.createElement("span", {
       className: "inline-block w-2.5 h-2.5 rounded-full border border-slate-800 mr-1",
       style: {
@@ -2744,7 +2773,7 @@ function AkariGame() {
   })), specUid && godBoards[specUid] && typeof godBoards[specUid].cells === 'string' && P && /*#__PURE__*/React.createElement("div", {
     className: "flex justify-center"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "inline-grid gap-[2px] p-[4px] bg-amber-100 border-2 border-slate-800 rounded-xl",
+    className: "inline-grid gap-[2px] p-[4px] bg-blue-100 border-2 border-slate-800 rounded-xl",
     style: {
       gridTemplateColumns: 'repeat(' + puzzle.w + ', 18px)'
     }
@@ -2753,7 +2782,7 @@ function AkariGame() {
       var n = P.numbers.has(i) ? P.numbers.get(i) : null;
       return /*#__PURE__*/React.createElement("div", {
         key: i,
-        className: "flex items-center justify-center bg-slate-800 rounded-[3px] font-black text-amber-300",
+        className: "flex items-center justify-center bg-slate-800 rounded-[3px] font-black text-blue-300",
         style: {
           width: 18,
           height: 18,
@@ -2764,13 +2793,13 @@ function AkariGame() {
     var v = Number(ch);
     return /*#__PURE__*/React.createElement("div", {
       key: i,
-      className: "flex items-center justify-center rounded-[3px] border border-amber-200",
+      className: "flex items-center justify-center rounded-[3px] border border-blue-200",
       style: {
         width: 18,
         height: 18,
         fontSize: 11,
-        background: v === 1 || v === 3 ? '#fbbf24' : '#ffffff',
-        boxShadow: v === 3 ? 'inset 0 0 0 2px #b45309' : 'none'
+        background: v === 1 || v === 3 ? '#60a5fa' : '#ffffff',
+        boxShadow: v === 3 ? 'inset 0 0 0 2px #1d4ed8' : 'none'
       }
     }, v === 1 || v === 3 ? '💡' : v === 2 ? /*#__PURE__*/React.createElement("span", {
       className: "text-slate-400 font-black"
@@ -2778,7 +2807,7 @@ function AkariGame() {
   }))), specUid && !(godBoards[specUid] && typeof godBoards[specUid].cells === 'string') && /*#__PURE__*/React.createElement("p", {
     className: "text-center font-bold text-slate-400 text-sm"
   }, "\u7B49\u4ED6\u7684\u76E4\u9762\u540C\u6B65\u904E\u4F86\u2026")), status === 'won' && winInfo && !mpOn && /*#__PURE__*/React.createElement("div", {
-    className: "mt-4 bg-white border-[3px] border-slate-800 rounded-2xl shadow-[3px_3px_0px_rgba(30,41,59,1)] p-4 text-center"
+    className: "mt-4 w-full max-w-[560px] bg-white border-[3px] border-slate-800 rounded-2xl shadow-[3px_3px_0px_rgba(30,41,59,1)] p-4 text-center"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-3xl font-black text-slate-800 mb-1"
   }, "\uD83C\uDF89 \u5168\u76E4\u9EDE\u4EAE\uFF01"), /*#__PURE__*/React.createElement("div", {
@@ -2789,7 +2818,7 @@ function AkariGame() {
     onClick: function onClick() {
       return startSolo(sizeId);
     },
-    className: "plat-btn-hard px-5 py-2.5 bg-amber-400 border-[3px] border-slate-800 rounded-xl font-black shadow-[2px_2px_0px_rgba(30,41,59,1)]"
+    className: "plat-btn-hard px-5 py-2.5 bg-blue-400 border-[3px] border-slate-800 rounded-xl font-black shadow-[2px_2px_0px_rgba(30,41,59,1)]"
   }, "\uD83D\uDD01 \u518D\u4F86\u4E00\u5C40"), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       setScreen('home');
@@ -2797,9 +2826,10 @@ function AkariGame() {
       puzzleRef.current = null;
     },
     className: "plat-btn-hard px-5 py-2.5 bg-white border-[3px] border-slate-800 rounded-xl font-black shadow-[2px_2px_0px_rgba(30,41,59,1)]"
-  }, "\uD83C\uDFE0 \u56DE\u4E3B\u9078\u55AE")))), /*#__PURE__*/React.createElement("div", {
-    ref: platBarRef,
-    className: "fixed bottom-0 left-0 right-0 z-40"
-  }));
+  }, "\uD83C\uDFE0 \u56DE\u4E3B\u9078\u55AE")))), frameBody), /*#__PURE__*/React.createElement("div", {
+    className: "fixed bottom-0 left-0 right-0 z-[100] pb-safe"
+  }, /*#__PURE__*/React.createElement("div", {
+    ref: platBarRef
+  })));
 }
 ReactDOM.createRoot(document.getElementById('akari-root')).render( /*#__PURE__*/React.createElement(window.PlatBoundary, null, React.createElement(AkariGame, null)));
