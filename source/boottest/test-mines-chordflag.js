@@ -23,7 +23,7 @@ function soloPage() { return loadPage(null); }
 async function startSolo9(p) {
   await waitFor(() => (typeof p.window.PLAT_show === 'function' && p.window.PlatDock) ? 1 : null, 120000, 'shell');
   p.window.PLAT_show('mines');
-  const clickBtn = pred => { const b = [...p.document.querySelectorAll('#mines-root button')].find(pred); if (b) { b.click(); return true; } return false; };
+  const clickBtn = pred => { const b = [...p.document.querySelectorAll('button')].find(pred); if (b) { b.click(); return true; } return false; }; // 文件層級：單機設定已收編殼 PlatSetup overlay（body 層，F2）
   await waitFor(() => p.document.querySelector('#mines-root h1'), 60000, 'mines home');
   clickBtn(b => b.textContent.includes('單機挑戰')); await sleep(250);
   clickBtn(b => b.textContent.includes('9×9'));

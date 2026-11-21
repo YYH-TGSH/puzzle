@@ -33,12 +33,13 @@ async function soloPart() {
   const clickBtn = (pred, scope) => { const b = [...(scope || d).querySelectorAll('button')].find(pred); if (b) { b.click(); return true; } return false; };
   ok(clickBtn(b => b.textContent.includes('單機挑戰'), d.querySelector('#mines-root')), '點單機挑戰');
   await sleep(300);
-  ok(clickBtn(b => b.textContent.includes('自訂盤面'), d.querySelector('#mines-root')), '難度頁有自訂盤面區、點展開');
+  // 自訂盤面已收編殼 PlatSetup 的 custom 區塊（F2）：overlay 在 body 層
+  ok(clickBtn(b => b.textContent.includes('自訂盤面'), d.querySelector('#plat-setup')), 'PlatSetup 有自訂盤面區、點展開');
   await sleep(300);
-  const inputs = [...d.querySelectorAll('#mines-root input[type="number"]')];
+  const inputs = [...d.querySelectorAll('#plat-setup [data-pse-field]')];
   ok(inputs.length === 3, '自訂欄位 3 個（寬/高/雷）', 'n=' + inputs.length);
   setInput(w, inputs[0], '12'); setInput(w, inputs[1], '10'); setInput(w, inputs[2], '20');
-  const startBtn = await waitFor(() => [...d.querySelectorAll('#mines-root button')].find(b => b.textContent.includes('開始：12×10・20 雷')) || null, 10000, 'start label');
+  const startBtn = await waitFor(() => [...d.querySelectorAll('#plat-setup button')].find(b => b.textContent.includes('開始：12×10・20 雷')) || null, 10000, 'start label');
   ok(!!startBtn, '開始鈕顯示 clamp 後規格 12×10・20 雷');
   if (startBtn) startBtn.click();
   const cellEls = () => [...d.querySelectorAll('#mines-root button[data-cell]')];
@@ -46,7 +47,7 @@ async function soloPart() {
   let snap = dbg(P);
   ok(snap && snap.sizeId === 'custom', 'sizeId = custom', snap && String(snap.sizeId));
   ok(snap && snap.layout && snap.layout.filter(Boolean).length === 20, '雷數 = 20');
-  ok([...d.querySelectorAll('#mines-root span, #mines-root button')].some(s => { const t = s.textContent || ''; return t.includes('12×10・20 雷') && (t.match(/雷/g) || []).length === 1; }), '頂欄規格標籤顯示 12×10・20 雷（雷數只印一次）'); // 單機時標籤是設定 button（非 span），選擇器須含 button；v1.66.2 雷數不得重複印
+  ok([...d.querySelectorAll('#mines-root [data-ptc-spec], #mines-root [data-ptc="spec"]')].some(s => { const t = s.textContent || ''; return t.includes('12×10・20 雷') && (t.match(/雷/g) || []).length === 1; }), '頂欄規格標籤顯示 12×10・20 雷（雷數只印一次）'); // 規格籤已收編殼 PlatTopCard（F2）；v1.66.2 雷數不得重複印
   let saved = null; try { saved = w.PlatSave.read('mines_custom_cfg', { fallback: null }); } catch (e) {}
   ok(saved && saved.w === 12 && saved.h === 10 && saved.mines === 20, '自訂設定已持久化', JSON.stringify(saved)); // 走 PlatSave.read 解 envelope（同 test-mines-solo 診斷，2026-11-15）
 

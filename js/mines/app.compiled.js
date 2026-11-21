@@ -849,117 +849,95 @@ function MinesGame() {
     setScreen = _useState2[1]; // home | game
   var _useState3 = useState(false),
     _useState4 = _slicedToArray(_useState3, 2),
-    showHelp = _useState4[0],
-    setShowHelp = _useState4[1];
-  var _useState5 = useState(false),
+    showSaveModal = _useState4[0],
+    setShowSaveModal = _useState4[1]; // 存檔/讀檔（v1.42 補齊：比照數獨/數橋代碼式）
+  var _useState5 = useState(''),
     _useState6 = _slicedToArray(_useState5, 2),
-    showSaveModal = _useState6[0],
-    setShowSaveModal = _useState6[1]; // 存檔/讀檔（v1.42 補齊：比照數獨/數橋代碼式）
-  var _useState7 = useState(false),
+    saveCode = _useState6[0],
+    setSaveCode = _useState6[1];
+  var _useState7 = useState(platAudio().isMuted()),
     _useState8 = _slicedToArray(_useState7, 2),
-    showSettingsModal = _useState8[0],
-    setShowSettingsModal = _useState8[1]; // 設定盤面 modal（v1.43 Q2：設定入口三款統一 modal 式）
-  var _useState9 = useState(''),
+    muted = _useState8[0],
+    setMuted = _useState8[1];
+  var _useState9 = useState(9),
     _useState10 = _slicedToArray(_useState9, 2),
-    saveCode = _useState10[0],
-    setSaveCode = _useState10[1];
-  var _useState11 = useState(0),
+    sizeId = _useState10[0],
+    setSizeId = _useState10[1];
+  var _useState11 = useState(null),
     _useState12 = _slicedToArray(_useState11, 2),
-    tutStep = _useState12[0],
-    setTutStep = _useState12[1]; // 玩法教學步進（美學稽核 V-09：三款教學統一為數橋的步進骨架）
-  var _useState13 = useState(function () {
-      return new Array(9).fill(false);
-    }),
+    layout = _useState12[0],
+    setLayout = _useState12[1]; // bool[] 雷位（目前這一局）
+  var _useState13 = useState(null),
     _useState14 = _slicedToArray(_useState13, 2),
-    tutDemoOpen = _useState14[0],
-    setTutDemoOpen = _useState14[1]; // 教學互動 demo（v1.46 Q6）：3×3 已挖開格
-  var _useState15 = useState(false),
+    nums = _useState14[0],
+    setNums = _useState14[1]; // int[] 鄰雷數（-1=雷）
+  var _useState15 = useState(null),
     _useState16 = _slicedToArray(_useState15, 2),
-    tutDemoBoom = _useState16[0],
-    setTutDemoBoom = _useState16[1]; // 教學互動 demo：踩到雷了
-  var _useState17 = useState(platAudio().isMuted()),
+    cells = _useState16[0],
+    setCells = _useState16[1]; // 'h'|'o'|'f'
+  var _useState17 = useState(null),
     _useState18 = _slicedToArray(_useState17, 2),
-    muted = _useState18[0],
-    setMuted = _useState18[1];
-  var _useState19 = useState(9),
-    _useState20 = _slicedToArray(_useState19, 2),
-    sizeId = _useState20[0],
-    setSizeId = _useState20[1];
-  var _useState21 = useState(null),
-    _useState22 = _slicedToArray(_useState21, 2),
-    layout = _useState22[0],
-    setLayout = _useState22[1]; // bool[] 雷位（目前這一局）
-  var _useState23 = useState(null),
-    _useState24 = _slicedToArray(_useState23, 2),
-    nums = _useState24[0],
-    setNums = _useState24[1]; // int[] 鄰雷數（-1=雷）
-  var _useState25 = useState(null),
-    _useState26 = _slicedToArray(_useState25, 2),
-    cells = _useState26[0],
-    setCells = _useState26[1]; // 'h'|'o'|'f'
-  var _useState27 = useState(null),
-    _useState28 = _slicedToArray(_useState27, 2),
-    ownArr = _useState28[0],
-    setOwnArr = _useState28[1]; // 合作專用：每格由哪位玩家開啟（players 索引，-1=未開）→ 染玩家色算貢獻
-  var _useState29 = useState(function () {
+    ownArr = _useState18[0],
+    setOwnArr = _useState18[1]; // 合作專用：每格由哪位玩家開啟（players 索引，-1=未開）→ 染玩家色算貢獻
+  var _useState19 = useState(function () {
       return typeof window !== 'undefined' && window.innerWidth || 390;
     }),
+    _useState20 = _slicedToArray(_useState19, 2),
+    vpW = _useState20[0],
+    setVpW = _useState20[1]; // 視窗寬（盤面響應式放大用）
+  var _useState21 = useState(0),
+    _useState22 = _slicedToArray(_useState21, 2),
+    curSeed = _useState22[0],
+    setCurSeed = _useState22[1];
+  var _useState23 = useState('ready'),
+    _useState24 = _slicedToArray(_useState23, 2),
+    status = _useState24[0],
+    setStatus = _useState24[1]; // ready | playing | won | lost
+  var _useState25 = useState(-1),
+    _useState26 = _slicedToArray(_useState25, 2),
+    hitIdx = _useState26[0],
+    setHitIdx = _useState26[1];
+  var _useState27 = useState('dig'),
+    _useState28 = _slicedToArray(_useState27, 2),
+    inputMode = _useState28[0],
+    setInputMode = _useState28[1]; // dig | flag | draw（v1.49.0 塗鴉比照數獨/數橋補上——之前獨缺，使用者指示）
+  var _useState29 = useState([]),
     _useState30 = _slicedToArray(_useState29, 2),
-    vpW = _useState30[0],
-    setVpW = _useState30[1]; // 視窗寬（盤面響應式放大用）
-  var _useState31 = useState(0),
-    _useState32 = _slicedToArray(_useState31, 2),
-    curSeed = _useState32[0],
-    setCurSeed = _useState32[1];
-  var _useState33 = useState('ready'),
-    _useState34 = _slicedToArray(_useState33, 2),
-    status = _useState34[0],
-    setStatus = _useState34[1]; // ready | playing | won | lost
-  var _useState35 = useState(-1),
-    _useState36 = _slicedToArray(_useState35, 2),
-    hitIdx = _useState36[0],
-    setHitIdx = _useState36[1];
-  var _useState37 = useState('dig'),
-    _useState38 = _slicedToArray(_useState37, 2),
-    inputMode = _useState38[0],
-    setInputMode = _useState38[1]; // dig | flag | draw（v1.49.0 塗鴉比照數獨/數橋補上——之前獨缺，使用者指示）
-  var _useState39 = useState([]),
-    _useState40 = _slicedToArray(_useState39, 2),
-    strokes = _useState40[0],
-    setStrokes = _useState40[1]; // 塗鴉筆跡 [{id, uid, color, pts:[[x,y],...]}]：座標正規化 x 0..1000、y 0..1000*h/w（縮放/捲動都不跑位）
+    strokes = _useState30[0],
+    setStrokes = _useState30[1]; // 塗鴉筆跡 [{id, uid, color, pts:[[x,y],...]}]：座標正規化 x 0..1000、y 0..1000*h/w（縮放/捲動都不跑位）
   var strokesRef = useRef([]);
-  var _useState41 = useState('pen'),
-    _useState42 = _slicedToArray(_useState41, 2),
-    drawTool = _useState42[0],
-    setDrawTool = _useState42[1]; // pen | eraser（PlatBar 塗鴉子選單控制，比照數獨 drawSubMode）
-  var _useState43 = useState('bv'),
-    _useState44 = _slicedToArray(_useState43, 2),
-    progMode = _useState44[0],
-    setProgMode = _useState44[1]; // 進度顯示：'bv'（3BV，預設）| 'open'（開格 %）；只存 session、不持久化（v1.50.0 規格 5.1）
+  var _useState31 = useState('pen'),
+    _useState32 = _slicedToArray(_useState31, 2),
+    drawTool = _useState32[0],
+    setDrawTool = _useState32[1]; // pen | eraser（PlatBar 塗鴉子選單控制，比照數獨 drawSubMode）
+  var _useState33 = useState('bv'),
+    _useState34 = _slicedToArray(_useState33, 2),
+    progMode = _useState34[0],
+    setProgMode = _useState34[1]; // 進度顯示：'bv'（3BV，預設）| 'open'（開格 %）；只存 session、不持久化（v1.50.0 規格 5.1）
   var progModeRef = useRef('bv');
   var bvCacheRef = useRef(null); // {layout, weights, bv}：以 layout 陣列參照為 cache key（規格 7.2：不逐開局路徑掛計算）
-  var _useState45 = useState(null),
-    _useState46 = _slicedToArray(_useState45, 2),
-    livePts = _useState46[0],
-    setLivePts = _useState46[1]; // 正在畫的這一筆（即時預覽）
+  var _useState35 = useState(null),
+    _useState36 = _slicedToArray(_useState35, 2),
+    livePts = _useState36[0],
+    setLivePts = _useState36[1]; // 正在畫的這一筆（即時預覽）
   var drawStateRef = useRef(null); // 手勢中的一筆 {pts} 或 {erasing:true}
   var doodleSvgRef = useRef(null);
-  var _useState47 = useState(null),
-    _useState48 = _slicedToArray(_useState47, 2),
-    startedAt = _useState48[0],
-    setStartedAt = _useState48[1];
-  var _useState49 = useState(0),
-    _useState50 = _slicedToArray(_useState49, 2),
-    elapsed = _useState50[0],
-    setElapsed = _useState50[1];
-  var _useState51 = useState(null),
-    _useState52 = _slicedToArray(_useState51, 2),
-    dailyDate = _useState52[0],
-    setDailyDate = _useState52[1]; // 非 null = 每日一題模式（日期字串）
-  var _useState53 = useState(todayStr()),
-    _useState54 = _slicedToArray(_useState53, 2),
-    dailySel = _useState54[0],
-    setDailySel = _useState54[1]; // 主畫面每日一題目前選取日期
+  var _useState37 = useState(null),
+    _useState38 = _slicedToArray(_useState37, 2),
+    startedAt = _useState38[0],
+    setStartedAt = _useState38[1];
+  var _useState39 = useState(0),
+    _useState40 = _slicedToArray(_useState39, 2),
+    elapsed = _useState40[0],
+    setElapsed = _useState40[1];
+  var _useState41 = useState(null),
+    _useState42 = _slicedToArray(_useState41, 2),
+    dailyDate = _useState42[0],
+    setDailyDate = _useState42[1]; // 非 null = 每日一題模式（日期字串）
+  var _useState43 = useState(todayStr()),
+    _useState44 = _slicedToArray(_useState43, 2),
+    dailySel = _useState44[0],
+    setDailySel = _useState44[1]; // 主畫面每日一題目前選取日期
   var firstRef = useRef(true); // 本局是否還沒挖第一下（首點保護/計時起點）
   var statusRef = useRef('ready');
   statusRef.current = status;
@@ -988,38 +966,38 @@ function MinesGame() {
     return cells ? countFlags(cells) : 0;
   }, [cells]);
   // ----- 競速道具/禮物狀態（v1.30：僅 race；經濟比照數獨/數橋定版）——必須宣告在 dbgRef 快照之前（快照在 render 期讀這些值，TDZ 會讓整個 root 掛掉） -----
-  var _useState55 = useState({
+  var _useState45 = useState({
       question: 0,
       backfill: 0,
       gift: 0
     }),
-    _useState56 = _slicedToArray(_useState55, 2),
-    myItems = _useState56[0],
-    setMyItems = _useState56[1];
+    _useState46 = _slicedToArray(_useState45, 2),
+    myItems = _useState46[0],
+    setMyItems = _useState46[1];
   var itemsRef = useRef({
     question: 0,
     backfill: 0,
     gift: 0
   });
-  var _useState57 = useState({}),
-    _useState58 = _slicedToArray(_useState57, 2),
-    questionFx = _useState58[0],
-    setQuestionFx = _useState58[1]; // idx -> 到期時間戳（問號干擾，本地渲染狀態、不同步）
+  var _useState47 = useState({}),
+    _useState48 = _slicedToArray(_useState47, 2),
+    questionFx = _useState48[0],
+    setQuestionFx = _useState48[1]; // idx -> 到期時間戳（問號干擾，本地渲染狀態、不同步）
   var questionFxRef = useRef({});
-  var _useState59 = useState(null),
-    _useState60 = _slicedToArray(_useState59, 2),
-    itemToast = _useState60[0],
-    setItemToast = _useState60[1];
+  var _useState49 = useState(null),
+    _useState50 = _slicedToArray(_useState49, 2),
+    itemToast = _useState50[0],
+    setItemToast = _useState50[1];
   var itemToastTimerRef = useRef(null);
-  var _useState61 = useState(0),
-    _useState62 = _slicedToArray(_useState61, 2),
-    mistLeft = _useState62[0],
-    setMistLeft = _useState62[1]; // 競速容錯剩餘次數（顯示用）
+  var _useState51 = useState(0),
+    _useState52 = _slicedToArray(_useState51, 2),
+    mistLeft = _useState52[0],
+    setMistLeft = _useState52[1]; // 競速容錯剩餘次數（顯示用）
   var mistakesRef = useRef(0); // 競速已用掉的容錯次數
-  var _useState63 = useState(1),
-    _useState64 = _slicedToArray(_useState63, 2),
-    zoom = _useState64[0],
-    setZoom = _useState64[1];
+  var _useState53 = useState(1),
+    _useState54 = _slicedToArray(_useState53, 2),
+    zoom = _useState54[0],
+    setZoom = _useState54[1];
   var pzRef = useRef(null); // 共用縮放持有（PlatZoom，v1.63.0）：1–2.5、0.25 步進（cleanup2dp 守恆舊 Math.round 淨化）；FLIP 動畫本體不動、僅狀態與上下限收編
   var pz = function pz() {
     if (!pzRef.current) pzRef.current = platZoomNew({
@@ -1030,11 +1008,11 @@ function MinesGame() {
     });
     return pzRef.current;
   }; // 盤面縮放（比照數獨：1=適應螢幕，展開後 －/＋/適應）——卡片內 🔍 與殼 PlatBar 左下角縮放組共用這一顆 state（單一真相）
-  var _useState65 = useState(false),
-    _useState66 = _slicedToArray(_useState65, 2),
-    zoomOpen = _useState66[0],
-    setZoomOpen = _useState66[1];
-  var _useState67 = useState(function () {
+  var _useState55 = useState(false),
+    _useState56 = _slicedToArray(_useState55, 2),
+    zoomOpen = _useState56[0],
+    setZoomOpen = _useState56[1];
+  var _useState57 = useState(function () {
       var c0 = platSave().read('mines_custom_cfg', {
         fallback: null
       });
@@ -1045,13 +1023,26 @@ function MinesGame() {
         mines: 40
       };
     }),
-    _useState68 = _slicedToArray(_useState67, 2),
-    custCfg = _useState68[0],
-    setCustCfg = _useState68[1]; // 單機自訂盤面（寬/高/雷），持久化
-  var _useState69 = useState(false),
-    _useState70 = _slicedToArray(_useState69, 2),
-    custOpen = _useState70[0],
-    setCustOpen = _useState70[1];
+    _useState58 = _slicedToArray(_useState57, 2),
+    custCfg = _useState58[0],
+    setCustCfg = _useState58[1]; // 單機自訂盤面（寬/高/雷），持久化
+  // ---------- 框架層 F2：PlatHome / PlatTopCard 掛載點（殼單一實作、本款只給 config 與內容） ----------
+  var platHomeRef = useRef(null);
+  var platFrameRef = useRef(null); // PlatFrame 掛載點（v1.71.0：對局外框改殼持有，比照美術燈 v1.70.0）
+  var _useState59 = useState(null),
+    _useState60 = _slicedToArray(_useState59, 2),
+    frameBody = _useState60[0],
+    setFrameBody = _useState60[1]; // PlatFrame 內容區節點（盤面/底部列 portal 用）
+  var _useState61 = useState(null),
+    _useState62 = _slicedToArray(_useState61, 2),
+    ptcEl = _useState62[0],
+    setPtcEl = _useState62[1]; // PlatTopCard 掛載點＝外框頂區節點
+  var _useState63 = useState(null),
+    _useState64 = _slicedToArray(_useState63, 2),
+    ptcSlot = _useState64[0],
+    setPtcSlot = _useState64[1]; // PlatTopCard 遊戲槽節點（portal 用）
+  var dailySelRef = useRef(dailySel);
+  dailySelRef.current = dailySel;
   var boardScrollRef = useRef(null);
   var boardZoomRef = useRef(null); // F3：縮放 FLIP 過渡的盤面包裝層（盤面＋塗鴉一起縮放）
   var prevZoomRef = useRef(1);
@@ -1316,7 +1307,7 @@ function MinesGame() {
 
   // ---------- 開局 ----------
   function newGame(szId, seed, daily) {
-    setHdrOpen(true); // 單機/每日開始：標頭規則面板展開（比照數獨）
+    if (typeof window !== 'undefined' && window.PlatTopCard) window.PlatTopCard.setRulesOpen(true); // 單機/每日開始：標頭規則面板展開（比照數獨）
     var sp = SIZES[szId] || SIZES[9];
     var sd = seed != null ? seed : Math.random() * 4294967296 >>> 0;
     var L = makeLayout(sp.w, sp.h, sp.mines, sd);
@@ -1561,9 +1552,10 @@ function MinesGame() {
       itemSay('❌ 無效的進度代碼');
     }
   }
-  function startCustom() {
-    // 單機自訂盤面：clamp→持久化→註冊規格→以 sizeId 'custom' 開局（與預設盤走同一條 newGame 路徑）
-    var cl = clampCustomSpec(custCfg.w, custCfg.h, custCfg.mines);
+  function startCustom(vals) {
+    // 單機自訂盤面：clamp→持久化→註冊規格→以 sizeId 'custom' 開局（與預設盤走同一條 newGame 路徑）；vals 可由 PlatSetup 自訂欄位帶入
+    var src = vals || custCfg;
+    var cl = clampCustomSpec(src.w, src.h, src.mines);
     setCustCfg(cl);
     platSave().write('mines_custom_cfg', cl);
     regCustomSpec(cl);
@@ -1802,34 +1794,34 @@ function MinesGame() {
 
   // ---------- 多人（平台模式）：星型拓撲（來賓只連房主、房主轉發全場） ----------
   var myId = myGameId();
+  var _useState65 = useState(false),
+    _useState66 = _slicedToArray(_useState65, 2),
+    mpOn = _useState66[0],
+    setMpOn = _useState66[1];
+  var _useState67 = useState('off'),
+    _useState68 = _slicedToArray(_useState67, 2),
+    mpPhase = _useState68[0],
+    setMpPhase = _useState68[1]; // off|waiting|countdown|playing|done
+  var _useState69 = useState([]),
+    _useState70 = _slicedToArray(_useState69, 2),
+    players = _useState70[0],
+    setPlayers = _useState70[1];
   var _useState71 = useState(false),
     _useState72 = _slicedToArray(_useState71, 2),
-    mpOn = _useState72[0],
-    setMpOn = _useState72[1];
-  var _useState73 = useState('off'),
+    myReadySt = _useState72[0],
+    setMyReadySt = _useState72[1];
+  var _useState73 = useState({}),
     _useState74 = _slicedToArray(_useState73, 2),
-    mpPhase = _useState74[0],
-    setMpPhase = _useState74[1]; // off|waiting|countdown|playing|done
-  var _useState75 = useState([]),
+    godBoards = _useState74[0],
+    setGodBoards = _useState74[1];
+  var _useState75 = useState(null),
     _useState76 = _slicedToArray(_useState75, 2),
-    players = _useState76[0],
-    setPlayers = _useState76[1];
-  var _useState77 = useState(false),
+    godUid = _useState76[0],
+    setGodUid = _useState76[1];
+  var _useState77 = useState(null),
     _useState78 = _slicedToArray(_useState77, 2),
-    myReadySt = _useState78[0],
-    setMyReadySt = _useState78[1];
-  var _useState79 = useState({}),
-    _useState80 = _slicedToArray(_useState79, 2),
-    godBoards = _useState80[0],
-    setGodBoards = _useState80[1];
-  var _useState81 = useState(null),
-    _useState82 = _slicedToArray(_useState81, 2),
-    godUid = _useState82[0],
-    setGodUid = _useState82[1];
-  var _useState83 = useState(null),
-    _useState84 = _slicedToArray(_useState83, 2),
-    raceFinal = _useState84[0],
-    setRaceFinal = _useState84[1];
+    raceFinal = _useState78[0],
+    setRaceFinal = _useState78[1];
   useEffect(function () {
     if (raceFinal && raceFinal.winnerUid && raceFinal.winnerUid === myId) {
       try {
@@ -1837,34 +1829,27 @@ function MinesGame() {
       } catch (e) {}
     }
   }, [raceFinal]); // 競速奪冠＝win（PlatAudio，v1.64.0）
+  var _useState79 = useState(null),
+    _useState80 = _slicedToArray(_useState79, 2),
+    myOutcome = _useState80[0],
+    setMyOutcome = _useState80[1]; // 'finished'|'boom'
+  var _useState81 = useState(false),
+    _useState82 = _slicedToArray(_useState81, 2),
+    leaveArm = _useState82[0],
+    setLeaveArm = _useState82[1];
+  // 離開選單與標頭規則開合已收編殼 PlatTopCard/PlatLeaveMenu（框架層 F2）：規則預設開合以 PlatTopCard.setRulesOpen 設定（單機/每日展開、多人收合）
+  var _useState83 = useState(''),
+    _useState84 = _slicedToArray(_useState83, 2),
+    coopBoomBy = _useState84[0],
+    setCoopBoomBy = _useState84[1];
   var _useState85 = useState(null),
     _useState86 = _slicedToArray(_useState85, 2),
-    myOutcome = _useState86[0],
-    setMyOutcome = _useState86[1]; // 'finished'|'boom'
-  var _useState87 = useState(false),
+    cdNum = _useState86[0],
+    setCdNum = _useState86[1];
+  var _useState87 = useState(0),
     _useState88 = _slicedToArray(_useState87, 2),
-    leaveArm = _useState88[0],
-    setLeaveArm = _useState88[1];
-  var _useState89 = useState(false),
-    _useState90 = _slicedToArray(_useState89, 2),
-    showExitMenu = _useState90[0],
-    setShowExitMenu = _useState90[1]; // 離開選單（比照數獨/數橋：退出鈕開選單，內含結束本局/回等待室/退出回大廳）
-  var _useState91 = useState(false),
-    _useState92 = _slicedToArray(_useState91, 2),
-    hdrOpen = _useState92[0],
-    setHdrOpen = _useState92[1]; // 標頭規則面板展開（比照數獨：單機/每日開始展開、多人進場收合）
-  var _useState93 = useState(''),
-    _useState94 = _slicedToArray(_useState93, 2),
-    coopBoomBy = _useState94[0],
-    setCoopBoomBy = _useState94[1];
-  var _useState95 = useState(null),
-    _useState96 = _slicedToArray(_useState95, 2),
-    cdNum = _useState96[0],
-    setCdNum = _useState96[1];
-  var _useState97 = useState(0),
-    _useState98 = _slicedToArray(_useState97, 2),
-    waitTick = _useState98[0],
-    setWaitTick = _useState98[1];
+    waitTick = _useState88[0],
+    setWaitTick = _useState88[1];
   var mpRef = useRef({
     on: false,
     isHost: false,
@@ -3607,6 +3592,274 @@ function MinesGame() {
     });
   });
 
+  // ---------- 框架層 F2：PlatHome / PlatTopCard / PlatSetup / PlatTutorial（殼單一實作、本款只給 config 與內容） ----------
+  function openMinesSetup(fromGame) {
+    if (!window.PlatSetup) return;
+    window.PlatSetup.show({
+      accent: ACCENT,
+      title: fromGame ? '⚙️ 設定盤面' : '👤 單機挑戰',
+      subtitle: fromGame ? '選一個盤面大小，會立刻重開一局。' : '選一個盤面大小開始',
+      options: [9, 16].map(function (sz) {
+        return {
+          id: sz,
+          label: (sz === 9 ? '🌱 ' : '🔥 ') + SIZES[sz].name,
+          sub: bestText(sz)
+        };
+      }),
+      selectedId: sizeId === 9 || sizeId === 16 ? sizeId : null,
+      mode: 'list',
+      instant: true,
+      custom: {
+        label: '⚙️ 自訂盤面',
+        fields: [{
+          key: 'w',
+          label: '寬度（左右格數）',
+          min: 8,
+          max: 30
+        }, {
+          key: 'h',
+          label: '高度（上下格數）',
+          min: 8,
+          max: 24
+        }, {
+          key: 'mines',
+          label: '地雷數',
+          min: 5
+        }],
+        values: custCfg,
+        validate: function validate(vals) {
+          var cl = clampCustomSpec(vals.w, vals.h, vals.mines);
+          return {
+            values: cl,
+            note: '範圍：寬 8–30、高 8–24、雷 5–' + (cl.w * cl.h - 9) + '（依目前寬高；首點保護需留 9 格空白）。超出範圍會自動修正，開始鈕顯示的就是實際會開的盤。',
+            startText: '▶ 開始：' + cl.w + '×' + cl.h + '・' + cl.mines + ' 雷'
+          };
+        }
+      },
+      onStart: function onStart(id, vals) {
+        if (id === 'custom') startCustom(vals);else newGame(Number(id));
+      }
+    });
+  }
+  // 教學第 1 步互動 demo（3×3 挖開練習）：PlatTutorial 的 mount 步，由本款以原生 DOM 渲染（行為與舊 React 版一致：洪水展開/踩雷/再試一次/音效/字幕）
+  function mountTutDemo(el, api) {
+    var VALS = [0, 1, -1, 0, 1, 1, 0, 0, 0];
+    var open = new Array(9).fill(false),
+      boom = false;
+    el.innerHTML = '<div class="flex justify-center mb-3"><div class="grid grid-cols-3 gap-[3px]" data-mtut-grid="1"></div></div><div class="text-center" data-mtut-retry="1"></div>';
+    var grid = el.querySelector('[data-mtut-grid]'),
+      retryBox = el.querySelector('[data-mtut-retry]');
+    function caption() {
+      if (boom) return '💥 踩到地雷了！先看數字推理，避開最可疑的格子';
+      if (open.filter(Boolean).length >= 8) return '✅ 全部挖開了！數字就是周圍 8 格的地雷數，你學會了';
+      return '動手試試：點格子把安全的格子全部挖開——其中有一顆地雷，數字會給你提示';
+    }
+    function render() {
+      grid.innerHTML = '';
+      VALS.forEach(function (n, i) {
+        var isOpen = open[i] || boom && n === -1;
+        if (!isOpen) {
+          var b = document.createElement('button');
+          b.className = 'w-11 h-11 rounded-[4px] border border-orange-900/20';
+          b.style.background = 'linear-gradient(145deg,#fdba74,#fb923c)';
+          b.setAttribute('data-mtut-cell', String(i));
+          b.addEventListener('click', function () {
+            tap(i);
+          });
+          grid.appendChild(b);
+        } else {
+          var d = document.createElement('div');
+          d.className = 'w-11 h-11 flex items-center justify-center font-black text-lg rounded-[4px] border border-orange-900/20';
+          d.style.background = n === -1 ? '#fecaca' : '#f8fafc';
+          if (n > 0) {
+            d.style.color = NUM_COLORS[n];
+            d.textContent = n;
+          }
+          if (n === -1) d.textContent = '💣';
+          grid.appendChild(d);
+        }
+      });
+      retryBox.innerHTML = '';
+      if (boom) {
+        var rb = document.createElement('button');
+        rb.className = 'plat-btn-hard plat-btn-hard-2 px-4 py-1.5 bg-white border-2 border-slate-800 rounded-lg font-black text-sm text-slate-800 shadow-[2px_2px_0px_rgba(30,41,59,1)]';
+        rb.textContent = '↺ 再試一次';
+        rb.addEventListener('click', function () {
+          open = new Array(9).fill(false);
+          boom = false;
+          render();
+        });
+        retryBox.appendChild(rb);
+      }
+      if (api && api.setCaption) api.setCaption(caption());
+    }
+    function tap(i) {
+      if (VALS[i] === -1) {
+        boom = true;
+        platAudio().play('boom');
+        render();
+        return;
+      }
+      var stack = [i];
+      while (stack.length) {
+        var c = stack.pop();
+        if (open[c]) continue;
+        open[c] = true;
+        if (VALS[c] === 0) {
+          var cx = c % 3,
+            cy = Math.floor(c / 3);
+          for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) {
+            var nx = cx + dx,
+              ny = cy + dy;
+            if (nx >= 0 && nx < 3 && ny >= 0 && ny < 3) stack.push(ny * 3 + nx);
+          }
+        }
+      }
+      platAudio().play('place');
+      render();
+    }
+    render();
+  }
+  function openMinesTutorial() {
+    if (!window.PlatTutorial) return;
+    var chordCell = function chordCell(inner, cover) {
+      return '<div class="w-11 h-11 relative flex items-center justify-center font-black text-lg rounded-[4px] border border-orange-900/20 overflow-hidden" style="background:#f8fafc">' + (inner || '') + (cover ? '<div class="mtut-chord-cover absolute inset-0" style="background:linear-gradient(145deg,#fdba74,#fb923c)"></div>' : '') + '</div>';
+    };
+    var steps = [{
+      mount: mountTutDemo,
+      caption: '動手試試：點格子把安全的格子全部挖開——其中有一顆地雷，數字會給你提示'
+    }, {
+      html: '<div class="flex justify-center mb-3"><div class="w-14 h-14 flex items-center justify-center rounded-[4px] border border-orange-900/20" style="background:linear-gradient(145deg,#fdba74,#fb923c)"><span class="mtut-flag text-3xl">🚩</span></div></div><div class="flex justify-center gap-2 mb-3"><span class="px-3 py-2 bg-white border-[3px] border-slate-800 rounded-xl font-black text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)]">⛏️ 挖開</span><span class="mtut-chip px-3 py-2 border-[3px] border-slate-800 rounded-xl font-black text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)]">🚩 插旗</span></div>',
+      caption: '懷疑是地雷？切到「插旗」模式點它，或長按格子做記號'
+    }, {
+      html: '<div class="flex justify-center mb-3"><div class="relative"><div class="grid grid-cols-3 gap-[3px]">' + '<div class="w-11 h-11 flex items-center justify-center text-xl rounded-[4px] border border-orange-900/20" style="background:linear-gradient(145deg,#fdba74,#fb923c)">🚩</div>' + chordCell('<span class="mtut-chord-num" style="color:' + NUM_COLORS[2] + '">2</span>', true) + chordCell('<span class="mtut-chord-num" style="color:' + NUM_COLORS[1] + '">1</span>', true) + chordCell('<span class="mtut-chord-num" style="color:' + NUM_COLORS[1] + '">1</span>', true) + '<div class="w-11 h-11 flex items-center justify-center font-black text-lg rounded-[4px] border border-orange-900/20" style="background:#f8fafc;color:' + NUM_COLORS[1] + '">1</div>' + chordCell('', true) + chordCell('', true) + chordCell('<span class="mtut-chord-num" style="color:' + NUM_COLORS[1] + '">1</span>', true) + chordCell('<span class="mtut-chord-num" style="color:' + NUM_COLORS[2] + '">2</span>', true) + '</div><span class="mtut-finger2 absolute text-3xl pointer-events-none" style="left:63px;top:62px">👆</span></div></div>',
+      caption: '數字旁的旗子數剛好等於數字時，再點數字格，周圍剩下的格子一次挖開'
+    }, {
+      html: '<div class="flex justify-center gap-8 mb-3"><div class="flex flex-col items-center gap-1"><div class="mtut-boom w-14 h-14 flex items-center justify-center text-3xl rounded-[4px] border border-orange-900/20" style="background:#e2e8f0">💣</div><span class="text-xs font-semibold text-slate-400">踩到雷</span></div><div class="flex flex-col items-center gap-1"><div class="w-14 h-14 flex items-center justify-center rounded-[4px] border border-orange-900/20" style="background:#f8fafc"><span class="mtut-trophy text-3xl">🏆</span></div><span class="text-xs font-semibold text-slate-400">全部挖開</span></div></div><div class="mt-3 pt-3 border-t-2 border-slate-200 font-bold text-slate-600 leading-relaxed text-left flex flex-col gap-2"><p>📅 每日一題：每天同一題（9×9），可以回補今年的舊題目，只有今天的會累積連續天數。</p><p>👥 多人競速：同一個盤面各玩各的，最快清完的人贏；踩到雷先扣 ❤️、愛心用完才出局，照當時進度排名。</p></div>',
+      caption: '第一下點的格子跟周圍 8 格保證沒有雷；不是雷的格子全挖開就贏；挖到雷先扣一顆 ❤️，愛心用完才結束'
+    }];
+    window.PlatTutorial.show({
+      accent: ACCENT,
+      title: '❓ 玩法教學',
+      steps: steps
+    });
+  }
+  var platHomeCfgStable = useRef(null);
+  if (!platHomeCfgStable.current) platHomeCfgStable.current = {
+    accent: ACCENT,
+    titleChars: ['踩', '地', '雷'],
+    enName: 'Minesweeper',
+    onAction: function onAction(name) {
+      if (name === 'solo') openMinesSetup(false);else if (name === 'daily') startDaily(dailySelRef.current);else if (name === 'prev') setDailySel(shiftDate(dailySelRef.current, -1));else if (name === 'next') setDailySel(shiftDate(dailySelRef.current, 1));else if (name === 'cal') openDailyCal();else if (name === 'tutorial') openMinesTutorial();else if (name === 'lobby') {
+        if (window.PLAT_show) window.PLAT_show('home');
+      }
+    }
+  };
+  useEffect(function () {
+    // PlatHome 自我修復 attach（無依賴、每次 render 自我檢查，理由同 PlatBar v1.55.1）
+    if (typeof window === 'undefined' || typeof window.PlatHome === 'undefined') return;
+    if (window.__PLAT_NET && window.__PLAT_NET.inMatch && window.__PLAT_NET.inMatch !== 'mines') return;
+    if (screen !== 'home') {
+      if (window.PlatHome.isAttached() && !window.PlatHome._elConnected()) window.PlatHome.detach(window.PlatHome._el());
+      return;
+    }
+    var el = platHomeRef.current;
+    if (el && (window.PlatHome._el() !== el || !window.PlatHome._elConnected())) window.PlatHome.attach(el, platHomeCfgStable.current);
+  });
+  useEffect(function () {
+    if (typeof window === 'undefined' || typeof window.PlatHome === 'undefined' || !window.PlatHome.isAttached()) return;
+    if (screen !== 'home') return;
+    var recs = readDailyRecords(),
+      streak = readDailyStreak();
+    var done = recs[dailySel] != null;
+    window.PlatHome.update({
+      dailyDate: dailySel,
+      dailyIsToday: dailySel === todayStr(),
+      dailyDone: done,
+      canPrev: dailySel > DAILY_MIN,
+      canNext: dailySel < todayStr(),
+      streak: streak.count || 0,
+      bestText: done ? fmtTime(recs[dailySel]) : '',
+      inPlatform: isPlat
+    });
+  });
+  var platTopCfgStable = useRef(null);
+  if (!platTopCfgStable.current) platTopCfgStable.current = {
+    accent: ACCENT,
+    logo: '💣',
+    name: '踩地雷',
+    frame: false,
+    rulesHtml: '<ol class="list-decimal list-outside ml-4 space-y-1"><li>點格子挖開：數字代表周圍 8 格的地雷數，空白格會自動展開。</li><li>第一下點的格子＋周圍 8 格保證沒有地雷，放心開始。</li><li>覺得是雷就插旗：切到 🚩 插旗模式再點格子，或長按格子直接插旗。</li><li>數字和周圍的旗數一樣時，再點那個數字，可一次挖開周圍剩下的格子（挖開／插旗模式都可以）。</li></ol>',
+    onAction: function onAction(name) {
+      if (name === 'mute') {
+        var m = platAudio().toggleMuted();
+        setMuted(!!m);
+      } else if (name === 'spec') openMinesSetup(true);else if (name === 'leave-home') setScreen('home');else if (name === 'leave-lobby') requestLobby();else if (name === 'leave-leave') leaveMatch();else if (name === 'leave-forceend') {
+        if (window.__PLAT_TOURN_FORCEEND) window.__PLAT_TOURN_FORCEEND();
+      }
+    }
+  };
+  var platFrameCfgStable = useRef(null);
+  if (!platFrameCfgStable.current) platFrameCfgStable.current = {
+    paper: '#fff7ed',
+    bodyCls: 'flex-1 w-full flex flex-col min-h-0'
+  }; // 框紙色＝本款原外框色；bodyCls：捲動欄＋底部列要無 padding 的 flex 欄
+  useEffect(function () {
+    // PlatFrame 自我修復 attach（先於 PlatTopCard effect 宣告：同輪先建框、再掛頂欄）
+    if (typeof window === 'undefined' || typeof window.PlatFrame === 'undefined') return;
+    if (window.__PLAT_NET && window.__PLAT_NET.inMatch && window.__PLAT_NET.inMatch !== 'mines') return;
+    if (screen !== 'game') {
+      if (window.PlatFrame.isAttached()) window.PlatFrame.detach();
+      if (frameBody) setFrameBody(null);
+      if (ptcEl) setPtcEl(null);
+      return;
+    }
+    var el = platFrameRef.current;
+    if (el) {
+      if (window.PlatFrame._el() !== el || !window.PlatFrame._elConnected()) window.PlatFrame.attach(el, platFrameCfgStable.current);
+      var b = window.PlatFrame.getBody();
+      if (b !== frameBody) setFrameBody(b);
+      var t = window.PlatFrame.getTop();
+      if (t !== ptcEl) setPtcEl(t);
+    }
+  });
+  useEffect(function () {
+    // PlatTopCard 自我修復 attach＋槽位同步（掛載點＝外框頂區）
+    if (typeof window === 'undefined' || typeof window.PlatTopCard === 'undefined') return;
+    if (window.__PLAT_NET && window.__PLAT_NET.inMatch && window.__PLAT_NET.inMatch !== 'mines') return;
+    if (screen !== 'game') {
+      if (window.PlatTopCard.isAttached() && window.PlatTopCard._el() === ptcEl) window.PlatTopCard.detach(ptcEl);
+      if (ptcSlot) setPtcSlot(null);
+      return;
+    }
+    var el = ptcEl;
+    if (el) {
+      if (window.PlatTopCard._el() !== el || !window.PlatTopCard._elConnected()) window.PlatTopCard.attach(el, platTopCfgStable.current);
+      var slot = window.PlatTopCard.getSlot();
+      if (slot !== ptcSlot) setPtcSlot(slot);
+    }
+  });
+  useEffect(function () {
+    if (typeof window === 'undefined' || typeof window.PlatTopCard === 'undefined' || !window.PlatTopCard.isAttached()) return;
+    if (screen !== 'game') return;
+    window.PlatTopCard.update({
+      leaveIcon: mpOn ? '🔌' : '🏠',
+      leaveLabel: mpOn ? '退出' : '主選單',
+      modeChip: mpOn ? mpRef.current.mode === 'race' ? '⚔️ 競速對戰' : '🤝 合作模式' : null,
+      dailyChip: dailyDate && !mpOn ? '每日 ' + dailyDate.slice(5) + (dailyDate !== todayStr() ? ' 補玩' : '') : null,
+      specLabel: '⚙️ ' + spec["short"] + '・' + spec.mines + ' 雷',
+      specClickable: !mpOn,
+      statText: null,
+      timerText: fmtTime(elapsed),
+      muted: muted,
+      players: [],
+      leaveMenu: {
+        mode: mpOn ? 'mp' : 'solo',
+        canForceEnd: !!(mpOn && typeof window.__PLAT_TOURN_CAN_FORCEEND === 'function' && window.__PLAT_TOURN_CAN_FORCEEND())
+      }
+    });
+  });
+
   // ---------- 盤面邊緣虛化＋自製卷軸指示條（使用者 2026-11-04 指示） ----------
   // 四邊（上下左右）都虛化：哪一邊還有沒看到的題目，那一邊就漸層虛化；捲到那一邊的邊緣（到底/到頂/到左/到右）就不用虛化、自動消失。
   // 另有細指示條（滑塊長度=可視比例、位置=捲動進度）；完全沒溢出時全部都不出現——玩家一眼就知道「現在看到的是全部還是部分」。
@@ -3819,7 +4072,7 @@ function MinesGame() {
         hubColorRef.current = sess && typeof sess.color === 'string' && sess.color ? sess.color : null; // 只驗非空字串：地雷 MP_COLORS 與殼色票是不同集合，不拿來驗
         // 開新局先清掉上一局的結算暫存（站規：新局絕不能重播上一局的結算）
         cleanupMp();
-        setHdrOpen(false);
+        if (typeof window !== 'undefined' && window.PlatTopCard) window.PlatTopCard.setRulesOpen(false); // 多人進場：規則面板收合
         setRaceFinal(null);
         finalRef.current = null;
         setMyOutcome(null);
@@ -4170,452 +4423,32 @@ function MinesGame() {
     });
   } // 每日月曆已統一為殼端 PlatCalendar（v1.16）
 
-  if (screen === 'setup') {
-    var effC = clampCustomSpec(custCfg.w, custCfg.h, custCfg.mines); // 自訂盤實際會開的規格（輸入超出範圍先 clamp，開始鈕直接顯示修正後的值，不讓玩家猜）
-    return /*#__PURE__*/React.createElement("div", {
-      key: "setup",
-      className: "min-h-screen w-full flex flex-col items-center justify-center p-4 relative overflow-hidden"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "w-full max-w-md bg-white border-4 border-slate-800 rounded-xl shadow-[10px_10px_0px_rgba(30,41,59,1)] p-6 md:p-8 relative z-10 animate-fadeIn"
-    }, /*#__PURE__*/React.createElement("h2", {
-      className: "font-black text-2xl text-slate-800 mb-1"
-    }, "\uD83D\uDC64 \u55AE\u6A5F\u6311\u6230"), /*#__PURE__*/React.createElement("p", {
-      className: "font-semibold text-slate-400 text-sm mb-5"
-    }, "\u9078\u4E00\u500B\u76E4\u9762\u5927\u5C0F\u958B\u59CB"), /*#__PURE__*/React.createElement("div", {
-      className: "flex flex-col gap-3"
-    }, [9, 16].map(function (sz) {
-      return /*#__PURE__*/React.createElement("button", {
-        key: sz,
-        onClick: function onClick() {
-          newGame(sz);
-        },
-        className: "plat-btn-hard plat-btn-hard-3 w-full py-4 bg-[#f97316] border-[3px] border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[3px_3px_0px_rgba(30,41,59,1)] flex items-center justify-between px-4"
-      }, /*#__PURE__*/React.createElement("span", null, sz === 9 ? '🌱' : '🔥', " ", SIZES[sz].name), /*#__PURE__*/React.createElement("span", {
-        className: "text-sm text-slate-700"
-      }, bestText(sz)));
-    }), /*#__PURE__*/React.createElement("div", {
-      className: "w-full bg-white border-[3px] border-slate-800 rounded-xl px-4 py-3 shadow-[3px_3px_0px_rgba(30,41,59,1)]"
-    }, /*#__PURE__*/React.createElement("button", {
-      onClick: function onClick() {
-        return setCustOpen(!custOpen);
-      },
-      className: "w-full flex items-center justify-between font-black text-xl text-slate-800"
-    }, /*#__PURE__*/React.createElement("span", null, "\u2699\uFE0F \u81EA\u8A02\u76E4\u9762"), /*#__PURE__*/React.createElement("span", {
-      className: "text-sm text-slate-400"
-    }, custOpen ? '▾ 收起' : '▸ 展開')), /*#__PURE__*/React.createElement("div", {
-      className: "plat-collapse-y" + (custOpen ? " open" : "")
-    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-      className: "mt-3 flex flex-col gap-2"
-    }, /*#__PURE__*/React.createElement("label", {
-      className: "flex items-center justify-between font-bold text-slate-600 text-sm"
-    }, "\u5BEC\u5EA6\uFF08\u5DE6\u53F3\u683C\u6578\uFF09", /*#__PURE__*/React.createElement("input", {
-      type: "number",
-      min: "8",
-      max: "30",
-      value: custCfg.w,
-      onChange: function onChange(e) {
-        return setCustCfg(function (c) {
-          return Object.assign({}, c, {
-            w: e.target.value
-          });
-        });
-      },
-      className: "w-24 bg-white border-2 border-slate-800 rounded-lg p-1.5 font-black text-slate-800 text-center outline-none"
-    })), /*#__PURE__*/React.createElement("label", {
-      className: "flex items-center justify-between font-bold text-slate-600 text-sm"
-    }, "\u9AD8\u5EA6\uFF08\u4E0A\u4E0B\u683C\u6578\uFF09", /*#__PURE__*/React.createElement("input", {
-      type: "number",
-      min: "8",
-      max: "24",
-      value: custCfg.h,
-      onChange: function onChange(e) {
-        return setCustCfg(function (c) {
-          return Object.assign({}, c, {
-            h: e.target.value
-          });
-        });
-      },
-      className: "w-24 bg-white border-2 border-slate-800 rounded-lg p-1.5 font-black text-slate-800 text-center outline-none"
-    })), /*#__PURE__*/React.createElement("label", {
-      className: "flex items-center justify-between font-bold text-slate-600 text-sm"
-    }, "\u5730\u96F7\u6578", /*#__PURE__*/React.createElement("input", {
-      type: "number",
-      min: "5",
-      value: custCfg.mines,
-      onChange: function onChange(e) {
-        return setCustCfg(function (c) {
-          return Object.assign({}, c, {
-            mines: e.target.value
-          });
-        });
-      },
-      className: "w-24 bg-white border-2 border-slate-800 rounded-lg p-1.5 font-black text-slate-800 text-center outline-none"
-    })), /*#__PURE__*/React.createElement("div", {
-      className: "text-xs font-semibold text-slate-400 leading-relaxed"
-    }, "\u7BC4\u570D\uFF1A\u5BEC 8\u201330\u3001\u9AD8 8\u201324\u3001\u96F7 5\u2013", effC.w * effC.h - 9, "\uFF08\u4F9D\u76EE\u524D\u5BEC\u9AD8\uFF1B\u9996\u9EDE\u4FDD\u8B77\u9700\u7559 9 \u683C\u7A7A\u767D\uFF09\u3002\u8D85\u51FA\u7BC4\u570D\u6703\u81EA\u52D5\u4FEE\u6B63\uFF0C\u958B\u59CB\u9215\u986F\u793A\u7684\u5C31\u662F\u5BE6\u969B\u6703\u958B\u7684\u76E4\u3002"), /*#__PURE__*/React.createElement("button", {
-      onClick: startCustom,
-      className: "plat-btn-hard plat-btn-hard-3 w-full py-3 bg-[#f97316] border-[3px] border-slate-800 rounded-xl font-black text-lg text-slate-900 shadow-[3px_3px_0px_rgba(30,41,59,1)]"
-    }, "\u25B6 \u958B\u59CB\uFF1A", effC.w, "\xD7", effC.h, "\u30FB", effC.mines, " \u96F7"))))), /*#__PURE__*/React.createElement("button", {
-      onClick: function onClick() {
-        return setScreen('home');
-      },
-      className: "plat-btn-hard plat-btn-hard-3 w-full py-3 bg-white border-[3px] border-slate-800 rounded-xl font-black text-lg text-slate-700 shadow-[3px_3px_0px_rgba(30,41,59,1)]"
-    }, "\u2190 \u8FD4\u56DE\u4E3B\u9078\u55AE"))));
-  }
   if (screen === 'home') {
-    var dRec = readDailyRecords(),
-      dStreak = readDailyStreak();
-    var dDone = dRec[dailySel] != null,
-      dBest = dRec[dailySel],
-      dIsToday = dailySel === todayStr();
+    // 主畫面由殼 PlatHome 單一實作渲染（框架層 F2）；無殼環境（獨立開啟）才用下方最小備援
     return /*#__PURE__*/React.createElement("div", {
       key: "home",
-      className: "min-h-screen w-full flex flex-col items-center justify-center p-4 relative overflow-hidden"
+      className: "min-h-screen w-full flex flex-col"
     }, /*#__PURE__*/React.createElement("div", {
-      className: "w-full max-w-md bg-[#fff7ed] border-4 border-slate-800 rounded-xl shadow-[10px_10px_0px_rgba(30,41,59,1)] p-10 text-center relative transform -rotate-1 z-10 animate-fadeIn"
-    }, /*#__PURE__*/React.createElement("h1", {
-      className: "text-6xl font-black text-slate-800 mb-6 tracking-widest flex justify-center gap-3"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "inline-block bg-[#f97316] px-4 py-2 border-4 border-slate-800 rounded-xl transform rotate-3 shadow-[4px_4px_0px_rgba(30,41,59,1)]"
-    }, "\u8E29"), /*#__PURE__*/React.createElement("span", {
-      className: "inline-block bg-[#f97316] px-4 py-2 border-4 border-slate-800 rounded-xl transform -rotate-2 shadow-[4px_4px_0px_rgba(30,41,59,1)]"
-    }, "\u5730"), /*#__PURE__*/React.createElement("span", {
-      className: "inline-block bg-[#f97316] px-4 py-2 border-4 border-slate-800 rounded-xl transform rotate-2 shadow-[4px_4px_0px_rgba(30,41,59,1)]"
-    }, "\u96F7")), /*#__PURE__*/React.createElement("div", {
-      className: "inline-block border-[3px] border-dashed border-slate-800 rounded-xl px-6 py-2 mb-8 bg-white shadow-[4px_4px_0px_rgba(30,41,59,1)] transform rotate-2"
-    }, /*#__PURE__*/React.createElement("p", {
-      className: "text-slate-800 font-black text-xl tracking-widest uppercase italic"
-    }, "Minesweeper")), /*#__PURE__*/React.createElement("div", {
-      className: "flex flex-col gap-3"
-    }, /*#__PURE__*/React.createElement("button", {
+      ref: platHomeRef,
+      className: "flex-1 flex flex-col min-h-screen"
+    }), typeof window !== 'undefined' && !window.PlatHome && /*#__PURE__*/React.createElement("div", {
+      className: "fixed inset-0 flex flex-col items-center justify-center gap-4 p-4"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-6xl"
+    }, "\uD83D\uDCA3"), /*#__PURE__*/React.createElement("div", {
+      className: "font-black text-3xl text-slate-800"
+    }, "\u8E29\u5730\u96F7 Minesweeper"), /*#__PURE__*/React.createElement("button", {
       onClick: function onClick() {
-        setScreen('setup');
+        return newGame(sizeId === 16 ? 16 : 9);
       },
-      className: "plat-btn-hard plat-btn-hard-3 w-full py-4 bg-[#f97316] border-[3px] border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[3px_3px_0px_rgba(30,41,59,1)]"
+      className: "plat-btn-hard px-6 py-3 bg-[#f97316] border-4 border-slate-800 rounded-xl font-black text-xl"
     }, "\uD83D\uDC64 \u55AE\u6A5F\u6311\u6230"), /*#__PURE__*/React.createElement("button", {
       onClick: function onClick() {
-        startDaily(dailySel);
+        return startDaily(todayStr());
       },
-      className: "plat-btn-hard plat-btn-hard-3 w-full py-4 bg-[#f97316] border-[3px] border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[3px_3px_0px_rgba(30,41,59,1)] flex items-center justify-center gap-2"
-    }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDCC5 \u6BCF\u65E5\u4E00\u984C"), dDone && /*#__PURE__*/React.createElement("span", {
-      className: "text-base bg-white/70 rounded-lg px-2 py-0.5"
-    }, "\u2713 \u5DF2\u5B8C\u6210")), /*#__PURE__*/React.createElement("div", {
-      className: "flex items-center gap-2"
-    }, /*#__PURE__*/React.createElement("button", {
-      disabled: dailySel <= DAILY_MIN,
-      onClick: function onClick() {
-        return setDailySel(shiftDate(dailySel, -1));
-      },
-      className: "w-11 h-11 shrink-0 rounded-lg border-2 border-slate-800 bg-white font-black text-lg disabled:opacity-30 shadow-[2px_2px_0px_rgba(30,41,59,1)]"
-    }, "\u25C0"), /*#__PURE__*/React.createElement("button", {
-      onClick: openDailyCal,
-      className: "flex-1 py-2.5 bg-white border-2 border-slate-800 rounded-lg font-black text-lg text-slate-800 shadow-[2px_2px_0px_rgba(30,41,59,1)]"
-    }, "\uD83D\uDCC5 ", dailySel, dIsToday ? '（今天）' : ''), /*#__PURE__*/React.createElement("button", {
-      disabled: dailySel >= todayStr(),
-      onClick: function onClick() {
-        return setDailySel(shiftDate(dailySel, 1));
-      },
-      className: "w-11 h-11 shrink-0 rounded-lg border-2 border-slate-800 bg-white font-black text-lg disabled:opacity-30 shadow-[2px_2px_0px_rgba(30,41,59,1)]"
-    }, "\u25B6")), /*#__PURE__*/React.createElement("div", {
-      className: "text-sm font-bold text-slate-500 -mt-1"
-    }, "\uD83D\uDD25 \u9023\u7E8C\u6311\u6230 ", /*#__PURE__*/React.createElement(PlatNum, {
-      value: dStreak.count || 0
-    }), " \u5929", dBest != null ? /*#__PURE__*/React.createElement(React.Fragment, null, "\u30FB\u9019\u5929\u6700\u4F73 ", /*#__PURE__*/React.createElement(PlatNum, {
-      value: fmtTime(dBest)
-    })) : ''), /*#__PURE__*/React.createElement("button", {
-      onClick: function onClick() {
-        setTutStep(0);
-        setTutDemoOpen(new Array(9).fill(false));
-        setTutDemoBoom(false);
-        setShowHelp(true);
-      },
-      className: "plat-btn-hard plat-btn-hard-3 w-full py-4 bg-white border-[3px] border-slate-800 rounded-xl font-black text-xl text-slate-800 shadow-[3px_3px_0px_rgba(30,41,59,1)]"
-    }, "\u2753 \u73A9\u6CD5\u6559\u5B78"))), isPlat && /*#__PURE__*/React.createElement("button", {
-      onClick: function onClick() {
-        if (window.PLAT_show) window.PLAT_show('home');
-      },
-      className: "plat-btn-hard z-10 w-full max-w-md mt-5 py-3.5 bg-sky-400 border-4 border-slate-800 rounded-xl font-black text-lg text-slate-900 shadow-[4px_4px_0px_rgba(30,41,59,1)]"
-    }, "\uD83C\uDFE0 \u56DE\u5927\u5EF3"), /*#__PURE__*/React.createElement("div", {
-      className: "shrink-0 pt-4 text-slate-800 font-black text-sm opacity-60 tracking-wider z-10"
-    }, "Copyright \xA9 2026 \u8449\u5927\u5E25. All rights reserved. (", isPlat && window.PLAT_VERSION ? '三磚益智 v' + window.PLAT_VERSION : 'v1.0.0', ")"), showHelp && /*#__PURE__*/React.createElement("div", {
-      className: "fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4",
-      onClick: function onClick() {
-        return setShowHelp(false);
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "bg-[#fffaf0] border-4 border-slate-800 rounded-2xl shadow-[10px_10px_0px_rgba(30,41,59,1)] max-w-lg w-full max-h-[92vh] overflow-y-auto p-6 relative animate-popIn",
-      onClick: function onClick(e) {
-        return e.stopPropagation();
-      }
-    }, /*#__PURE__*/React.createElement("button", {
-      onClick: function onClick() {
-        return setShowHelp(false);
-      },
-      className: "plat-btn-hard plat-btn-hard-2 absolute top-3 right-3 w-9 h-9 bg-white border-[3px] border-slate-800 rounded-full font-black shadow-[2px_2px_0px_rgba(30,41,59,1)] z-10"
-    }, "\u2715"), /*#__PURE__*/React.createElement("h3", {
-      className: "text-2xl font-black text-slate-800 border-b-4 border-[#f97316] inline-block pb-1 mb-5"
-    }, "\u2753 \u73A9\u6CD5\u6559\u5B78"), /*#__PURE__*/React.createElement("div", {
-      className: "h-[400px] flex flex-col justify-center bg-white border-[3px] border-slate-800 rounded-xl p-4 mb-4 shadow-[4px_4px_0px_rgba(30,41,59,1)]" + (tutStep !== 0 ? " hidden" : "")
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "flex justify-center mb-3"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "grid grid-cols-3 gap-[3px]"
-    }, [0, 1, -1, 0, 1, 1, 0, 0, 0].map(function (n, i) {
-      var isOpen = tutDemoOpen[i] || tutDemoBoom && n === -1;
-      if (!isOpen) return /*#__PURE__*/React.createElement("button", {
-        key: i,
-        onClick: function onClick() {
-          if (n === -1) {
-            setTutDemoBoom(true);
-            platAudio().play('boom');
-            return;
-          }
-          var open = tutDemoOpen.slice();
-          var stack = [i];
-          while (stack.length) {
-            var c = stack.pop();
-            if (open[c]) continue;
-            open[c] = true;
-            if ([0, 1, -1, 0, 1, 1, 0, 0, 0][c] === 0) {
-              var cx = c % 3,
-                cy = Math.floor(c / 3);
-              for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) {
-                var nx = cx + dx,
-                  ny = cy + dy;
-                if (nx >= 0 && nx < 3 && ny >= 0 && ny < 3) stack.push(ny * 3 + nx);
-              }
-            }
-          }
-          setTutDemoOpen(open);
-          platAudio().play('place');
-        },
-        className: "w-11 h-11 rounded-[4px] border border-orange-900/20",
-        style: {
-          background: 'linear-gradient(145deg,#fdba74,#fb923c)'
-        }
-      });
-      return /*#__PURE__*/React.createElement("div", {
-        key: i,
-        className: "w-11 h-11 flex items-center justify-center font-black text-lg rounded-[4px] border border-orange-900/20",
-        style: {
-          background: n === -1 ? '#fecaca' : '#f8fafc',
-          color: n > 0 ? NUM_COLORS[n] : undefined
-        }
-      }, n === -1 ? '💣' : n > 0 ? n : '');
-    }))), /*#__PURE__*/React.createElement("p", {
-      className: "text-center font-bold text-slate-700"
-    }, tutDemoBoom ? '💥 踩到地雷了！先看數字推理，避開最可疑的格子' : tutDemoOpen.filter(Boolean).length >= 8 ? '✅ 全部挖開了！數字就是周圍 8 格的地雷數，你學會了' : '動手試試：點格子把安全的格子全部挖開——其中有一顆地雷，數字會給你提示'), tutDemoBoom && /*#__PURE__*/React.createElement("div", {
-      className: "text-center mt-2"
-    }, /*#__PURE__*/React.createElement("button", {
-      onClick: function onClick() {
-        setTutDemoOpen(new Array(9).fill(false));
-        setTutDemoBoom(false);
-      },
-      className: "plat-btn-hard plat-btn-hard-2 px-4 py-1.5 bg-white border-2 border-slate-800 rounded-lg font-black text-sm text-slate-800 shadow-[2px_2px_0px_rgba(30,41,59,1)]"
-    }, "\u21BA \u518D\u8A66\u4E00\u6B21"))), /*#__PURE__*/React.createElement("div", {
-      className: "h-[400px] flex flex-col justify-center bg-white border-[3px] border-slate-800 rounded-xl p-4 mb-4 shadow-[4px_4px_0px_rgba(30,41,59,1)]" + (tutStep !== 1 ? " hidden" : "")
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "flex justify-center mb-3"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "w-14 h-14 flex items-center justify-center rounded-[4px] border border-orange-900/20",
-      style: {
-        background: 'linear-gradient(145deg,#fdba74,#fb923c)'
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "mtut-flag text-3xl"
-    }, "\uD83D\uDEA9"))), /*#__PURE__*/React.createElement("div", {
-      className: "flex justify-center gap-2 mb-3"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "px-3 py-2 bg-white border-[3px] border-slate-800 rounded-xl font-black text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)]"
-    }, "\u26CF\uFE0F \u6316\u958B"), /*#__PURE__*/React.createElement("span", {
-      className: "mtut-chip px-3 py-2 border-[3px] border-slate-800 rounded-xl font-black text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)]"
-    }, "\uD83D\uDEA9 \u63D2\u65D7")), /*#__PURE__*/React.createElement("p", {
-      className: "text-center font-bold text-slate-700"
-    }, "\u61F7\u7591\u662F\u5730\u96F7\uFF1F\u5207\u5230\u300C\u63D2\u65D7\u300D\u6A21\u5F0F\u9EDE\u5B83\uFF0C\u6216\u9577\u6309\u683C\u5B50\u505A\u8A18\u865F")), /*#__PURE__*/React.createElement("div", {
-      className: "h-[400px] flex flex-col justify-center bg-white border-[3px] border-slate-800 rounded-xl p-4 mb-4 shadow-[4px_4px_0px_rgba(30,41,59,1)]" + (tutStep !== 2 ? " hidden" : "")
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "flex justify-center mb-3"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "relative"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "grid grid-cols-3 gap-[3px]"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "w-11 h-11 flex items-center justify-center text-xl rounded-[4px] border border-orange-900/20",
-      style: {
-        background: 'linear-gradient(145deg,#fdba74,#fb923c)'
-      }
-    }, "\uD83D\uDEA9"), /*#__PURE__*/React.createElement("div", {
-      className: "w-11 h-11 relative flex items-center justify-center font-black text-lg rounded-[4px] border border-orange-900/20 overflow-hidden",
-      style: {
-        background: '#f8fafc'
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "mtut-chord-num",
-      style: {
-        color: NUM_COLORS[2]
-      }
-    }, "2"), /*#__PURE__*/React.createElement("div", {
-      className: "mtut-chord-cover absolute inset-0",
-      style: {
-        background: 'linear-gradient(145deg,#fdba74,#fb923c)'
-      }
-    })), /*#__PURE__*/React.createElement("div", {
-      className: "w-11 h-11 relative flex items-center justify-center font-black text-lg rounded-[4px] border border-orange-900/20 overflow-hidden",
-      style: {
-        background: '#f8fafc'
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "mtut-chord-num",
-      style: {
-        color: NUM_COLORS[1]
-      }
-    }, "1"), /*#__PURE__*/React.createElement("div", {
-      className: "mtut-chord-cover absolute inset-0",
-      style: {
-        background: 'linear-gradient(145deg,#fdba74,#fb923c)'
-      }
-    })), /*#__PURE__*/React.createElement("div", {
-      className: "w-11 h-11 relative flex items-center justify-center font-black text-lg rounded-[4px] border border-orange-900/20 overflow-hidden",
-      style: {
-        background: '#f8fafc'
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "mtut-chord-num",
-      style: {
-        color: NUM_COLORS[1]
-      }
-    }, "1"), /*#__PURE__*/React.createElement("div", {
-      className: "mtut-chord-cover absolute inset-0",
-      style: {
-        background: 'linear-gradient(145deg,#fdba74,#fb923c)'
-      }
-    })), /*#__PURE__*/React.createElement("div", {
-      className: "w-11 h-11 flex items-center justify-center font-black text-lg rounded-[4px] border border-orange-900/20",
-      style: {
-        background: '#f8fafc',
-        color: NUM_COLORS[1]
-      }
-    }, "1"), /*#__PURE__*/React.createElement("div", {
-      className: "w-11 h-11 relative flex items-center justify-center font-black text-lg rounded-[4px] border border-orange-900/20 overflow-hidden",
-      style: {
-        background: '#f8fafc'
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "mtut-chord-cover absolute inset-0",
-      style: {
-        background: 'linear-gradient(145deg,#fdba74,#fb923c)'
-      }
-    })), /*#__PURE__*/React.createElement("div", {
-      className: "w-11 h-11 relative flex items-center justify-center font-black text-lg rounded-[4px] border border-orange-900/20 overflow-hidden",
-      style: {
-        background: '#f8fafc'
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "mtut-chord-cover absolute inset-0",
-      style: {
-        background: 'linear-gradient(145deg,#fdba74,#fb923c)'
-      }
-    })), /*#__PURE__*/React.createElement("div", {
-      className: "w-11 h-11 relative flex items-center justify-center font-black text-lg rounded-[4px] border border-orange-900/20 overflow-hidden",
-      style: {
-        background: '#f8fafc'
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "mtut-chord-num",
-      style: {
-        color: NUM_COLORS[1]
-      }
-    }, "1"), /*#__PURE__*/React.createElement("div", {
-      className: "mtut-chord-cover absolute inset-0",
-      style: {
-        background: 'linear-gradient(145deg,#fdba74,#fb923c)'
-      }
-    })), /*#__PURE__*/React.createElement("div", {
-      className: "w-11 h-11 relative flex items-center justify-center font-black text-lg rounded-[4px] border border-orange-900/20 overflow-hidden",
-      style: {
-        background: '#f8fafc'
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "mtut-chord-num",
-      style: {
-        color: NUM_COLORS[2]
-      }
-    }, "2"), /*#__PURE__*/React.createElement("div", {
-      className: "mtut-chord-cover absolute inset-0",
-      style: {
-        background: 'linear-gradient(145deg,#fdba74,#fb923c)'
-      }
-    }))), /*#__PURE__*/React.createElement("span", {
-      className: "mtut-finger2 absolute text-3xl pointer-events-none",
-      style: {
-        left: 63,
-        top: 62
-      }
-    }, "\uD83D\uDC46"))), /*#__PURE__*/React.createElement("p", {
-      className: "text-center font-bold text-slate-700"
-    }, "\u6578\u5B57\u65C1\u7684\u65D7\u5B50\u6578\u525B\u597D\u7B49\u65BC\u6578\u5B57\u6642\uFF0C\u518D\u9EDE\u6578\u5B57\u683C\uFF0C\u5468\u570D\u5269\u4E0B\u7684\u683C\u5B50\u4E00\u6B21\u6316\u958B")), /*#__PURE__*/React.createElement("div", {
-      className: "h-[400px] flex flex-col justify-center bg-white border-[3px] border-slate-800 rounded-xl p-4 mb-4 shadow-[4px_4px_0px_rgba(30,41,59,1)]" + (tutStep !== 3 ? " hidden" : "")
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "flex justify-center gap-8 mb-3"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "flex flex-col items-center gap-1"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "mtut-boom w-14 h-14 flex items-center justify-center text-3xl rounded-[4px] border border-orange-900/20",
-      style: {
-        background: '#e2e8f0'
-      }
-    }, "\uD83D\uDCA3"), /*#__PURE__*/React.createElement("span", {
-      className: "text-xs font-semibold text-slate-400"
-    }, "\u8E29\u5230\u96F7")), /*#__PURE__*/React.createElement("div", {
-      className: "flex flex-col items-center gap-1"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "w-14 h-14 flex items-center justify-center rounded-[4px] border border-orange-900/20",
-      style: {
-        background: '#f8fafc'
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "mtut-trophy text-3xl"
-    }, "\uD83C\uDFC6")), /*#__PURE__*/React.createElement("span", {
-      className: "text-xs font-semibold text-slate-400"
-    }, "\u5168\u90E8\u6316\u958B"))), /*#__PURE__*/React.createElement("p", {
-      className: "text-center font-bold text-slate-700"
-    }, "\u7B2C\u4E00\u4E0B\u9EDE\u7684\u683C\u5B50\u8DDF\u5468\u570D 8 \u683C\u4FDD\u8B49\u6C92\u6709\u96F7\uFF1B\u4E0D\u662F\u96F7\u7684\u683C\u5B50\u5168\u6316\u958B\u5C31\u8D0F\uFF1B\u6316\u5230\u96F7\u5148\u6263\u4E00\u9846 \u2764\uFE0F\uFF0C\u611B\u5FC3\u7528\u5B8C\u624D\u7D50\u675F"), /*#__PURE__*/React.createElement("div", {
-      className: "mt-3 pt-3 border-t-2 border-slate-200 font-bold text-slate-600 leading-relaxed text-left flex flex-col gap-2"
-    }, /*#__PURE__*/React.createElement("p", null, "\uD83D\uDCC5 \u6BCF\u65E5\u4E00\u984C\uFF1A\u6BCF\u5929\u540C\u4E00\u984C\uFF089\xD79\uFF09\uFF0C\u53EF\u4EE5\u56DE\u88DC\u4ECA\u5E74\u7684\u820A\u984C\u76EE\uFF0C\u53EA\u6709\u4ECA\u5929\u7684\u6703\u7D2F\u7A4D\u9023\u7E8C\u5929\u6578\u3002"), /*#__PURE__*/React.createElement("p", null, "\uD83D\uDC65 \u591A\u4EBA\u7AF6\u901F\uFF1A\u540C\u4E00\u500B\u76E4\u9762\u5404\u73A9\u5404\u7684\uFF0C\u6700\u5FEB\u6E05\u5B8C\u7684\u4EBA\u8D0F\uFF1B\u8E29\u5230\u96F7\u5148\u6263 \u2764\uFE0F\u3001\u611B\u5FC3\u7528\u5B8C\u624D\u51FA\u5C40\uFF0C\u7167\u7576\u6642\u9032\u5EA6\u6392\u540D\u3002"))), /*#__PURE__*/React.createElement("div", {
-      className: "flex justify-center gap-2 mb-5"
-    }, [0, 1, 2, 3].map(function (idx) {
-      return /*#__PURE__*/React.createElement("div", {
-        key: idx,
-        className: "w-2.5 h-2.5 rounded-full border-2 border-slate-800 " + (idx === tutStep ? "bg-[#f97316]" : "bg-white")
-      });
-    })), /*#__PURE__*/React.createElement("div", {
-      className: "flex gap-3"
-    }, tutStep > 0 ? /*#__PURE__*/React.createElement("button", {
-      onClick: function onClick() {
-        setTutStep(tutStep - 1);
-      },
-      className: "plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-white text-slate-800"
-    }, "\u4E0A\u4E00\u6B65") : /*#__PURE__*/React.createElement("div", {
-      className: "flex-1"
-    }), /*#__PURE__*/React.createElement("button", {
-      onClick: function onClick() {
-        return setShowHelp(false);
-      },
-      className: "plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-white text-slate-400"
-    }, "\u8DF3\u904E"), tutStep < 3 ? /*#__PURE__*/React.createElement("button", {
-      onClick: function onClick() {
-        setTutStep(tutStep + 1);
-      },
-      className: "plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-[#f97316] text-slate-900"
-    }, "\u4E0B\u4E00\u6B65") : /*#__PURE__*/React.createElement("button", {
-      onClick: function onClick() {
-        return setShowHelp(false);
-      },
-      className: "plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-emerald-400 text-slate-900"
-    }, "\u958B\u59CB\u904A\u6232 \uD83C\uDFAE")))));
+      className: "plat-btn-hard px-6 py-3 bg-white border-4 border-slate-800 rounded-xl font-black text-xl"
+    }, "\uD83D\uDCC5 \u6BCF\u65E5\u4E00\u984C")));
   }
-
-  // ---------- 多人等待畫面（站規：等候室只有殼的房間頁一個，遊戲內不另設——hub 一般對局只顯示極簡等待卡等自動開局；錦標賽用與數獨/數橋同款的局間等待卡：名單徽章＋準備鈕＋房主開始本局） ----------
   if (screen === 'mp') {
     var M = mpRef.current;
     var szName = (SIZES[M.sizeId] || SIZES[9]).name;
@@ -4718,49 +4551,11 @@ function MinesGame() {
       backgroundSize: '12px 12px'
     }
   }, /*#__PURE__*/React.createElement("div", {
-    className: "w-full max-w-[1200px] bg-[#fff7ed] rounded-xl border-4 border-slate-800 shadow-[10px_10px_0px_rgba(30,41,59,1)] flex flex-col h-full relative z-10 overflow-hidden"
+    ref: platFrameRef,
+    className: "w-full h-full"
+  }), ptcSlot && ReactDOM.createPortal( /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-end gap-1 md:gap-2 flex-wrap"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-[#f97316] border-b-[3px] border-slate-800 shrink-0 z-50 relative transition-all duration-300 ease-in-out px-2 md:px-4 py-1.5 flex flex-col gap-1.5"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center justify-between gap-2 w-full overflow-x-auto hide-scrollbar pb-0.5"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-1.5 flex-nowrap shrink-0"
-  }, /*#__PURE__*/React.createElement("h1", {
-    className: "font-black tracking-tight uppercase text-base md:text-2xl text-slate-900 flex items-center gap-1 shrink-0"
-  }, "\uD83D\uDCA3", /*#__PURE__*/React.createElement("span", {
-    className: "hidden sm:inline"
-  }, "\u8E29\u5730\u96F7")), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-1 bg-[#1e293b] text-white px-1.5 py-0.5 rounded font-mono font-bold shadow-[2px_2px_0px_rgba(0,0,0,0.4)] text-[10px] md:text-sm whitespace-nowrap shrink-0"
-  }, "\u23F1 ", fmtTime(elapsed)), dailyDate && !mpOn && /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-1 bg-emerald-500 text-white px-1.5 py-0.5 rounded font-black shadow-[2px_2px_0px_rgba(0,0,0,0.4)] text-[10px] md:text-sm whitespace-nowrap shrink-0"
-  }, "\uD83D\uDCC5 \u6BCF\u65E5 ", dailyDate.slice(5), dailyDate !== todayStr() ? ' 補玩' : ''), mpOn && /*#__PURE__*/React.createElement("span", {
-    className: "bg-emerald-400 text-slate-900 px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] whitespace-nowrap shrink-0"
-  }, mpRef.current.mode === 'race' ? '⚔️ 競速對戰' : '🤝 合作模式')), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setHdrOpen(function (o) {
-        return !o;
-      });
-    },
-    className: "shrink-0 flex px-1.5 py-0.5 bg-[#1e293b] text-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(0,0,0,0.3)] items-center gap-1 whitespace-nowrap"
-  }, hdrOpen ? '🔼 縮小面板' : '🔽 展開規則')), /*#__PURE__*/React.createElement("div", {
-    className: "plat-collapse-y w-full" + (hdrOpen ? " open" : "")
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-white border-[3px] border-slate-800 rounded-xl p-2 md:p-3 text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)]"
-  }, /*#__PURE__*/React.createElement("h3", {
-    className: "text-sm md:text-base font-black mb-1 border-b-[3px] border-[#f97316] inline-block pb-0.5"
-  }, "\uD83D\uDCDC \u904A\u6232\u898F\u5247"), /*#__PURE__*/React.createElement("ol", {
-    className: "list-decimal list-outside ml-4 space-y-1 text-xs md:text-sm leading-relaxed font-bold"
-  }, /*#__PURE__*/React.createElement("li", null, "\u9EDE\u683C\u5B50\u6316\u958B\uFF1A\u6578\u5B57\u4EE3\u8868\u5468\u570D 8 \u683C\u7684\u5730\u96F7\u6578\uFF0C\u7A7A\u767D\u683C\u6703\u81EA\u52D5\u5C55\u958B\u3002"), /*#__PURE__*/React.createElement("li", null, "\u7B2C\u4E00\u4E0B\u9EDE\u7684\u683C\u5B50\uFF0B\u5468\u570D 8 \u683C\u4FDD\u8B49\u6C92\u6709\u5730\u96F7\uFF0C\u653E\u5FC3\u958B\u59CB\u3002"), /*#__PURE__*/React.createElement("li", null, "\u89BA\u5F97\u662F\u96F7\u5C31\u63D2\u65D7\uFF1A\u5207\u5230 \uD83D\uDEA9 \u63D2\u65D7\u6A21\u5F0F\u518D\u9EDE\u683C\u5B50\uFF0C\u6216\u9577\u6309\u683C\u5B50\u76F4\u63A5\u63D2\u65D7\u3002"), /*#__PURE__*/React.createElement("li", null, "\u6578\u5B57\u548C\u5468\u570D\u7684\u65D7\u6578\u4E00\u6A23\u6642\uFF0C\u518D\u9EDE\u90A3\u500B\u6578\u5B57\uFF0C\u53EF\u4E00\u6B21\u6316\u958B\u5468\u570D\u5269\u4E0B\u7684\u683C\u5B50\uFF08\u6316\u958B\uFF0F\u63D2\u65D7\u6A21\u5F0F\u90FD\u53EF\u4EE5\uFF09\u3002")))), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center justify-between gap-2 w-full"
-  }, mpOn ? /*#__PURE__*/React.createElement("span", {
-    className: "bg-white px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] whitespace-nowrap shrink-0"
-  }, "\u2699\uFE0F ", spec["short"], "\u30FB", spec.mines, " \u96F7") : /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setShowSettingsModal(true);
-    },
-    title: "\u8A2D\u5B9A\u76E4\u9762\uFF08\u63DB\u5927\u5C0F\u91CD\u958B\uFF09",
-    className: "plat-btn-hard plat-btn-hard-1 bg-white px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] whitespace-nowrap shrink-0"
-  }, "\u2699\uFE0F ", spec["short"], "\u30FB", spec.mines, " \u96F7 \u25BE"), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-1 items-center shrink-0"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
@@ -4795,9 +4590,7 @@ function MinesGame() {
     className: hbtn,
     title: "\u56DE\u5230\u9069\u61C9\u87A2\u5E55",
     tabIndex: zoomOpen ? 0 : -1
-  }, "\u9069\u61C9")))), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-1 md:gap-2 flex-wrap items-center ml-auto"
-  }, !mpOn && /*#__PURE__*/React.createElement("button", {
+  }, "\u9069\u61C9")))), !mpOn && /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       if (dailyDate) startDaily(dailyDate);else newGame(sizeId);
     },
@@ -4814,31 +4607,8 @@ function MinesGame() {
     title: "\u5B58\u6A94/\u8B80\u6A94\uFF08\u9032\u5EA6\u4EE3\u78BC\uFF09"
   }, "\uD83D\uDCBE", /*#__PURE__*/React.createElement("span", {
     className: "hidden sm:inline ml-1"
-  }, "\u5B58\u6A94")), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      var m = platAudio().toggleMuted();
-      setMuted(m);
-    },
-    title: muted ? '取消靜音' : '靜音',
-    className: hbtn
-  }, muted ? '🔇' : '🔊'), mpOn ? /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setShowExitMenu(true);
-    },
-    className: hbtn,
-    title: "\u96E2\u958B\u5C0D\u5C40"
-  }, "\uD83D\uDD0C", /*#__PURE__*/React.createElement("span", {
-    className: "hidden sm:inline ml-1"
-  }, "\u9000\u51FA")) : /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setScreen('home');
-    },
-    className: hbtn,
-    title: "\u56DE\u4E3B\u9078\u55AE"
-  }, "\uD83C\uDFE0", /*#__PURE__*/React.createElement("span", {
-    className: "hidden sm:inline ml-1"
-  }, "\u4E3B\u9078\u55AE"))))), /*#__PURE__*/React.createElement("div", {
-    className: "w-full flex flex-wrap items-center justify-between px-2 md:px-3 py-1.5 bg-white/60 border-b-2 border-slate-200 shrink-0 gap-x-2 gap-y-1"
+  }, "\u5B58\u6A94"))), /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap items-center justify-between px-2 md:px-3 py-1.5 bg-white/60 border-b-2 border-slate-200 gap-x-2 gap-y-1 -mx-2 md:-mx-4 -mb-1.5"
   }, /*#__PURE__*/React.createElement("div", {
     className: "font-black text-base md:text-lg text-slate-800 bg-white border-2 border-slate-800 rounded-lg px-2 md:px-3 py-1 shrink-0"
   }, "\uD83D\uDCA3 ", spec.mines - flagsUsed, Math.floor(spec.mines / 10) > 0 && /*#__PURE__*/React.createElement("span", {
@@ -4890,128 +4660,7 @@ function MinesGame() {
     value: Math.floor((progMode === 'bv' ? effProg : progress) * 100)
   }), /*#__PURE__*/React.createElement("span", {
     className: "hidden sm:inline"
-  }, status === 'ready' ? '・點任意格開始' : status === 'playing' ? '・排雷中…' : ''))), showExitMenu && mpOn && /*#__PURE__*/React.createElement("div", {
-    className: "fixed inset-0 z-[95] flex items-center justify-center bg-slate-900/60 backdrop-blur-[2px] p-4",
-    onClick: function onClick() {
-      return setShowExitMenu(false);
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-white border-4 border-slate-800 rounded-2xl shadow-[10px_10px_0px_rgba(30,41,59,1)] p-6 w-full max-w-xs text-center animate-popIn",
-    onClick: function onClick(e) {
-      return e.stopPropagation();
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "font-black text-xl text-slate-800 mb-4"
-  }, "\u8981\u96E2\u958B\u5C0D\u5C40\u55CE\uFF1F"), typeof window !== 'undefined' && window.__PLAT_TOURN_CAN_FORCEEND && window.__PLAT_TOURN_CAN_FORCEEND() && /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      setShowExitMenu(false);
-      if (window.__PLAT_TOURN_FORCEEND) window.__PLAT_TOURN_FORCEEND();
-    },
-    className: "plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 bg-rose-500 text-white border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_rgba(30,41,59,1)]"
-  }, "\u23F9\uFE0F \u7D50\u675F\u672C\u5C40\uFF08\u9326\u6A19\u8CFD\uFF09"), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      setShowExitMenu(false);
-      requestLobby();
-    },
-    className: "plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 bg-white text-slate-800 border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_rgba(30,41,59,1)]"
-  }, "\uD83C\uDFC1 \u56DE\u7B49\u5F85\u5BA4"), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      setShowExitMenu(false);
-      leaveMatch();
-    },
-    className: "plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 bg-white text-slate-800 border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_rgba(30,41,59,1)]"
-  }, "\uD83D\uDEAA \u9000\u51FA\uFF08\u56DE\u5927\u5EF3\uFF09"), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setShowExitMenu(false);
-    },
-    className: "w-full py-2 text-slate-400 font-bold hover:text-slate-700"
-  }, "\u53D6\u6D88"))), showSettingsModal && !mpOn && /*#__PURE__*/React.createElement("div", {
-    className: "fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4",
-    onClick: function onClick() {
-      return setShowSettingsModal(false);
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-[#fff7ed] border-[4px] border-[#1e293b] rounded-2xl p-6 shadow-[10px_10px_0px_rgba(30,41,59,1)] w-full max-w-md animate-popIn",
-    onClick: function onClick(e) {
-      return e.stopPropagation();
-    }
-  }, /*#__PURE__*/React.createElement("h2", {
-    className: "text-2xl font-black text-slate-800 mb-2 border-b-4 border-[#f97316] inline-block pb-1"
-  }, "\u2699\uFE0F \u8A2D\u5B9A\u76E4\u9762"), /*#__PURE__*/React.createElement("p", {
-    className: "text-sm font-bold text-slate-600 mb-4"
-  }, "\u9078\u4E00\u500B\u76E4\u9762\u5927\u5C0F\uFF0C\u6703\u7ACB\u523B\u91CD\u958B\u4E00\u5C40\u3002"), /*#__PURE__*/React.createElement("div", {
-    className: "flex flex-col gap-2 mb-4"
-  }, [9, 16].map(function (sz) {
-    return /*#__PURE__*/React.createElement("button", {
-      key: sz,
-      onClick: function onClick() {
-        setShowSettingsModal(false);
-        newGame(sz);
-      },
-      className: "plat-btn-hard plat-btn-hard-3 w-full text-left px-4 py-3 border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_rgba(30,41,59,1)]" + (sizeId === sz ? " bg-[#f97316] text-slate-900" : " bg-white text-slate-800")
-    }, SIZES[sz].name);
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "w-full bg-white border-[3px] border-slate-800 rounded-xl px-4 py-3 shadow-[3px_3px_0px_rgba(30,41,59,1)]"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "font-black text-slate-800 mb-2"
-  }, "\u2699\uFE0F \u81EA\u8A02\u76E4\u9762"), /*#__PURE__*/React.createElement("div", {
-    className: "flex flex-col gap-2"
-  }, /*#__PURE__*/React.createElement("label", {
-    className: "flex items-center justify-between font-bold text-slate-600 text-sm"
-  }, "\u5BEC\u5EA6\uFF08\u5DE6\u53F3\u683C\u6578\uFF09", /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    min: "8",
-    max: "30",
-    value: custCfg.w,
-    onChange: function onChange(e) {
-      return setCustCfg(function (c) {
-        return Object.assign({}, c, {
-          w: e.target.value
-        });
-      });
-    },
-    className: "w-24 bg-white border-2 border-slate-800 rounded-lg p-1.5 font-black text-slate-800 text-center outline-none"
-  })), /*#__PURE__*/React.createElement("label", {
-    className: "flex items-center justify-between font-bold text-slate-600 text-sm"
-  }, "\u9AD8\u5EA6\uFF08\u4E0A\u4E0B\u683C\u6578\uFF09", /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    min: "8",
-    max: "24",
-    value: custCfg.h,
-    onChange: function onChange(e) {
-      return setCustCfg(function (c) {
-        return Object.assign({}, c, {
-          h: e.target.value
-        });
-      });
-    },
-    className: "w-24 bg-white border-2 border-slate-800 rounded-lg p-1.5 font-black text-slate-800 text-center outline-none"
-  })), /*#__PURE__*/React.createElement("label", {
-    className: "flex items-center justify-between font-bold text-slate-600 text-sm"
-  }, "\u5730\u96F7\u6578", /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    min: "5",
-    value: custCfg.mines,
-    onChange: function onChange(e) {
-      return setCustCfg(function (c) {
-        return Object.assign({}, c, {
-          mines: e.target.value
-        });
-      });
-    },
-    className: "w-24 bg-white border-2 border-slate-800 rounded-lg p-1.5 font-black text-slate-800 text-center outline-none"
-  })), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      setShowSettingsModal(false);
-      startCustom();
-    },
-    className: "plat-btn-hard plat-btn-hard-3 w-full py-3 bg-[#f97316] border-[3px] border-slate-800 rounded-xl font-black text-lg text-slate-900 shadow-[3px_3px_0px_rgba(30,41,59,1)]"
-  }, "\u25B6 \u4EE5\u81EA\u8A02\u76E4\u958B\u59CB")))), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setShowSettingsModal(false);
-    },
-    className: "plat-btn-hard w-full py-3 bg-white border-4 border-slate-800 rounded-xl font-black text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)]"
-  }, "\u53D6\u6D88"))), showSaveModal && !mpOn && /*#__PURE__*/React.createElement("div", {
+  }, status === 'ready' ? '・點任意格開始' : status === 'playing' ? '・排雷中…' : '')))), ptcSlot), showSaveModal && !mpOn && /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "bg-[#fff7ed] border-[4px] border-[#1e293b] rounded-2xl p-6 shadow-[10px_10px_0px_rgba(30,41,59,1)] w-full max-w-md animate-popIn"
@@ -5048,7 +4697,7 @@ function MinesGame() {
   }, "\u95DC\u9589"), /*#__PURE__*/React.createElement("button", {
     onClick: handleLoadCode,
     className: "plat-btn-hard flex-1 py-3 bg-emerald-400 text-slate-900 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)]"
-  }, "\u8F09\u5165\u4EE3\u78BC")))), /*#__PURE__*/React.createElement("div", {
+  }, "\u8F09\u5165\u4EE3\u78BC")))), frameBody && ReactDOM.createPortal( /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "flex-1 overflow-y-auto min-h-0 flex flex-col items-center px-2 py-2 w-full"
   }, /*#__PURE__*/React.createElement("div", {
     className: "relative shrink-0",
@@ -5346,7 +4995,7 @@ function MinesGame() {
   })), renderGodPanel()), /*#__PURE__*/React.createElement("div", {
     ref: platBarRef,
     className: "h-16 shrink-0 w-full"
-  }), over && !mpOn && /*#__PURE__*/React.createElement("div", {
+  })), frameBody), over && !mpOn && /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4"
   }, /*#__PURE__*/React.createElement("div", {
     className: "bg-white border-4 border-slate-800 rounded-xl shadow-[10px_10px_0px_rgba(30,41,59,1)] max-w-sm w-full p-6 text-center animate-popIn"
@@ -5368,6 +5017,6 @@ function MinesGame() {
       return setScreen('home');
     },
     className: "plat-btn-hard plat-btn-hard-3 w-full py-2.5 bg-white border-[3px] border-slate-800 rounded-xl font-black text-slate-700 shadow-[3px_3px_0px_rgba(30,41,59,1)]"
-  }, "\u56DE\u4E3B\u9078\u55AE"))))));
+  }, "\u56DE\u4E3B\u9078\u55AE")))));
 }
 ReactDOM.createRoot(document.getElementById('mines-root')).render(React.createElement(window.PlatBoundary, null, React.createElement(MinesGame)));

@@ -36,7 +36,7 @@ function drawStroke(p) {
   P.window.PLAT_show('mines');
   await waitFor(() => !!P.window.__PLAT_HOOKS_mines, 120000, 'mines hooks');
   await sleep(600);
-  const clickBtnS = (pred) => { const b = [...P.document.querySelectorAll('#mines-root button')].find(pred); if (b) { b.click(); return true; } return false; };
+  const clickBtnS = (pred) => { const b = [...P.document.querySelectorAll('button')].find(pred); if (b) { b.click(); return true; } return false; }; // 文件層級：PlatSetup overlay 在 body 層（F2）
   clickBtnS(b => b.textContent.includes('單機挑戰')); await sleep(250);
   clickBtnS(b => b.textContent.includes('9×9'));
   ok(!!(await waitFor(() => P.document.querySelectorAll('#mines-root button[data-cell]').length === 81 ? true : null, 30000, 'solo cells')), '單機 9×9 開局');

@@ -371,13 +371,8 @@ function MinesGame() {
   var isPlat = typeof window !== 'undefined' && !!window.__PLAT_PLATFORM;
   // ---------- 畫面/單機狀態 ----------
   const [screen, setScreen] = useState('home'); // home | game
-  const [showHelp, setShowHelp] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false); // 存檔/讀檔（v1.42 補齊：比照數獨/數橋代碼式）
-  const [showSettingsModal, setShowSettingsModal] = useState(false); // 設定盤面 modal（v1.43 Q2：設定入口三款統一 modal 式）
   const [saveCode, setSaveCode] = useState('');
-  const [tutStep, setTutStep] = useState(0); // 玩法教學步進（美學稽核 V-09：三款教學統一為數橋的步進骨架）
-  const [tutDemoOpen, setTutDemoOpen] = useState(() => new Array(9).fill(false)); // 教學互動 demo（v1.46 Q6）：3×3 已挖開格
-  const [tutDemoBoom, setTutDemoBoom] = useState(false); // 教學互動 demo：踩到雷了
   const [muted, setMuted] = useState(platAudio().isMuted());
   const [sizeId, setSizeId] = useState(9);
   const [layout, setLayout] = useState(null);       // bool[] 雷位（目前這一局）
@@ -430,7 +425,13 @@ function MinesGame() {
   const pz = () => { if (!pzRef.current) pzRef.current = platZoomNew({ min: 1, max: 2.5, value: 1, cleanup2dp: true }); return pzRef.current; };          // 盤面縮放（比照數獨：1=適應螢幕，展開後 －/＋/適應）——卡片內 🔍 與殼 PlatBar 左下角縮放組共用這一顆 state（單一真相）
   const [zoomOpen, setZoomOpen] = useState(false);
   const [custCfg, setCustCfg] = useState(() => { var c0 = platSave().read('mines_custom_cfg', { fallback: null }); if (c0) return clampCustomSpec(c0.w, c0.h, c0.mines); return { w: 16, h: 16, mines: 40 }; }); // 單機自訂盤面（寬/高/雷），持久化
-  const [custOpen, setCustOpen] = useState(false);
+  // ---------- 框架層 F2：PlatHome / PlatTopCard 掛載點（殼單一實作、本款只給 config 與內容） ----------
+  const platHomeRef = useRef(null);
+  const platFrameRef = useRef(null); // PlatFrame 掛載點（v1.71.0：對局外框改殼持有，比照美術燈 v1.70.0）
+  const [frameBody, setFrameBody] = useState(null); // PlatFrame 內容區節點（盤面/底部列 portal 用）
+  const [ptcEl, setPtcEl] = useState(null); // PlatTopCard 掛載點＝外框頂區節點
+  const [ptcSlot, setPtcSlot] = useState(null); // PlatTopCard 遊戲槽節點（portal 用）
+  const dailySelRef = useRef(dailySel); dailySelRef.current = dailySel;
   const boardScrollRef = useRef(null);
   const boardZoomRef = useRef(null);   // F3：縮放 FLIP 過渡的盤面包裝層（盤面＋塗鴉一起縮放）
   const prevZoomRef = useRef(1);
@@ -481,7 +482,7 @@ function MinesGame() {
 
   // ---------- 開局 ----------
   function newGame(szId, seed, daily) {
-    setHdrOpen(true); // 單機/每日開始：標頭規則面板展開（比照數獨）
+    if (typeof window !== 'undefined' && window.PlatTopCard) window.PlatTopCard.setRulesOpen(true); // 單機/每日開始：標頭規則面板展開（比照數獨）
     var sp = SIZES[szId] || SIZES[9];
     var sd = (seed != null) ? seed : (Math.random() * 4294967296) >>> 0;
     var L = makeLayout(sp.w, sp.h, sp.mines, sd);
@@ -611,8 +612,9 @@ function MinesGame() {
       itemSay('✅ 進度載入成功！');
     } catch (e) { itemSay('❌ 無效的進度代碼'); }
   }
-  function startCustom() { // 單機自訂盤面：clamp→持久化→註冊規格→以 sizeId 'custom' 開局（與預設盤走同一條 newGame 路徑）
-    var cl = clampCustomSpec(custCfg.w, custCfg.h, custCfg.mines);
+  function startCustom(vals) { // 單機自訂盤面：clamp→持久化→註冊規格→以 sizeId 'custom' 開局（與預設盤走同一條 newGame 路徑）；vals 可由 PlatSetup 自訂欄位帶入
+    var src = vals || custCfg;
+    var cl = clampCustomSpec(src.w, src.h, src.mines);
     setCustCfg(cl); platSave().write('mines_custom_cfg', cl);
     regCustomSpec(cl);
     newGame('custom');
@@ -759,8 +761,7 @@ function MinesGame() {
   useEffect(() => { if (raceFinal && raceFinal.winnerUid && raceFinal.winnerUid === myId) { try { platAudio().play('win'); } catch (e) {} } }, [raceFinal]); // 競速奪冠＝win（PlatAudio，v1.64.0）
   const [myOutcome, setMyOutcome] = useState(null); // 'finished'|'boom'
   const [leaveArm, setLeaveArm] = useState(false);
-  const [showExitMenu, setShowExitMenu] = useState(false); // 離開選單（比照數獨/數橋：退出鈕開選單，內含結束本局/回等待室/退出回大廳）
-  const [hdrOpen, setHdrOpen] = useState(false); // 標頭規則面板展開（比照數獨：單機/每日開始展開、多人進場收合）
+  // 離開選單與標頭規則開合已收編殼 PlatTopCard/PlatLeaveMenu（框架層 F2）：規則預設開合以 PlatTopCard.setRulesOpen 設定（單機/每日展開、多人收合）
   const [coopBoomBy, setCoopBoomBy] = useState('');
   const [cdNum, setCdNum] = useState(null);
   const [waitTick, setWaitTick] = useState(0);
@@ -1431,6 +1432,198 @@ function MinesGame() {
     });
   });
 
+  // ---------- 框架層 F2：PlatHome / PlatTopCard / PlatSetup / PlatTutorial（殼單一實作、本款只給 config 與內容） ----------
+  function openMinesSetup(fromGame) {
+    if (!window.PlatSetup) return;
+    window.PlatSetup.show({
+      accent: ACCENT,
+      title: fromGame ? '⚙️ 設定盤面' : '👤 單機挑戰',
+      subtitle: fromGame ? '選一個盤面大小，會立刻重開一局。' : '選一個盤面大小開始',
+      options: [9, 16].map(sz => ({ id: sz, label: (sz === 9 ? '🌱 ' : '🔥 ') + SIZES[sz].name, sub: bestText(sz) })),
+      selectedId: (sizeId === 9 || sizeId === 16) ? sizeId : null,
+      mode: 'list', instant: true,
+      custom: {
+        label: '⚙️ 自訂盤面',
+        fields: [
+          { key: 'w', label: '寬度（左右格數）', min: 8, max: 30 },
+          { key: 'h', label: '高度（上下格數）', min: 8, max: 24 },
+          { key: 'mines', label: '地雷數', min: 5 }
+        ],
+        values: custCfg,
+        validate: (vals) => {
+          const cl = clampCustomSpec(vals.w, vals.h, vals.mines);
+          return { values: cl, note: '範圍：寬 8–30、高 8–24、雷 5–' + (cl.w * cl.h - 9) + '（依目前寬高；首點保護需留 9 格空白）。超出範圍會自動修正，開始鈕顯示的就是實際會開的盤。', startText: '▶ 開始：' + cl.w + '×' + cl.h + '・' + cl.mines + ' 雷' };
+        }
+      },
+      onStart: (id, vals) => { if (id === 'custom') startCustom(vals); else newGame(Number(id)); }
+    });
+  }
+  // 教學第 1 步互動 demo（3×3 挖開練習）：PlatTutorial 的 mount 步，由本款以原生 DOM 渲染（行為與舊 React 版一致：洪水展開/踩雷/再試一次/音效/字幕）
+  function mountTutDemo(el, api) {
+    var VALS = [0, 1, -1, 0, 1, 1, 0, 0, 0];
+    var open = new Array(9).fill(false), boom = false;
+    el.innerHTML = '<div class="flex justify-center mb-3"><div class="grid grid-cols-3 gap-[3px]" data-mtut-grid="1"></div></div><div class="text-center" data-mtut-retry="1"></div>';
+    var grid = el.querySelector('[data-mtut-grid]'), retryBox = el.querySelector('[data-mtut-retry]');
+    function caption() {
+      if (boom) return '💥 踩到地雷了！先看數字推理，避開最可疑的格子';
+      if (open.filter(Boolean).length >= 8) return '✅ 全部挖開了！數字就是周圍 8 格的地雷數，你學會了';
+      return '動手試試：點格子把安全的格子全部挖開——其中有一顆地雷，數字會給你提示';
+    }
+    function render() {
+      grid.innerHTML = '';
+      VALS.forEach(function (n, i) {
+        var isOpen = open[i] || (boom && n === -1);
+        if (!isOpen) {
+          var b = document.createElement('button');
+          b.className = 'w-11 h-11 rounded-[4px] border border-orange-900/20';
+          b.style.background = 'linear-gradient(145deg,#fdba74,#fb923c)';
+          b.setAttribute('data-mtut-cell', String(i));
+          b.addEventListener('click', function () { tap(i); });
+          grid.appendChild(b);
+        } else {
+          var d = document.createElement('div');
+          d.className = 'w-11 h-11 flex items-center justify-center font-black text-lg rounded-[4px] border border-orange-900/20';
+          d.style.background = n === -1 ? '#fecaca' : '#f8fafc';
+          if (n > 0) { d.style.color = NUM_COLORS[n]; d.textContent = n; }
+          if (n === -1) d.textContent = '💣';
+          grid.appendChild(d);
+        }
+      });
+      retryBox.innerHTML = '';
+      if (boom) {
+        var rb = document.createElement('button');
+        rb.className = 'plat-btn-hard plat-btn-hard-2 px-4 py-1.5 bg-white border-2 border-slate-800 rounded-lg font-black text-sm text-slate-800 shadow-[2px_2px_0px_rgba(30,41,59,1)]';
+        rb.textContent = '↺ 再試一次';
+        rb.addEventListener('click', function () { open = new Array(9).fill(false); boom = false; render(); });
+        retryBox.appendChild(rb);
+      }
+      if (api && api.setCaption) api.setCaption(caption());
+    }
+    function tap(i) {
+      if (VALS[i] === -1) { boom = true; platAudio().play('boom'); render(); return; }
+      var stack = [i];
+      while (stack.length) {
+        var c = stack.pop();
+        if (open[c]) continue;
+        open[c] = true;
+        if (VALS[c] === 0) { var cx = c % 3, cy = Math.floor(c / 3); for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) { var nx = cx + dx, ny = cy + dy; if (nx >= 0 && nx < 3 && ny >= 0 && ny < 3) stack.push(ny * 3 + nx); } }
+      }
+      platAudio().play('place');
+      render();
+    }
+    render();
+  }
+  function openMinesTutorial() {
+    if (!window.PlatTutorial) return;
+    const chordCell = (inner, cover) => '<div class="w-11 h-11 relative flex items-center justify-center font-black text-lg rounded-[4px] border border-orange-900/20 overflow-hidden" style="background:#f8fafc">' + (inner || '') + (cover ? '<div class="mtut-chord-cover absolute inset-0" style="background:linear-gradient(145deg,#fdba74,#fb923c)"></div>' : '') + '</div>';
+    const steps = [
+      { mount: mountTutDemo, caption: '動手試試：點格子把安全的格子全部挖開——其中有一顆地雷，數字會給你提示' },
+      { html: '<div class="flex justify-center mb-3"><div class="w-14 h-14 flex items-center justify-center rounded-[4px] border border-orange-900/20" style="background:linear-gradient(145deg,#fdba74,#fb923c)"><span class="mtut-flag text-3xl">🚩</span></div></div><div class="flex justify-center gap-2 mb-3"><span class="px-3 py-2 bg-white border-[3px] border-slate-800 rounded-xl font-black text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)]">⛏️ 挖開</span><span class="mtut-chip px-3 py-2 border-[3px] border-slate-800 rounded-xl font-black text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)]">🚩 插旗</span></div>', caption: '懷疑是地雷？切到「插旗」模式點它，或長按格子做記號' },
+      { html: '<div class="flex justify-center mb-3"><div class="relative"><div class="grid grid-cols-3 gap-[3px]">'
+        + '<div class="w-11 h-11 flex items-center justify-center text-xl rounded-[4px] border border-orange-900/20" style="background:linear-gradient(145deg,#fdba74,#fb923c)">🚩</div>'
+        + chordCell('<span class="mtut-chord-num" style="color:' + NUM_COLORS[2] + '">2</span>', true)
+        + chordCell('<span class="mtut-chord-num" style="color:' + NUM_COLORS[1] + '">1</span>', true)
+        + chordCell('<span class="mtut-chord-num" style="color:' + NUM_COLORS[1] + '">1</span>', true)
+        + '<div class="w-11 h-11 flex items-center justify-center font-black text-lg rounded-[4px] border border-orange-900/20" style="background:#f8fafc;color:' + NUM_COLORS[1] + '">1</div>'
+        + chordCell('', true) + chordCell('', true)
+        + chordCell('<span class="mtut-chord-num" style="color:' + NUM_COLORS[1] + '">1</span>', true)
+        + chordCell('<span class="mtut-chord-num" style="color:' + NUM_COLORS[2] + '">2</span>', true)
+        + '</div><span class="mtut-finger2 absolute text-3xl pointer-events-none" style="left:63px;top:62px">👆</span></div></div>', caption: '數字旁的旗子數剛好等於數字時，再點數字格，周圍剩下的格子一次挖開' },
+      { html: '<div class="flex justify-center gap-8 mb-3"><div class="flex flex-col items-center gap-1"><div class="mtut-boom w-14 h-14 flex items-center justify-center text-3xl rounded-[4px] border border-orange-900/20" style="background:#e2e8f0">💣</div><span class="text-xs font-semibold text-slate-400">踩到雷</span></div><div class="flex flex-col items-center gap-1"><div class="w-14 h-14 flex items-center justify-center rounded-[4px] border border-orange-900/20" style="background:#f8fafc"><span class="mtut-trophy text-3xl">🏆</span></div><span class="text-xs font-semibold text-slate-400">全部挖開</span></div></div><div class="mt-3 pt-3 border-t-2 border-slate-200 font-bold text-slate-600 leading-relaxed text-left flex flex-col gap-2"><p>📅 每日一題：每天同一題（9×9），可以回補今年的舊題目，只有今天的會累積連續天數。</p><p>👥 多人競速：同一個盤面各玩各的，最快清完的人贏；踩到雷先扣 ❤️、愛心用完才出局，照當時進度排名。</p></div>', caption: '第一下點的格子跟周圍 8 格保證沒有雷；不是雷的格子全挖開就贏；挖到雷先扣一顆 ❤️，愛心用完才結束' }
+    ];
+    window.PlatTutorial.show({ accent: ACCENT, title: '❓ 玩法教學', steps: steps });
+  }
+  const platHomeCfgStable = useRef(null);
+  if (!platHomeCfgStable.current) platHomeCfgStable.current = {
+    accent: ACCENT, titleChars: ['踩', '地', '雷'], enName: 'Minesweeper',
+    onAction: (name) => {
+      if (name === 'solo') openMinesSetup(false);
+      else if (name === 'daily') startDaily(dailySelRef.current);
+      else if (name === 'prev') setDailySel(shiftDate(dailySelRef.current, -1));
+      else if (name === 'next') setDailySel(shiftDate(dailySelRef.current, 1));
+      else if (name === 'cal') openDailyCal();
+      else if (name === 'tutorial') openMinesTutorial();
+      else if (name === 'lobby') { if (window.PLAT_show) window.PLAT_show('home'); }
+    }
+  };
+  useEffect(() => { // PlatHome 自我修復 attach（無依賴、每次 render 自我檢查，理由同 PlatBar v1.55.1）
+    if (typeof window === 'undefined' || typeof window.PlatHome === 'undefined') return;
+    if (window.__PLAT_NET && window.__PLAT_NET.inMatch && window.__PLAT_NET.inMatch !== 'mines') return;
+    if (screen !== 'home') { if (window.PlatHome.isAttached() && !window.PlatHome._elConnected()) window.PlatHome.detach(window.PlatHome._el()); return; }
+    const el = platHomeRef.current;
+    if (el && (window.PlatHome._el() !== el || !window.PlatHome._elConnected())) window.PlatHome.attach(el, platHomeCfgStable.current);
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.PlatHome === 'undefined' || !window.PlatHome.isAttached()) return;
+    if (screen !== 'home') return;
+    const recs = readDailyRecords(), streak = readDailyStreak();
+    const done = recs[dailySel] != null;
+    window.PlatHome.update({
+      dailyDate: dailySel,
+      dailyIsToday: dailySel === todayStr(),
+      dailyDone: done,
+      canPrev: dailySel > DAILY_MIN,
+      canNext: dailySel < todayStr(),
+      streak: streak.count || 0,
+      bestText: done ? fmtTime(recs[dailySel]) : '',
+      inPlatform: isPlat
+    });
+  });
+  const platTopCfgStable = useRef(null);
+  if (!platTopCfgStable.current) platTopCfgStable.current = {
+    accent: ACCENT, logo: '💣', name: '踩地雷', frame: false,
+    rulesHtml: '<ol class="list-decimal list-outside ml-4 space-y-1"><li>點格子挖開：數字代表周圍 8 格的地雷數，空白格會自動展開。</li><li>第一下點的格子＋周圍 8 格保證沒有地雷，放心開始。</li><li>覺得是雷就插旗：切到 🚩 插旗模式再點格子，或長按格子直接插旗。</li><li>數字和周圍的旗數一樣時，再點那個數字，可一次挖開周圍剩下的格子（挖開／插旗模式都可以）。</li></ol>',
+    onAction: (name) => {
+      if (name === 'mute') { const m = platAudio().toggleMuted(); setMuted(!!m); }
+      else if (name === 'spec') openMinesSetup(true);
+      else if (name === 'leave-home') setScreen('home');
+      else if (name === 'leave-lobby') requestLobby();
+      else if (name === 'leave-leave') leaveMatch();
+      else if (name === 'leave-forceend') { if (window.__PLAT_TOURN_FORCEEND) window.__PLAT_TOURN_FORCEEND(); }
+    }
+  };
+  const platFrameCfgStable = useRef(null);
+  if (!platFrameCfgStable.current) platFrameCfgStable.current = { paper: '#fff7ed', bodyCls: 'flex-1 w-full flex flex-col min-h-0' }; // 框紙色＝本款原外框色；bodyCls：捲動欄＋底部列要無 padding 的 flex 欄
+  useEffect(() => { // PlatFrame 自我修復 attach（先於 PlatTopCard effect 宣告：同輪先建框、再掛頂欄）
+    if (typeof window === 'undefined' || typeof window.PlatFrame === 'undefined') return;
+    if (window.__PLAT_NET && window.__PLAT_NET.inMatch && window.__PLAT_NET.inMatch !== 'mines') return;
+    if (screen !== 'game') { if (window.PlatFrame.isAttached()) window.PlatFrame.detach(); if (frameBody) setFrameBody(null); if (ptcEl) setPtcEl(null); return; }
+    const el = platFrameRef.current;
+    if (el) {
+      if (window.PlatFrame._el() !== el || !window.PlatFrame._elConnected()) window.PlatFrame.attach(el, platFrameCfgStable.current);
+      const b = window.PlatFrame.getBody(); if (b !== frameBody) setFrameBody(b);
+      const t = window.PlatFrame.getTop(); if (t !== ptcEl) setPtcEl(t);
+    }
+  });
+  useEffect(() => { // PlatTopCard 自我修復 attach＋槽位同步（掛載點＝外框頂區）
+    if (typeof window === 'undefined' || typeof window.PlatTopCard === 'undefined') return;
+    if (window.__PLAT_NET && window.__PLAT_NET.inMatch && window.__PLAT_NET.inMatch !== 'mines') return;
+    if (screen !== 'game') { if (window.PlatTopCard.isAttached() && window.PlatTopCard._el() === ptcEl) window.PlatTopCard.detach(ptcEl); if (ptcSlot) setPtcSlot(null); return; }
+    const el = ptcEl;
+    if (el) {
+      if (window.PlatTopCard._el() !== el || !window.PlatTopCard._elConnected()) window.PlatTopCard.attach(el, platTopCfgStable.current);
+      const slot = window.PlatTopCard.getSlot();
+      if (slot !== ptcSlot) setPtcSlot(slot);
+    }
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.PlatTopCard === 'undefined' || !window.PlatTopCard.isAttached()) return;
+    if (screen !== 'game') return;
+    window.PlatTopCard.update({
+      leaveIcon: mpOn ? '🔌' : '🏠',
+      leaveLabel: mpOn ? '退出' : '主選單',
+      modeChip: mpOn ? (mpRef.current.mode === 'race' ? '⚔️ 競速對戰' : '🤝 合作模式') : null,
+      dailyChip: (dailyDate && !mpOn) ? '每日 ' + dailyDate.slice(5) + (dailyDate !== todayStr() ? ' 補玩' : '') : null,
+      specLabel: '⚙️ ' + spec.short + '・' + spec.mines + ' 雷',
+      specClickable: !mpOn,
+      statText: null,
+      timerText: fmtTime(elapsed),
+      muted: muted,
+      players: [],
+      leaveMenu: { mode: mpOn ? 'mp' : 'solo', canForceEnd: !!(mpOn && typeof window.__PLAT_TOURN_CAN_FORCEEND === 'function' && window.__PLAT_TOURN_CAN_FORCEEND()) }
+    });
+  });
+
   // ---------- 盤面邊緣虛化＋自製卷軸指示條（使用者 2026-11-04 指示） ----------
   // 四邊（上下左右）都虛化：哪一邊還有沒看到的題目，那一邊就漸層虛化；捲到那一邊的邊緣（到底/到頂/到左/到右）就不用虛化、自動消失。
   // 另有細指示條（滑塊長度=可視比例、位置=捲動進度）；完全沒溢出時全部都不出現——玩家一眼就知道「現在看到的是全部還是部分」。
@@ -1518,7 +1711,7 @@ function MinesGame() {
         hubColorRef.current = (sess && typeof sess.color === 'string' && sess.color) ? sess.color : null; // 只驗非空字串：地雷 MP_COLORS 與殼色票是不同集合，不拿來驗
         // 開新局先清掉上一局的結算暫存（站規：新局絕不能重播上一局的結算）
         cleanupMp();
-        setHdrOpen(false);
+        if (typeof window !== 'undefined' && window.PlatTopCard) window.PlatTopCard.setRulesOpen(false); // 多人進場：規則面板收合
         setRaceFinal(null); finalRef.current = null; setMyOutcome(null); outcomeRef.current = null;
         setGodBoards({}); godRef.current = {}; dismissRef.current = null;
         setStatus('ready'); statusRef.current = 'ready'; setHitIdx(-1); setCells(null); setLayout(null); setNums(null);
@@ -1652,203 +1845,23 @@ function MinesGame() {
   // ---------- 每日一題月曆（規格比照數獨/數橋：固定 6 列、完成亮燈、未來反灰） ----------
   function openDailyCal() { if (window.PlatCalendar) window.PlatCalendar.show({ accent: '#f97316', records: readDailyRecords(), selected: dailySel, onPick: (ds) => { setDailySel(ds); startDaily(ds); } }); } // 每日月曆已統一為殼端 PlatCalendar（v1.16）
 
-  if (screen === 'setup') {
-    const effC = clampCustomSpec(custCfg.w, custCfg.h, custCfg.mines); // 自訂盤實際會開的規格（輸入超出範圍先 clamp，開始鈕直接顯示修正後的值，不讓玩家猜）
-    return (
-      <div key="setup" className="min-h-screen w-full flex flex-col items-center justify-center p-4 relative overflow-hidden">
-        <div className="w-full max-w-md bg-white border-4 border-slate-800 rounded-xl shadow-[10px_10px_0px_rgba(30,41,59,1)] p-6 md:p-8 relative z-10 animate-fadeIn">
-          <h2 className="font-black text-2xl text-slate-800 mb-1">👤 單機挑戰</h2>
-          <p className="font-semibold text-slate-400 text-sm mb-5">選一個盤面大小開始</p>
-          <div className="flex flex-col gap-3">
-            {[9, 16].map(sz => (
-              <button key={sz} onClick={() => { newGame(sz); }}
-                className="plat-btn-hard plat-btn-hard-3 w-full py-4 bg-[#f97316] border-[3px] border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[3px_3px_0px_rgba(30,41,59,1)] flex items-center justify-between px-4">
-                <span>{sz === 9 ? '🌱' : '🔥'} {SIZES[sz].name}</span>
-                <span className="text-sm text-slate-700">{bestText(sz)}</span>
-              </button>
-            ))}
-            <div className="w-full bg-white border-[3px] border-slate-800 rounded-xl px-4 py-3 shadow-[3px_3px_0px_rgba(30,41,59,1)]">
-              <button onClick={() => setCustOpen(!custOpen)} className="w-full flex items-center justify-between font-black text-xl text-slate-800">
-                <span>⚙️ 自訂盤面</span><span className="text-sm text-slate-400">{custOpen ? '▾ 收起' : '▸ 展開'}</span>
-              </button>
-              <div className={"plat-collapse-y" + (custOpen ? " open" : "")}><div><div className="mt-3 flex flex-col gap-2">
-                <label className="flex items-center justify-between font-bold text-slate-600 text-sm">寬度（左右格數）
-                  <input type="number" min="8" max="30" value={custCfg.w} onChange={e => setCustCfg(c => Object.assign({}, c, { w: e.target.value }))} className="w-24 bg-white border-2 border-slate-800 rounded-lg p-1.5 font-black text-slate-800 text-center outline-none" />
-                </label>
-                <label className="flex items-center justify-between font-bold text-slate-600 text-sm">高度（上下格數）
-                  <input type="number" min="8" max="24" value={custCfg.h} onChange={e => setCustCfg(c => Object.assign({}, c, { h: e.target.value }))} className="w-24 bg-white border-2 border-slate-800 rounded-lg p-1.5 font-black text-slate-800 text-center outline-none" />
-                </label>
-                <label className="flex items-center justify-between font-bold text-slate-600 text-sm">地雷數
-                  <input type="number" min="5" value={custCfg.mines} onChange={e => setCustCfg(c => Object.assign({}, c, { mines: e.target.value }))} className="w-24 bg-white border-2 border-slate-800 rounded-lg p-1.5 font-black text-slate-800 text-center outline-none" />
-                </label>
-                <div className="text-xs font-semibold text-slate-400 leading-relaxed">範圍：寬 8–30、高 8–24、雷 5–{effC.w * effC.h - 9}（依目前寬高；首點保護需留 9 格空白）。超出範圍會自動修正，開始鈕顯示的就是實際會開的盤。</div>
-                <button onClick={startCustom} className="plat-btn-hard plat-btn-hard-3 w-full py-3 bg-[#f97316] border-[3px] border-slate-800 rounded-xl font-black text-lg text-slate-900 shadow-[3px_3px_0px_rgba(30,41,59,1)]">▶ 開始：{effC.w}×{effC.h}・{effC.mines} 雷</button>
-              </div></div></div>
-            </div>
-            <button onClick={() => setScreen('home')} className="plat-btn-hard plat-btn-hard-3 w-full py-3 bg-white border-[3px] border-slate-800 rounded-xl font-black text-lg text-slate-700 shadow-[3px_3px_0px_rgba(30,41,59,1)]">← 返回主選單</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   if (screen === 'home') {
-    const dRec = readDailyRecords(), dStreak = readDailyStreak();
-    const dDone = dRec[dailySel] != null, dBest = dRec[dailySel], dIsToday = dailySel === todayStr();
+    // 主畫面由殼 PlatHome 單一實作渲染（框架層 F2）；無殼環境（獨立開啟）才用下方最小備援
     return (
-      <div key="home" className="min-h-screen w-full flex flex-col items-center justify-center p-4 relative overflow-hidden">
-        <div className="w-full max-w-md bg-[#fff7ed] border-4 border-slate-800 rounded-xl shadow-[10px_10px_0px_rgba(30,41,59,1)] p-10 text-center relative transform -rotate-1 z-10 animate-fadeIn">
-          <h1 className="text-6xl font-black text-slate-800 mb-6 tracking-widest flex justify-center gap-3">
-            <span className="inline-block bg-[#f97316] px-4 py-2 border-4 border-slate-800 rounded-xl transform rotate-3 shadow-[4px_4px_0px_rgba(30,41,59,1)]">踩</span>
-            <span className="inline-block bg-[#f97316] px-4 py-2 border-4 border-slate-800 rounded-xl transform -rotate-2 shadow-[4px_4px_0px_rgba(30,41,59,1)]">地</span>
-            <span className="inline-block bg-[#f97316] px-4 py-2 border-4 border-slate-800 rounded-xl transform rotate-2 shadow-[4px_4px_0px_rgba(30,41,59,1)]">雷</span>
-          </h1>
-          <div className="inline-block border-[3px] border-dashed border-slate-800 rounded-xl px-6 py-2 mb-8 bg-white shadow-[4px_4px_0px_rgba(30,41,59,1)] transform rotate-2">
-            <p className="text-slate-800 font-black text-xl tracking-widest uppercase italic">Minesweeper</p>
-          </div>
-          <div className="flex flex-col gap-3">
-            <button onClick={() => { setScreen('setup'); }} className="plat-btn-hard plat-btn-hard-3 w-full py-4 bg-[#f97316] border-[3px] border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[3px_3px_0px_rgba(30,41,59,1)]">👤 單機挑戰</button>
-            <button onClick={() => { startDaily(dailySel); }} className="plat-btn-hard plat-btn-hard-3 w-full py-4 bg-[#f97316] border-[3px] border-slate-800 rounded-xl font-black text-xl text-slate-900 shadow-[3px_3px_0px_rgba(30,41,59,1)] flex items-center justify-center gap-2">
-              <span>📅 每日一題</span>{dDone && <span className="text-base bg-white/70 rounded-lg px-2 py-0.5">✓ 已完成</span>}
-            </button>
-            <div className="flex items-center gap-2">
-              <button disabled={dailySel <= DAILY_MIN} onClick={() => setDailySel(shiftDate(dailySel, -1))} className="w-11 h-11 shrink-0 rounded-lg border-2 border-slate-800 bg-white font-black text-lg disabled:opacity-30 shadow-[2px_2px_0px_rgba(30,41,59,1)]">◀</button>
-              <button onClick={openDailyCal}
-                className="flex-1 py-2.5 bg-white border-2 border-slate-800 rounded-lg font-black text-lg text-slate-800 shadow-[2px_2px_0px_rgba(30,41,59,1)]">📅 {dailySel}{dIsToday ? '（今天）' : ''}</button>
-              <button disabled={dailySel >= todayStr()} onClick={() => setDailySel(shiftDate(dailySel, 1))} className="w-11 h-11 shrink-0 rounded-lg border-2 border-slate-800 bg-white font-black text-lg disabled:opacity-30 shadow-[2px_2px_0px_rgba(30,41,59,1)]">▶</button>
-            </div>
-            <div className="text-sm font-bold text-slate-500 -mt-1">🔥 連續挑戰 <PlatNum value={dStreak.count || 0} /> 天{dBest != null ? <React.Fragment>・這天最佳 <PlatNum value={fmtTime(dBest)} /></React.Fragment> : ''}</div>
-            <button onClick={() => { setTutStep(0); setTutDemoOpen(new Array(9).fill(false)); setTutDemoBoom(false); setShowHelp(true); }} className="plat-btn-hard plat-btn-hard-3 w-full py-4 bg-white border-[3px] border-slate-800 rounded-xl font-black text-xl text-slate-800 shadow-[3px_3px_0px_rgba(30,41,59,1)]">❓ 玩法教學</button>
-          </div>
-        </div>
-        {isPlat && (
-          <button onClick={() => { if (window.PLAT_show) window.PLAT_show('home'); }}
-            className="plat-btn-hard z-10 w-full max-w-md mt-5 py-3.5 bg-sky-400 border-4 border-slate-800 rounded-xl font-black text-lg text-slate-900 shadow-[4px_4px_0px_rgba(30,41,59,1)]">🏠 回大廳</button>
-        )}
-        <div className="shrink-0 pt-4 text-slate-800 font-black text-sm opacity-60 tracking-wider z-10">Copyright © 2026 葉大帥. All rights reserved. ({isPlat && window.PLAT_VERSION ? '三磚益智 v' + window.PLAT_VERSION : 'v1.0.0'})</div>
-        
-        {showHelp && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4" onClick={() => setShowHelp(false)}>
-            <div className="bg-[#fffaf0] border-4 border-slate-800 rounded-2xl shadow-[10px_10px_0px_rgba(30,41,59,1)] max-w-lg w-full max-h-[92vh] overflow-y-auto p-6 relative animate-popIn" onClick={e => e.stopPropagation()}>
-              <button onClick={() => setShowHelp(false)} className="plat-btn-hard plat-btn-hard-2 absolute top-3 right-3 w-9 h-9 bg-white border-[3px] border-slate-800 rounded-full font-black shadow-[2px_2px_0px_rgba(30,41,59,1)] z-10">✕</button>
-              <h3 className="text-2xl font-black text-slate-800 border-b-4 border-[#f97316] inline-block pb-1 mb-5">❓ 玩法教學</h3>
-
-              <div className={"h-[400px] flex flex-col justify-center bg-white border-[3px] border-slate-800 rounded-xl p-4 mb-4 shadow-[4px_4px_0px_rgba(30,41,59,1)]" + (tutStep !== 0 ? " hidden" : "")}>
-                <div className="flex justify-center mb-3">
-                  <div className="grid grid-cols-3 gap-[3px]">
-                    {[0, 1, -1, 0, 1, 1, 0, 0, 0].map((n, i) => {
-                      const isOpen = tutDemoOpen[i] || (tutDemoBoom && n === -1);
-                      if (!isOpen) return (<button key={i} onClick={() => {
-                        if (n === -1) { setTutDemoBoom(true); platAudio().play('boom'); return; }
-                        const open = tutDemoOpen.slice();
-                        const stack = [i];
-                        while (stack.length) {
-                          const c = stack.pop();
-                          if (open[c]) continue;
-                          open[c] = true;
-                          if ([0, 1, -1, 0, 1, 1, 0, 0, 0][c] === 0) {
-                            const cx = c % 3, cy = Math.floor(c / 3);
-                            for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const nx = cx + dx, ny = cy + dy; if (nx >= 0 && nx < 3 && ny >= 0 && ny < 3) stack.push(ny * 3 + nx); }
-                          }
-                        }
-                        setTutDemoOpen(open); platAudio().play('place');
-                      }} className="w-11 h-11 rounded-[4px] border border-orange-900/20" style={{ background: 'linear-gradient(145deg,#fdba74,#fb923c)' }}></button>);
-                      return (<div key={i} className="w-11 h-11 flex items-center justify-center font-black text-lg rounded-[4px] border border-orange-900/20" style={{ background: n === -1 ? '#fecaca' : '#f8fafc', color: n > 0 ? NUM_COLORS[n] : undefined }}>{n === -1 ? '💣' : (n > 0 ? n : '')}</div>);
-                    })}
-                  </div>
-                </div>
-                <p className="text-center font-bold text-slate-700">{tutDemoBoom ? '💥 踩到地雷了！先看數字推理，避開最可疑的格子' : (tutDemoOpen.filter(Boolean).length >= 8 ? '✅ 全部挖開了！數字就是周圍 8 格的地雷數，你學會了' : '動手試試：點格子把安全的格子全部挖開——其中有一顆地雷，數字會給你提示')}</p>
-                {tutDemoBoom && (<div className="text-center mt-2"><button onClick={() => { setTutDemoOpen(new Array(9).fill(false)); setTutDemoBoom(false); }} className="plat-btn-hard plat-btn-hard-2 px-4 py-1.5 bg-white border-2 border-slate-800 rounded-lg font-black text-sm text-slate-800 shadow-[2px_2px_0px_rgba(30,41,59,1)]">↺ 再試一次</button></div>)}
-              </div>
-
-              <div className={"h-[400px] flex flex-col justify-center bg-white border-[3px] border-slate-800 rounded-xl p-4 mb-4 shadow-[4px_4px_0px_rgba(30,41,59,1)]" + (tutStep !== 1 ? " hidden" : "")}>
-                <div className="flex justify-center mb-3">
-                  <div className="w-14 h-14 flex items-center justify-center rounded-[4px] border border-orange-900/20" style={{ background: 'linear-gradient(145deg,#fdba74,#fb923c)' }}>
-                    <span className="mtut-flag text-3xl">🚩</span>
-                  </div>
-                </div>
-                <div className="flex justify-center gap-2 mb-3">
-                  <span className="px-3 py-2 bg-white border-[3px] border-slate-800 rounded-xl font-black text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)]">⛏️ 挖開</span>
-                  <span className="mtut-chip px-3 py-2 border-[3px] border-slate-800 rounded-xl font-black text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)]">🚩 插旗</span>
-                </div>
-                <p className="text-center font-bold text-slate-700">懷疑是地雷？切到「插旗」模式點它，或長按格子做記號</p>
-              </div>
-
-              <div className={"h-[400px] flex flex-col justify-center bg-white border-[3px] border-slate-800 rounded-xl p-4 mb-4 shadow-[4px_4px_0px_rgba(30,41,59,1)]" + (tutStep !== 2 ? " hidden" : "")}>
-                <div className="flex justify-center mb-3">
-                  <div className="relative">
-                    <div className="grid grid-cols-3 gap-[3px]">
-                      <div className="w-11 h-11 flex items-center justify-center text-xl rounded-[4px] border border-orange-900/20" style={{ background: 'linear-gradient(145deg,#fdba74,#fb923c)' }}>🚩</div>
-                      <div className="w-11 h-11 relative flex items-center justify-center font-black text-lg rounded-[4px] border border-orange-900/20 overflow-hidden" style={{ background: '#f8fafc' }}>
-                        <span className="mtut-chord-num" style={{ color: NUM_COLORS[2] }}>2</span>
-                        <div className="mtut-chord-cover absolute inset-0" style={{ background: 'linear-gradient(145deg,#fdba74,#fb923c)' }}></div>
-                      </div>
-                      <div className="w-11 h-11 relative flex items-center justify-center font-black text-lg rounded-[4px] border border-orange-900/20 overflow-hidden" style={{ background: '#f8fafc' }}>
-                        <span className="mtut-chord-num" style={{ color: NUM_COLORS[1] }}>1</span>
-                        <div className="mtut-chord-cover absolute inset-0" style={{ background: 'linear-gradient(145deg,#fdba74,#fb923c)' }}></div>
-                      </div>
-                      <div className="w-11 h-11 relative flex items-center justify-center font-black text-lg rounded-[4px] border border-orange-900/20 overflow-hidden" style={{ background: '#f8fafc' }}>
-                        <span className="mtut-chord-num" style={{ color: NUM_COLORS[1] }}>1</span>
-                        <div className="mtut-chord-cover absolute inset-0" style={{ background: 'linear-gradient(145deg,#fdba74,#fb923c)' }}></div>
-                      </div>
-                      <div className="w-11 h-11 flex items-center justify-center font-black text-lg rounded-[4px] border border-orange-900/20" style={{ background: '#f8fafc', color: NUM_COLORS[1] }}>1</div>
-                      <div className="w-11 h-11 relative flex items-center justify-center font-black text-lg rounded-[4px] border border-orange-900/20 overflow-hidden" style={{ background: '#f8fafc' }}>
-                        <div className="mtut-chord-cover absolute inset-0" style={{ background: 'linear-gradient(145deg,#fdba74,#fb923c)' }}></div>
-                      </div>
-                      <div className="w-11 h-11 relative flex items-center justify-center font-black text-lg rounded-[4px] border border-orange-900/20 overflow-hidden" style={{ background: '#f8fafc' }}>
-                        <div className="mtut-chord-cover absolute inset-0" style={{ background: 'linear-gradient(145deg,#fdba74,#fb923c)' }}></div>
-                      </div>
-                      <div className="w-11 h-11 relative flex items-center justify-center font-black text-lg rounded-[4px] border border-orange-900/20 overflow-hidden" style={{ background: '#f8fafc' }}>
-                        <span className="mtut-chord-num" style={{ color: NUM_COLORS[1] }}>1</span>
-                        <div className="mtut-chord-cover absolute inset-0" style={{ background: 'linear-gradient(145deg,#fdba74,#fb923c)' }}></div>
-                      </div>
-                      <div className="w-11 h-11 relative flex items-center justify-center font-black text-lg rounded-[4px] border border-orange-900/20 overflow-hidden" style={{ background: '#f8fafc' }}>
-                        <span className="mtut-chord-num" style={{ color: NUM_COLORS[2] }}>2</span>
-                        <div className="mtut-chord-cover absolute inset-0" style={{ background: 'linear-gradient(145deg,#fdba74,#fb923c)' }}></div>
-                      </div>
-                    </div>
-                    <span className="mtut-finger2 absolute text-3xl pointer-events-none" style={{ left: 63, top: 62 }}>👆</span>
-                  </div>
-                </div>
-                <p className="text-center font-bold text-slate-700">數字旁的旗子數剛好等於數字時，再點數字格，周圍剩下的格子一次挖開</p>
-              </div>
-
-              <div className={"h-[400px] flex flex-col justify-center bg-white border-[3px] border-slate-800 rounded-xl p-4 mb-4 shadow-[4px_4px_0px_rgba(30,41,59,1)]" + (tutStep !== 3 ? " hidden" : "")}>
-                <div className="flex justify-center gap-8 mb-3">
-                  <div className="flex flex-col items-center gap-1">
-                    <div className="mtut-boom w-14 h-14 flex items-center justify-center text-3xl rounded-[4px] border border-orange-900/20" style={{ background: '#e2e8f0' }}>💣</div>
-                    <span className="text-xs font-semibold text-slate-400">踩到雷</span>
-                  </div>
-                  <div className="flex flex-col items-center gap-1">
-                    <div className="w-14 h-14 flex items-center justify-center rounded-[4px] border border-orange-900/20" style={{ background: '#f8fafc' }}>
-                      <span className="mtut-trophy text-3xl">🏆</span>
-                    </div>
-                    <span className="text-xs font-semibold text-slate-400">全部挖開</span>
-                  </div>
-                </div>
-                <p className="text-center font-bold text-slate-700">第一下點的格子跟周圍 8 格保證沒有雷；不是雷的格子全挖開就贏；挖到雷先扣一顆 ❤️，愛心用完才結束</p>
-                <div className="mt-3 pt-3 border-t-2 border-slate-200 font-bold text-slate-600 leading-relaxed text-left flex flex-col gap-2">
-                  <p>📅 每日一題：每天同一題（9×9），可以回補今年的舊題目，只有今天的會累積連續天數。</p>
-                  <p>👥 多人競速：同一個盤面各玩各的，最快清完的人贏；踩到雷先扣 ❤️、愛心用完才出局，照當時進度排名。</p>
-                </div>
-              </div>
-
-              <div className="flex justify-center gap-2 mb-5">
-                    {[0, 1, 2, 3].map(idx => (<div key={idx} className={"w-2.5 h-2.5 rounded-full border-2 border-slate-800 " + (idx === tutStep ? "bg-[#f97316]" : "bg-white")} />))}
-                </div>
-                <div className="flex gap-3">
-                    {tutStep > 0 ? (<button onClick={() => { setTutStep(tutStep - 1); }} className="plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-white text-slate-800">上一步</button>) : (<div className="flex-1"></div>)}
-                    <button onClick={() => setShowHelp(false)} className="plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-white text-slate-400">跳過</button>
-                    {tutStep < 3 ? (<button onClick={() => { setTutStep(tutStep + 1); }} className="plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-[#f97316] text-slate-900">下一步</button>) : (<button onClick={() => setShowHelp(false)} className="plat-btn-hard flex-1 py-2.5 border-4 border-slate-800 rounded-xl font-black shadow-[4px_4px_0px_rgba(30,41,59,1)] bg-emerald-400 text-slate-900">開始遊戲 🎮</button>)}
-                </div>
-            </div>
+      <div key="home" className="min-h-screen w-full flex flex-col">
+        <div ref={platHomeRef} className="flex-1 flex flex-col min-h-screen"></div>
+        {typeof window !== 'undefined' && !window.PlatHome && (
+          <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 p-4">
+            <div className="text-6xl">💣</div>
+            <div className="font-black text-3xl text-slate-800">踩地雷 Minesweeper</div>
+            <button onClick={() => newGame(sizeId === 16 ? 16 : 9)} className="plat-btn-hard px-6 py-3 bg-[#f97316] border-4 border-slate-800 rounded-xl font-black text-xl">👤 單機挑戰</button>
+            <button onClick={() => startDaily(todayStr())} className="plat-btn-hard px-6 py-3 bg-white border-4 border-slate-800 rounded-xl font-black text-xl">📅 每日一題</button>
           </div>
         )}
       </div>
     );
   }
 
-  // ---------- 多人等待畫面（站規：等候室只有殼的房間頁一個，遊戲內不另設——hub 一般對局只顯示極簡等待卡等自動開局；錦標賽用與數獨/數橋同款的局間等待卡：名單徽章＋準備鈕＋房主開始本局） ----------
   if (screen === 'mp') {
     const M = mpRef.current;
     const szName = (SIZES[M.sizeId] || SIZES[9]).name;
@@ -1912,97 +1925,32 @@ function MinesGame() {
   const hbtn = "plat-btn-hard plat-btn-hard-2 px-2 py-1 md:px-3 md:py-1.5 bg-white border-2 border-slate-800 rounded-md font-bold text-xs md:text-sm shadow-[2px_2px_0px_rgba(30,41,59,1)] flex items-center gap-1 text-slate-800 shrink-0";
   return (
     <div key="game" className="h-screen w-screen p-1 md:p-4 flex flex-col items-center font-sans relative" style={{ backgroundColor: '#fdf3e7', backgroundImage: 'radial-gradient(#f7ddba 2px, transparent 2px)', backgroundSize: '12px 12px' }}>
-      <div className="w-full max-w-[1200px] bg-[#fff7ed] rounded-xl border-4 border-slate-800 shadow-[10px_10px_0px_rgba(30,41,59,1)] flex flex-col h-full relative z-10 overflow-hidden">
-        <div className="bg-[#f97316] border-b-[3px] border-slate-800 shrink-0 z-50 relative transition-all duration-300 ease-in-out px-2 md:px-4 py-1.5 flex flex-col gap-1.5">
-          <div className="flex items-center justify-between gap-2 w-full overflow-x-auto hide-scrollbar pb-0.5">
-            <div className="flex items-center gap-1.5 flex-nowrap shrink-0">
-              <h1 className="font-black tracking-tight uppercase text-base md:text-2xl text-slate-900 flex items-center gap-1 shrink-0">💣<span className="hidden sm:inline">踩地雷</span></h1>
-              <div className="flex items-center gap-1 bg-[#1e293b] text-white px-1.5 py-0.5 rounded font-mono font-bold shadow-[2px_2px_0px_rgba(0,0,0,0.4)] text-[10px] md:text-sm whitespace-nowrap shrink-0">⏱ {fmtTime(elapsed)}</div>
-              {dailyDate && !mpOn && (<div className="flex items-center gap-1 bg-emerald-500 text-white px-1.5 py-0.5 rounded font-black shadow-[2px_2px_0px_rgba(0,0,0,0.4)] text-[10px] md:text-sm whitespace-nowrap shrink-0">📅 每日 {dailyDate.slice(5)}{dailyDate !== todayStr() ? ' 補玩' : ''}</div>)}
-              {mpOn && (<span className="bg-emerald-400 text-slate-900 px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] whitespace-nowrap shrink-0">{mpRef.current.mode === 'race' ? '⚔️ 競速對戰' : '🤝 合作模式'}</span>)}
-            </div>
-            <button onClick={() => setHdrOpen(o => !o)} className="shrink-0 flex px-1.5 py-0.5 bg-[#1e293b] text-white border-2 border-[#1e293b] rounded font-bold text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(0,0,0,0.3)] items-center gap-1 whitespace-nowrap">{hdrOpen ? '🔼 縮小面板' : '🔽 展開規則'}</button>
-          </div>
-          <div className={"plat-collapse-y w-full" + (hdrOpen ? " open" : "")}>
-            <div className="bg-white border-[3px] border-slate-800 rounded-xl p-2 md:p-3 text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)]">
-              <h3 className="text-sm md:text-base font-black mb-1 border-b-[3px] border-[#f97316] inline-block pb-0.5">📜 遊戲規則</h3>
-              <ol className="list-decimal list-outside ml-4 space-y-1 text-xs md:text-sm leading-relaxed font-bold">
-                <li>點格子挖開：數字代表周圍 8 格的地雷數，空白格會自動展開。</li>
-                <li>第一下點的格子＋周圍 8 格保證沒有地雷，放心開始。</li>
-                <li>覺得是雷就插旗：切到 🚩 插旗模式再點格子，或長按格子直接插旗。</li>
-                <li>數字和周圍的旗數一樣時，再點那個數字，可一次挖開周圍剩下的格子（挖開／插旗模式都可以）。</li>
-              </ol>
-            </div>
-          </div>
-          <div className="flex items-center justify-between gap-2 w-full">
-            {mpOn ? (<span className="bg-white px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] whitespace-nowrap shrink-0">⚙️ {spec.short}・{spec.mines} 雷</span>) : (<button onClick={() => setShowSettingsModal(true)} title="設定盤面（換大小重開）" className="plat-btn-hard plat-btn-hard-1 bg-white px-1.5 py-0.5 rounded border-2 border-slate-800 font-black text-[10px] md:text-sm shadow-[1px_1px_0px_rgba(30,41,59,1)] whitespace-nowrap shrink-0">⚙️ {spec.short}・{spec.mines} 雷 ▾</button>)}
-            <div className="flex gap-1 items-center shrink-0">
-              <button onClick={() => setZoomOpen(!zoomOpen)} className={hbtn} title="調整盤面大小（比照數獨的縮放）">🔍{zoom > 1 && (<span className="ml-0.5 text-[10px]">{Math.round(zoom * 100)}%</span>)}</button>
-              <span className={"plat-collapse-x" + (zoomOpen ? " open" : "")}><span className="flex gap-1 items-center whitespace-nowrap">
-                <button onClick={() => setZoom(pz().add(-0.25))} className={hbtn} title="縮小" tabIndex={zoomOpen ? 0 : -1}>－</button>
-                <button onClick={() => setZoom(pz().add(0.25))} className={hbtn} title="放大" tabIndex={zoomOpen ? 0 : -1}>＋</button>
-                <button onClick={() => setZoom(pz().reset())} className={hbtn} title="回到適應螢幕" tabIndex={zoomOpen ? 0 : -1}>適應</button>
-              </span></span>
-            </div>
-            <div className="flex gap-1 md:gap-2 flex-wrap items-center ml-auto">
+      {/* 對局外框：殼 PlatFrame 單一實作（v1.71.0）——頂欄 PlatTopCard 掛外框頂區、盤面/底部列 portal 進外框內容區；舊自有外框 div 已刪 */}
+      <div ref={platFrameRef} className="w-full h-full"></div>
+      {ptcSlot && ReactDOM.createPortal((
+          <React.Fragment>
+            <div className="flex items-center justify-end gap-1 md:gap-2 flex-wrap">
+              <div className="flex gap-1 items-center shrink-0">
+                <button onClick={() => setZoomOpen(!zoomOpen)} className={hbtn} title="調整盤面大小（比照數獨的縮放）">🔍{zoom > 1 && (<span className="ml-0.5 text-[10px]">{Math.round(zoom * 100)}%</span>)}</button>
+                <span className={"plat-collapse-x" + (zoomOpen ? " open" : "")}><span className="flex gap-1 items-center whitespace-nowrap">
+                  <button onClick={() => setZoom(pz().add(-0.25))} className={hbtn} title="縮小" tabIndex={zoomOpen ? 0 : -1}>－</button>
+                  <button onClick={() => setZoom(pz().add(0.25))} className={hbtn} title="放大" tabIndex={zoomOpen ? 0 : -1}>＋</button>
+                  <button onClick={() => setZoom(pz().reset())} className={hbtn} title="回到適應螢幕" tabIndex={zoomOpen ? 0 : -1}>適應</button>
+                </span></span>
+              </div>
               {!mpOn && (<button onClick={() => { if (dailyDate) startDaily(dailyDate); else newGame(sizeId); }} className={hbtn} title="重開一局">🔄<span className="hidden sm:inline ml-1">重開</span></button>)}
               {!mpOn && (<button onClick={() => { setSaveCode(''); setShowSaveModal(true); }} className={hbtn} title="存檔/讀檔（進度代碼）">💾<span className="hidden sm:inline ml-1">存檔</span></button>)}
-              <button onClick={() => { var m = platAudio().toggleMuted(); setMuted(m); }} title={muted ? '取消靜音' : '靜音'} className={hbtn}>{muted ? '🔇' : '🔊'}</button>
-              {mpOn ? (<button onClick={() => setShowExitMenu(true)} className={hbtn} title="離開對局">🔌<span className="hidden sm:inline ml-1">退出</span></button>)
-                    : (<button onClick={() => setScreen('home')} className={hbtn} title="回主選單">🏠<span className="hidden sm:inline ml-1">主選單</span></button>)}
             </div>
-          </div>
-        </div>
-        <div className="w-full flex flex-wrap items-center justify-between px-2 md:px-3 py-1.5 bg-white/60 border-b-2 border-slate-200 shrink-0 gap-x-2 gap-y-1">
-          <div className="font-black text-base md:text-lg text-slate-800 bg-white border-2 border-slate-800 rounded-lg px-2 md:px-3 py-1 shrink-0">💣 {spec.mines - flagsUsed}{Math.floor(spec.mines / 10) > 0 && (<span className="ml-1" style={{ fontSize: 13 }} title="愛心＝還能踩錯的命（容錯次數＋1）：踩到雷少一顆、變灰，歸零後再踩就出局">{Array.from({ length: Math.floor(spec.mines / 10) + 1 }).map((_, hi) => (<span key={hi} style={hi < mistLeft + 1 ? undefined : { filter: 'grayscale(1)', opacity: 0.35 }}>❤️</span>))}</span>)}</div>
-          <div className="flex bg-white border-2 border-slate-800 rounded-lg overflow-hidden font-black shrink-0">
-            <button data-mode="dig" onClick={() => setInputMode('dig')} className="px-2.5 md:px-4 py-1.5 text-sm md:text-base" style={inputMode === 'dig' ? { background: ACCENT, color: '#fff' } : { color: '#64748b' }}>⛏️ 挖開</button>
-            <button data-mode="flag" onClick={() => setInputMode('flag')} className="px-2.5 md:px-4 py-1.5 text-sm md:text-base" style={inputMode === 'flag' ? { background: '#dc2626', color: '#fff' } : { color: '#64748b' }}>🚩 插旗</button>
-          </div>
-          <div className="font-black text-slate-500 text-sm whitespace-nowrap shrink-0 cursor-pointer select-none ml-auto" onClick={toggleProgMode}>{progMode === 'bv' ? '進度（3BV）' : '開格 '}<PlatPct value={Math.floor((progMode === 'bv' ? effProg : progress) * 100)} /><span className="hidden sm:inline">{status === 'ready' ? '・點任意格開始' : status === 'playing' ? '・排雷中…' : ''}</span></div>
-        </div>
-        {showExitMenu && mpOn && (
-          <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-900/60 backdrop-blur-[2px] p-4" onClick={() => setShowExitMenu(false)}>
-            <div className="bg-white border-4 border-slate-800 rounded-2xl shadow-[10px_10px_0px_rgba(30,41,59,1)] p-6 w-full max-w-xs text-center animate-popIn" onClick={e => e.stopPropagation()}>
-              <div className="font-black text-xl text-slate-800 mb-4">要離開對局嗎？</div>
-              {(typeof window !== 'undefined' && window.__PLAT_TOURN_CAN_FORCEEND && window.__PLAT_TOURN_CAN_FORCEEND()) && (
-                <button onClick={() => { setShowExitMenu(false); if (window.__PLAT_TOURN_FORCEEND) window.__PLAT_TOURN_FORCEEND(); }} className="plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 bg-rose-500 text-white border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_rgba(30,41,59,1)]">⏹️ 結束本局（錦標賽）</button>
-              )}
-              <button onClick={() => { setShowExitMenu(false); requestLobby(); }} className="plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 bg-white text-slate-800 border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_rgba(30,41,59,1)]">🏁 回等待室</button>
-              <button onClick={() => { setShowExitMenu(false); leaveMatch(); }} className="plat-btn-hard plat-btn-hard-3 w-full py-3 mb-2 bg-white text-slate-800 border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_rgba(30,41,59,1)]">🚪 退出（回大廳）</button>
-              <button onClick={() => setShowExitMenu(false)} className="w-full py-2 text-slate-400 font-bold hover:text-slate-700">取消</button>
-            </div>
-          </div>
-        )}
-        {showSettingsModal && !mpOn && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4" onClick={() => setShowSettingsModal(false)}>
-            <div className="bg-[#fff7ed] border-[4px] border-[#1e293b] rounded-2xl p-6 shadow-[10px_10px_0px_rgba(30,41,59,1)] w-full max-w-md animate-popIn" onClick={e => e.stopPropagation()}>
-              <h2 className="text-2xl font-black text-slate-800 mb-2 border-b-4 border-[#f97316] inline-block pb-1">⚙️ 設定盤面</h2>
-              <p className="text-sm font-bold text-slate-600 mb-4">選一個盤面大小，會立刻重開一局。</p>
-              <div className="flex flex-col gap-2 mb-4">
-                {[9, 16].map(sz => (
-                  <button key={sz} onClick={() => { setShowSettingsModal(false); newGame(sz); }} className={"plat-btn-hard plat-btn-hard-3 w-full text-left px-4 py-3 border-[3px] border-slate-800 rounded-xl font-black shadow-[3px_3px_0px_rgba(30,41,59,1)]" + (sizeId === sz ? " bg-[#f97316] text-slate-900" : " bg-white text-slate-800")}>{SIZES[sz].name}</button>
-                ))}
-                <div className="w-full bg-white border-[3px] border-slate-800 rounded-xl px-4 py-3 shadow-[3px_3px_0px_rgba(30,41,59,1)]">
-                  <div className="font-black text-slate-800 mb-2">⚙️ 自訂盤面</div>
-                  <div className="flex flex-col gap-2">
-                    <label className="flex items-center justify-between font-bold text-slate-600 text-sm">寬度（左右格數）
-                      <input type="number" min="8" max="30" value={custCfg.w} onChange={e => setCustCfg(c => Object.assign({}, c, { w: e.target.value }))} className="w-24 bg-white border-2 border-slate-800 rounded-lg p-1.5 font-black text-slate-800 text-center outline-none" />
-                    </label>
-                    <label className="flex items-center justify-between font-bold text-slate-600 text-sm">高度（上下格數）
-                      <input type="number" min="8" max="24" value={custCfg.h} onChange={e => setCustCfg(c => Object.assign({}, c, { h: e.target.value }))} className="w-24 bg-white border-2 border-slate-800 rounded-lg p-1.5 font-black text-slate-800 text-center outline-none" />
-                    </label>
-                    <label className="flex items-center justify-between font-bold text-slate-600 text-sm">地雷數
-                      <input type="number" min="5" value={custCfg.mines} onChange={e => setCustCfg(c => Object.assign({}, c, { mines: e.target.value }))} className="w-24 bg-white border-2 border-slate-800 rounded-lg p-1.5 font-black text-slate-800 text-center outline-none" />
-                    </label>
-                    <button onClick={() => { setShowSettingsModal(false); startCustom(); }} className="plat-btn-hard plat-btn-hard-3 w-full py-3 bg-[#f97316] border-[3px] border-slate-800 rounded-xl font-black text-lg text-slate-900 shadow-[3px_3px_0px_rgba(30,41,59,1)]">▶ 以自訂盤開始</button>
-                  </div>
-                </div>
+            <div className="flex flex-wrap items-center justify-between px-2 md:px-3 py-1.5 bg-white/60 border-b-2 border-slate-200 gap-x-2 gap-y-1 -mx-2 md:-mx-4 -mb-1.5">
+              <div className="font-black text-base md:text-lg text-slate-800 bg-white border-2 border-slate-800 rounded-lg px-2 md:px-3 py-1 shrink-0">💣 {spec.mines - flagsUsed}{Math.floor(spec.mines / 10) > 0 && (<span className="ml-1" style={{ fontSize: 13 }} title="愛心＝還能踩錯的命（容錯次數＋1）：踩到雷少一顆、變灰，歸零後再踩就出局">{Array.from({ length: Math.floor(spec.mines / 10) + 1 }).map((_, hi) => (<span key={hi} style={hi < mistLeft + 1 ? undefined : { filter: 'grayscale(1)', opacity: 0.35 }}>❤️</span>))}</span>)}</div>
+              <div className="flex bg-white border-2 border-slate-800 rounded-lg overflow-hidden font-black shrink-0">
+                <button data-mode="dig" onClick={() => setInputMode('dig')} className="px-2.5 md:px-4 py-1.5 text-sm md:text-base" style={inputMode === 'dig' ? { background: ACCENT, color: '#fff' } : { color: '#64748b' }}>⛏️ 挖開</button>
+                <button data-mode="flag" onClick={() => setInputMode('flag')} className="px-2.5 md:px-4 py-1.5 text-sm md:text-base" style={inputMode === 'flag' ? { background: '#dc2626', color: '#fff' } : { color: '#64748b' }}>🚩 插旗</button>
               </div>
-              <button onClick={() => setShowSettingsModal(false)} className="plat-btn-hard w-full py-3 bg-white border-4 border-slate-800 rounded-xl font-black text-slate-800 shadow-[4px_4px_0px_rgba(30,41,59,1)]">取消</button>
+              <div className="font-black text-slate-500 text-sm whitespace-nowrap shrink-0 cursor-pointer select-none ml-auto" onClick={toggleProgMode}>{progMode === 'bv' ? '進度（3BV）' : '開格 '}<PlatPct value={Math.floor((progMode === 'bv' ? effProg : progress) * 100)} /><span className="hidden sm:inline">{status === 'ready' ? '・點任意格開始' : status === 'playing' ? '・排雷中…' : ''}</span></div>
             </div>
-          </div>
-        )}
+          </React.Fragment>
+        ), ptcSlot)}
         {showSaveModal && !mpOn && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
             <div className="bg-[#fff7ed] border-[4px] border-[#1e293b] rounded-2xl p-6 shadow-[10px_10px_0px_rgba(30,41,59,1)] w-full max-w-md animate-popIn">
@@ -2022,7 +1970,9 @@ function MinesGame() {
             </div>
           </div>
         )}
-        <div className="flex-1 overflow-y-auto min-h-0 flex flex-col items-center px-2 py-2 w-full">
+      {frameBody && ReactDOM.createPortal((
+        <React.Fragment>
+          <div className="flex-1 overflow-y-auto min-h-0 flex flex-col items-center px-2 py-2 w-full">
           <div className="relative shrink-0" style={{ maxWidth: '100%' }}>
             <div ref={boardScrollRef} onScroll={updScrollUi} className="mines-board-scroll bg-white/70 border-[3px] border-slate-800 rounded-xl p-2.5 shadow-[4px_4px_0px_rgba(30,41,59,1)] animate-fadeIn" style={{ maxWidth: '100%', overflowX: 'auto', overflowY: zoom > 1 ? 'auto' : 'visible', maxHeight: zoom > 1 ? '68vh' : 'none' }}>
               <div ref={boardZoomRef} style={{ width: 'max-content', margin: '0 auto', position: 'relative' }}>{renderBoard()}
@@ -2077,8 +2027,10 @@ function MinesGame() {
         </div>
       )}
           {renderGodPanel()}
-        </div>
-        <div ref={platBarRef} className="h-16 shrink-0 w-full"></div>
+          </div>
+          <div ref={platBarRef} className="h-16 shrink-0 w-full"></div>
+        </React.Fragment>
+      ), frameBody)}
         {over && !mpOn && (
         <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
           <div className="bg-white border-4 border-slate-800 rounded-xl shadow-[10px_10px_0px_rgba(30,41,59,1)] max-w-sm w-full p-6 text-center animate-popIn">
@@ -2092,7 +2044,6 @@ function MinesGame() {
           </div>
         </div>
       )}
-      </div>
     </div>
   );
 }

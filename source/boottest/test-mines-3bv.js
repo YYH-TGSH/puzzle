@@ -28,12 +28,12 @@ async function soloPart() {
   P.window.PLAT_show('mines');
   await waitFor(() => !!P.window.__PLAT_HOOKS_mines, 120000, 'mines hooks');
   await sleep(500);
-  const clickBtn = pred => { const b = [...P.document.querySelectorAll('#mines-root button')].find(pred); if (b) { b.click(); return true; } return false; };
+  const clickBtn = pred => { const b = [...P.document.querySelectorAll('button')].find(pred); if (b) { b.click(); return true; } return false; }; // 文件層級：PlatSetup overlay 在 body 層（F2）
   clickBtn(b => b.textContent.includes('單機挑戰')); await sleep(250);
   clickBtn(b => b.textContent.includes('9×9'));
   ok(!!(await waitFor(() => P.document.querySelectorAll('#mines-root button[data-cell]').length === 81 ? true : null, 30000, 'cells')), '單機開局');
   const progEl = () => [...P.document.querySelectorAll('#mines-root div')].find(x => x.children.length <= 2 && (x.textContent.startsWith('進度（3BV）') || x.textContent.startsWith('開格 ')));
-  const el0 = progEl();
+  const el0 = await waitFor(() => progEl() || null, 20000, 'prog text'); // v1.71.0：進度字在 PlatTopCard 槽 portal 內（外框→頂欄→槽三段 state 同步，須等）
   ok(!!el0, '進度文字存在且預設 3BV', el0 ? el0.textContent : 'none');
   ok(el0 && el0.tagName !== 'BUTTON' && !/border|bg-/.test(el0.className), '鐵則：進度文字不是按鈕、無邊框/底色 class', el0 ? el0.tagName + '/' + el0.className : '');
   // 挖一個空白區（洪水）

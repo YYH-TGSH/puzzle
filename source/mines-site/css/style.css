@@ -1,8 +1,7 @@
 body {
       overscroll-behavior-y: none;
       background-color: #fdf3e7;
-      background-image: radial-gradient(#f7ddba 2px, transparent 2px);
-      background-size: 12px 12px; /* 背景語法三款統一：單層點陣 2px/12px、只換色調（美學稽核 V-06） */
+      /* 點陣底紙已收歸殼持有（框架層 F2）：圖樣在 shell.css .plat-view、色調走 #view-mines 的 --plat-dot 變數（#f7ddba 不變） */
       margin: 0; padding: 0;
       font-family: 'Helvetica Neue', Helvetica, Arial, 'PingFang TC', 'Heiti TC', 'Microsoft JhengHei', sans-serif;
     }

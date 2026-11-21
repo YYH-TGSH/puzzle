@@ -178,7 +178,7 @@
   var RealPeer = window.Peer;
   window.__RealPeer = RealPeer;
   window.__PLAT_PLATFORM = true;
-  var PLAT_VERSION = '1.70.0';
+  var PLAT_VERSION = '1.71.0';
   window.PLAT_START_WAIT_MS = 60000; // 開始按鈕門檻（兩款共用單一來源）：全員準備，或等待室開滿此毫秒數（防掛機卡房）房主才能開始；測試可調
   // 連線設定：v1.7.1 回滾 v1.6.1 的 OpenRelay TURN——該組公開帳密已失效，死中繼反而讓交涉整體卡死（使用者實測：加了之後連原本能連的都連不上）。
   // 回到 PeerJS 預設（v1.6.0 以前的做法）：同區網/友善 NAT 直連。跨網路穿透需要有在運作的中繼服務（需註冊），使用者 2026-10-18 決定不註冊任何服務，此路暫擱置。
@@ -2939,17 +2939,19 @@
   // ===== PlatFrame：對局外框（殼持有；框架修正批 v1.70.0） =====
   // 定版形狀對照數獨/數橋對局框：w-full max-w-[1200px]、紙面、border-4、硬陰影、rounded-xl；
   // 內部兩區：[data-pframe-top]（PlatTopCard 以 frame:false 併入——band 只剩 border-b、不再是獨立浮卡）
-  // ＋[data-pframe-body]（遊戲以 portal 放盤面與盤下元件）。cfg: { paper }（框紙色，各款色調：
-  // 數獨 #fffaf0／數橋 #f6fdf6／美術燈 #f4f9ff）。F1 的教訓同樣適用：遊戲端 attach 走無依賴自我修復 effect。
+  // ＋[data-pframe-body]（遊戲以 portal 放盤面與盤下元件）。cfg: { paper, bodyCls }（框紙色，各款色調：
+  // 數獨 #fffaf0／數橋 #f6fdf6／美術燈 #f4f9ff／地雷 #fff7ed；bodyCls 可覆寫內容區 class——地雷的捲動欄＋底部列
+  // 需要無 padding 的 flex 欄，v1.71.0）。框高 h-full（對照數獨原框；內容流根容器下自動退化為 auto）。
+  // F1 的教訓同樣適用：遊戲端 attach 走無依賴自我修復 effect。
   var PF = { el: null, top: null, body: null };
   window.PlatFrame = {
     attach: function (el, cfg) {
       if (!el) return;
       if (PF.el && PF.el !== el) window.PlatFrame.detach(PF.el);
       PF.el = el;
-      el.innerHTML = '<div data-pframe="1" class="w-full max-w-[1200px] mx-auto rounded-xl border-4 border-slate-800 shadow-[10px_10px_0px_rgba(30,41,59,1)] flex flex-col relative z-10 overflow-hidden" style="background:' + ((cfg && cfg.paper) || '#fffaf0') + '">'
+      el.innerHTML = '<div data-pframe="1" class="w-full h-full max-w-[1200px] mx-auto rounded-xl border-4 border-slate-800 shadow-[10px_10px_0px_rgba(30,41,59,1)] flex flex-col relative z-10 overflow-hidden" style="background:' + ((cfg && cfg.paper) || '#fffaf0') + '">'
         + '<div data-pframe-top="1"></div>'
-        + '<div data-pframe-body="1" class="flex-1 w-full px-2 py-2 md:px-4 md:py-3"></div></div>';
+        + '<div data-pframe-body="1" class="' + ((cfg && cfg.bodyCls) || 'flex-1 w-full px-2 py-2 md:px-4 md:py-3') + '"></div></div>';
       PF.top = el.querySelector('[data-pframe-top]');
       PF.body = el.querySelector('[data-pframe-body]');
     },

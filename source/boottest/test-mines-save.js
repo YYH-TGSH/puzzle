@@ -37,7 +37,7 @@ async function main() {
   // 開局：單機挑戰 → 9x9
   ok(clickBtn(b => b.textContent.includes('單機挑戰'), d.querySelector('#mines-root')), '點單機挑戰');
   await sleep(300);
-  ok(clickBtn(b => b.textContent.includes('9×9') || b.textContent.includes('9x9'), d.querySelector('#mines-root')), '選 9x9');
+  ok(clickBtn(b => b.textContent.includes('9×9') || b.textContent.includes('9x9'), d.querySelector('#plat-setup')), '選 9x9'); // 設定已收編殼 PlatSetup（F2）
   await waitFor(() => dbg() && dbg().cells, 10000, 'board ready');
 
   // 挖開幾格安全格（每挖一格都重讀目前 layout：首點保護會搬雷，舊 layout 的安全格可能被搬進雷）

@@ -41,7 +41,7 @@ async function main() {
 
   const clickBtn = (pred, scope) => { const b = [...(scope || d).querySelectorAll('button')].find(pred); if (b) { b.click(); return true; } return false; };
   const cellEls = () => [...d.querySelectorAll('#mines-root button[data-cell]')];
-  const specLabel = () => { const el = [...d.querySelectorAll('#mines-root span, #mines-root button')].find(e => (e.textContent || '').includes('⚙️')); return el ? (el.textContent || '').trim() : ''; };
+  const specLabel = () => { const el = d.querySelector('#mines-root [data-ptc-spec], #mines-root [data-ptc="spec"]'); return el ? (el.textContent || '').trim() : ''; }; // 規格籤已收編殼 PlatTopCard（F2；可點版是 button[data-ptc=spec]）
   const labelOk = (want) => { const t = specLabel(); return t.includes(want) && (t.match(/雷/g) || []).length === 1; }; // v1.66.2：雷數只印一次
 
   // --- 主畫面同款結構：四顆鈕、難度不在主畫面 ---
@@ -53,19 +53,29 @@ async function main() {
   ok(!homeTexts.some(t => t.includes('🔊') || t.includes('🔇')), '主畫面沒有靜音鈕');
   ok(clickBtn(b => b.textContent.includes('玩法教學'), d.querySelector('#mines-root')), '點玩法教學');
   await new Promise(r => setTimeout(r, 200));
-  ok([...d.querySelectorAll('#mines-root div')].some(x => x.textContent.includes('周圍 8 格保證沒有雷')) && [...d.querySelectorAll('#mines-root button')].filter(b => b.textContent === '').length === 9 && !!d.querySelector('#mines-root .mtut-flag') && !!d.querySelector('#mines-root .mtut-boom'), '教學 overlay 出現（卡1 互動 demo 9 格可點＋卡片式動畫 mtut-flag/boom＋首點整圈保護文案）');
-  ok(clickBtn(b => b.textContent.includes('下一步'), d.querySelector('#mines-root')), '教學步進：下一步');
+  // 教學已收編殼 PlatTutorial（F2）：overlay 在 body 層、逐頁只渲染當前步——逐步斷言（demo 格/mtut 動畫/首點保護文案各在其頁）
+  const tut = () => d.querySelector('#plat-tutorial');
+  ok(!!(tut() && tut().querySelector('[data-ptu-card]')), '教學 overlay 出現（殼 PlatTutorial）');
+  ok(tut() && tut().querySelectorAll('[data-mtut-cell]').length === 9, '卡1 互動 demo 9 格可點');
+  // 互動 demo 真的能玩：點一格安全格 → 洪水展開（至少 3 格打開）
+  if (tut()) { const c = tut().querySelector('[data-mtut-cell="0"]'); if (c) c.click(); }
   await new Promise(r => setTimeout(r, 200));
-  ok(clickBtn(b => b.textContent.includes('下一步'), d.querySelector('#mines-root')), '教學步進：下一步 2');
+  ok(tut() && tut().querySelectorAll('[data-mtut-grid] > div').length >= 3, 'demo 點格洪水展開');
+  ok(clickBtn(b => b.textContent.includes('下一步'), tut()), '教學步進：下一步');
   await new Promise(r => setTimeout(r, 200));
-  ok(clickBtn(b => b.textContent.includes('下一步'), d.querySelector('#mines-root')), '教學步進：下一步 3');
+  ok(!!(tut() && tut().querySelector('.mtut-flag')), '卡2 插旗動畫（mtut-flag）');
+  ok(clickBtn(b => b.textContent.includes('下一步'), tut()), '教學步進：下一步 2');
   await new Promise(r => setTimeout(r, 200));
-  ok(clickBtn(b => b.textContent.includes('開始遊戲'), d.querySelector('#mines-root')), '關教學（步進末頁開始遊戲）');
+  ok(!!(tut() && tut().querySelector('.mtut-chord-num')), '卡3 和弦動畫（mtut-chord）');
+  ok(clickBtn(b => b.textContent.includes('下一步'), tut()), '教學步進：下一步 3');
+  await new Promise(r => setTimeout(r, 200));
+  ok(!!(tut() && tut().querySelector('.mtut-boom')) && (tut().textContent || '').includes('周圍 8 格保證沒有雷'), '卡4 爆炸動畫＋首點整圈保護文案');
+  ok(clickBtn(b => b.textContent.includes('開始遊戲'), tut()), '關教學（步進末頁開始遊戲）');
 
-  // --- 9×9 開局（先進單機挑戰才選難度） ---
+  // --- 9×9 開局（先進單機挑戰才選難度；設定已收編殼 PlatSetup overlay） ---
   ok(clickBtn(b => b.textContent.includes('單機挑戰'), d.querySelector('#mines-root')), '點單機挑戰');
   await new Promise(r => setTimeout(r, 250));
-  ok(clickBtn(b => b.textContent.includes('9×9'), d.querySelector('#mines-root')), '難度頁點 9×9');
+  ok(clickBtn(b => b.textContent.includes('9×9'), d.querySelector('#plat-setup')), '設定 overlay 點 9×9');
   ok(!!(await waitFor(() => cellEls().length === 81, 15000, '81 cells')), '9×9 盤面 81 格');
   ok(labelOk('9×9・10 雷'), '頂欄標籤 9×9・10 雷（雷數只印一次）: ' + specLabel());
   ok(!!(await waitFor(() => d.querySelector('#mines-root [data-pb="mode-press"]'), 10000, 'bar on game')), '對局畫面有底部列（模式鈕）');
@@ -162,14 +172,17 @@ async function main() {
   await waitFor(() => d.querySelector('#mines-root h1'), 5000, 'home again');
   ok(clickBtn(b => b.textContent.includes('單機挑戰'), d.querySelector('#mines-root')), '再點單機挑戰');
   await new Promise(r => setTimeout(r, 250));
-  ok(clickBtn(b => b.textContent.includes('16×16'), d.querySelector('#mines-root')), '難度頁點 16×16');
+  ok(clickBtn(b => b.textContent.includes('16×16'), d.querySelector('#plat-setup')), '設定 overlay 點 16×16');
   ok(!!(await waitFor(() => cellEls().length === 256, 15000, '256 cells')), '16×16 盤面 256 格');
   ok(labelOk('16×16・40 雷'), '頂欄標籤 16×16・40 雷（雷數只印一次）: ' + specLabel());
   snap = dbg();
   ok(snap && snap.layout.filter(Boolean).length === 40, '16×16 雷數 = 40');
 
   // --- 每日一題：月曆 + 開局 + 完成紀錄/連勝/亮燈 ---
-  ok(clickBtn(b => b.textContent.includes('主選單'), d.querySelector('#mines-root')), '回主選單（每日前）');
+  // 對局中離開走殼 PlatLeaveMenu（F2）：先點頂欄離開鈕開選單、再點選單的回主選單
+  ok(clickBtn(b => b.textContent.includes('主選單'), d.querySelector('#mines-root [data-ptc]')), '點頂欄離開鈕（每日前）');
+  await new Promise(r => setTimeout(r, 250));
+  ok(clickBtn(b => b.textContent.includes('回主選單'), d.querySelector('#plat-leave-menu')), '離開選單點回主選單（每日前）');
   await waitFor(() => d.querySelector('#mines-root h1'), 5000, 'home3');
   const today = (() => { const t = new Date(), p = n => String(n).padStart(2, '0'); return t.getFullYear() + '-' + p(t.getMonth() + 1) + '-' + p(t.getDate()); })();
   ok(clickBtn(b => b.textContent.includes('📅 ' + today), d.querySelector('#mines-root')), '點日期列開月曆');
@@ -200,7 +213,7 @@ async function main() {
   ok(clickBtn(b => b.textContent.includes('回主選單'), d.querySelector('#mines-root')), '每日後回主選單');
   await waitFor(() => d.querySelector('#mines-root h1'), 5000, 'home4');
   await new Promise(r => setTimeout(r, 200));
-  ok([...d.querySelectorAll('#mines-root button')].some(b => b.textContent.includes('每日一題') && b.textContent.includes('已完成')), '主畫面每日一題顯示 ✓ 已完成');
+  ok([...d.querySelectorAll('#mines-root button')].some(b => b.textContent.includes('每日一題') && b.textContent.includes('✓')), '主畫面每日一題顯示 ✓（PlatHome 殼版式）');
 
   const realErrs = errors.filter(e => !/scrollTo/.test(e));
   ok(realErrs.length === 0, '零錯誤' + (realErrs.length ? '：' + realErrs.slice(0, 3).join(' | ') : ''));
